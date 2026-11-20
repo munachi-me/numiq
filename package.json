@@ -1,0 +1,94 @@
+{
+  "name": "numiq",
+  "version": "0.1.0",
+  "description": "A modular JavaScript data analysis engine: load, normalize, inspect, and table structured data.",
+  "keywords": [
+    "data",
+    "dataframe",
+    "dataset",
+    "csv",
+    "tsv",
+    "json",
+    "analytics",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "munachi-me",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/munachi-me/numiq.git"
+  },
+  "bugs": {
+    "url": "https://github.com/munachi-me/numiq/issues"
+  },
+  "homepage": "https://github.com/munachi-me/numiq#readme",
+  "type": "module",
+  "main": "./dist/cjs/node.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/node.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "node": {
+        "import": {
+          "types": "./dist/esm/node.d.ts",
+          "default": "./dist/esm/node.js"
+        },
+        "require": {
+          "types": "./dist/cjs/node.d.ts",
+          "default": "./dist/cjs/node.js"
+        }
+      },
+      "default": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./core": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": [
+    "./dist/esm/node.js",
+    "./dist/cjs/node.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src tests",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:types": "tsc -p tests/types/tsconfig.json --noEmit",
+    "test:package": "node scripts/test-package.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run check:cycles && npm run test && npm run build && npm run test:types && npm run test:package",
+    "prepublishOnly": "npm run verify",
+    "check:cycles": "node scripts/check-cycles.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  }
+}
