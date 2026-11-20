@@ -3,3 +3,7 @@ dist/
 coverage/
 *.tgz
 .DS_Store
+
+# Development prompts are local working documents, not package content.
+numiq-*prompt*.md
+numiq-release-prompts*.md
