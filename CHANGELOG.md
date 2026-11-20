@@ -40,8 +40,11 @@ transformations.
   the body, not only receiving the headers.
 - CSV delimiter detection samples the rows after `skipRows`, so a preamble that uses a
   different separator can no longer corrupt the parse.
-- `columns`, `schema`, and `importReport` are frozen; pushing to `columns` previously
-  desynchronised `columnCount`.
+- `columns`, `schema`, `importReport`, and `metadata` are frozen; pushing to `columns`
+  previously desynchronised `columnCount`.
+- Dataset rows are frozen too. A `filter` predicate that assigned to its row argument
+  previously rewrote the dataset's own data, so filtering could silently change the
+  source instead of only selecting from it.
 - `inferColumnType` and `describeColumn` are no longer exported; they were internal
   helpers that leaked into the public surface without appearing in the default
   namespace.
