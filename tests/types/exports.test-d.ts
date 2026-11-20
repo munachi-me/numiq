@@ -17,6 +17,8 @@ import Numiq, {
   type DatasetOptions,
   type CsvOptions,
   type JsonOptions,
+  useSampleDataset,
+  type SortDirection,
   ValidationError,
   ColumnNotFoundError,
 } from "../../src/index.js";
@@ -92,3 +94,48 @@ createDataset([{ a: 1 }], { columns: [1] });
 fromRecords.head("two");
 // @ts-expect-error maxRows must be numeric
 fromRecords.table({ maxRows: "10" });
+
+// ------------------------------------------------------------------ v0.2.0 contract
+
+// The sample helper is async and resolves to a Dataset.
+expectType<Promise<Dataset>>(useSampleDataset());
+expectType<Promise<Dataset>>(Numiq.useSampleDataset());
+
+// Every transformation returns a Dataset, so chains stay type-safe.
+expectType<Dataset>(fromRecords.filter((row) => Number(row.a) > 0));
+expectType<Dataset>(fromRecords.sort("a"));
+expectType<Dataset>(fromRecords.sort("a", "desc"));
+expectType<Dataset>(fromRecords.select(["a"]));
+expectType<Dataset>(fromRecords.limit(1));
+expectType<Dataset>(
+  fromRecords
+    .filter((row) => row.a !== null)
+    .sort("a")
+    .select(["a"])
+    .limit(1),
+);
+
+// The predicate receives the row and its index.
+fromRecords.filter((row, index) => {
+  expectType<Row>(row);
+  expectType<number>(index);
+  return true;
+});
+
+// sort accepts only the two documented directions.
+const direction: SortDirection = "desc";
+expectType<SortDirection>(direction);
+
+// datasetDir is a typed option on every loader.
+loadCSV("sales.csv", { datasetDir: "/tmp/project" });
+
+// @ts-expect-error sort direction is a closed union
+fromRecords.sort("a", "ascending");
+// @ts-expect-error select takes column names, not a bare string
+fromRecords.select("a");
+// @ts-expect-error limit takes a number
+fromRecords.limit("1");
+// @ts-expect-error filter requires a predicate
+fromRecords.filter("a");
+// @ts-expect-error datasetDir must be a string
+loadCSV("sales.csv", { datasetDir: 42 });

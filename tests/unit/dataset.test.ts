@@ -254,3 +254,45 @@ describe("constructor guard", () => {
     expect(createDataset([{ a: 1 }])).toBeInstanceOf(Dataset);
   });
 });
+
+describe("runtime immutability", () => {
+  it("returns a frozen column array", () => {
+    const data = createDataset([{ a: 1, b: 2 }]);
+    expect(Object.isFrozen(data.columns)).toBe(true);
+    expect(() => (data.columns as string[]).push("injected")).toThrow();
+    expect(data.columnCount).toBe(2);
+  });
+
+  it("returns a frozen schema", () => {
+    const data = createDataset([{ a: 1 }]);
+    expect(Object.isFrozen(data.schema)).toBe(true);
+    expect(() => {
+      (data.schema.a as { type: string }).type = "banana";
+    }).toThrow();
+    expect(data.schema.a!.type).toBe("integer");
+  });
+
+  it("deep-freezes metadata", () => {
+    const data = createDataset([{ a: 1 }], { metadata: { nested: { deep: 1 } } });
+    expect(Object.isFrozen(data.metadata.nested)).toBe(true);
+    expect(() => {
+      (data.metadata.nested as { deep: number }).deep = 999;
+    }).toThrow();
+    expect((data.metadata.nested as { deep: number }).deep).toBe(1);
+  });
+
+  it("does not freeze the caller's metadata object", () => {
+    const metadata = { nested: { deep: 1 } };
+    createDataset([{ a: 1 }], { metadata });
+    expect(Object.isFrozen(metadata)).toBe(false);
+    metadata.nested.deep = 2;
+    expect(metadata.nested.deep).toBe(2);
+  });
+
+  it("still hands out defensive copies of rows", () => {
+    const data = createDataset([{ a: 1 }]);
+    const rows = data.data as { a: number }[];
+    rows[0]!.a = 42;
+    expect(data.data[0]!.a).toBe(1);
+  });
+});

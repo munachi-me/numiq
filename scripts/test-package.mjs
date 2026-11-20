@@ -10,8 +10,12 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(import.meta.dirname, "..");
+// `here` needs Node >= 20.11, but the package supports Node 18.
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+const root = path.resolve(here, "..");
 const failures = [];
 
 function check(name, condition, detail = "") {
@@ -60,11 +64,17 @@ try {
     [
       "--input-type=module",
       "-e",
-      `import Numiq, { createDataset, loadCSV, parseDelimited } from "numiq";
+      `import Numiq, { createDataset, loadCSV, parseDelimited, useSampleDataset } from "numiq";
        const data = parseDelimited("a,b\\n1,2\\n", { format: "csv" });
+       const sample = await Numiq.useSampleDataset();
+       const chained = sample.filter((r) => Number(r.revenue) > 100).sort("revenue", "desc").select(["order_id", "revenue"]).limit(5);
        console.log(JSON.stringify({
          rowCount: data.rowCount,
          identity: Numiq.createDataset === createDataset,
+         sampleIdentity: Numiq.useSampleDataset === useSampleDataset,
+         sampleShape: sample.shape,
+         chainedRows: chained.rowCount,
+         chainedColumns: chained.columns,
          loadCSV: typeof loadCSV,
          table: data.table().includes("1 rows × 2 columns"),
        }));`,
@@ -76,6 +86,10 @@ try {
   check("default and named exports agree", esmResult.identity === true);
   check("exports loaders", esmResult.loadCSV === "function");
   check("renders a table", esmResult.table === true);
+  check("ships the sample dataset", JSON.stringify(esmResult.sampleShape) === "[50,7]", String(esmResult.sampleShape));
+  check("exposes the sample helper on the default namespace", esmResult.sampleIdentity === true);
+  check("chains transformations from the packed package", esmResult.chainedRows === 5, String(esmResult.chainedRows));
+  check("select reorders columns", JSON.stringify(esmResult.chainedColumns) === '["order_id","revenue"]');
 
   console.log("\ncjs require");
   const cjs = execFileSync(
@@ -109,6 +123,26 @@ try {
   check("browser entry is built", browserResult.target.endsWith("dist/esm/index.js"));
   check("browser entry has no node: built-ins", browserResult.builtins.length === 0, browserResult.builtins.join(", "));
 
+  console.log("\nbrowser sample dataset");
+  const browserSample = execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import { useSampleDataset } from "numiq/core";
+       const sample = await useSampleDataset();
+       console.log(JSON.stringify({ shape: sample.shape, source: sample.importReport?.source }));`,
+    ],
+    { cwd: consumer, encoding: "utf8" },
+  );
+  const browserSampleResult = JSON.parse(browserSample);
+  check(
+    "loads the sample through the browser-safe entry",
+    JSON.stringify(browserSampleResult.shape) === "[50,7]",
+    String(browserSampleResult.shape),
+  );
+  check("sample report names its source", browserSampleResult.source === "sample-sales");
+
   console.log("\ndeclarations");
   const declaration = await readFile(path.join(consumer, "node_modules", "numiq", "dist", "esm", "node.d.ts"), "utf8");
   check(
@@ -120,7 +154,7 @@ try {
     path.join(consumer, "node_modules", "numiq", "dist", "esm", "core", "dataset.d.ts"),
     "utf8",
   );
-  for (const member of ["columns", "shape", "data", "table", "rowCount", "columnCount"]) {
+  for (const member of ["columns", "shape", "data", "table", "rowCount", "columnCount", "filter", "sort", "select", "limit"]) {
     check(`Dataset declares ${member}`, datasetDeclaration.includes(member));
   }
 } finally {

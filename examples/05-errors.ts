@@ -17,13 +17,13 @@ try {
 }
 
 try {
-  await loadCSV("examples/data/users.json");
+  await loadCSV("users.json"); // a .json file, so loadCSV refuses it
 } catch (error) {
   if (error instanceof FormatError) console.log("wrong loader:", error.message);
 }
 
 try {
-  await loadCSV("examples/data/does-not-exist.csv");
+  await loadCSV("does-not-exist.csv");
 } catch (error) {
   if (error instanceof NumiqError) console.log("import failure:", error.code, "-", error.message);
 }

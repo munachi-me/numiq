@@ -5,7 +5,7 @@
  */
 import { loadCSV } from "numiq";
 
-const sales = await loadCSV("examples/data/sales.csv", {
+const sales = await loadCSV("sales.csv", {
   schema: {
     amount: "number",
     ordered_on: "date",
@@ -18,5 +18,5 @@ console.log("ordered_on:", first?.ordered_on instanceof Date ? "Date" : typeof f
 console.log("dtypes:", sales.dtypes);
 
 // Without a schema, dates stay strings and are only reported as dates.
-const raw = await loadCSV("examples/data/sales.csv");
+const raw = await loadCSV("sales.csv");
 console.log("raw date value:", typeof raw.data[0]?.ordered_on, raw.dtypes.ordered_on);

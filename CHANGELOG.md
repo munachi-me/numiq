@@ -8,6 +8,52 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.2.0] - 2026-11-20
+
+Local data loading becomes a one-line operation, and `Dataset` gains the first
+transformations.
+
+### Added
+
+- Local files are read from a `dataset/` folder in the project root, by filename only:
+  `loadCSV("sales.csv")` reads `<cwd>/dataset/sales.csv`. The same applies to `loadJSON`
+  and `loadTSV`.
+- `datasetDir` loader option for scripts that do not run from the project root.
+- `useSampleDataset()`, a bundled 50-row, 7-column sales table that needs no files on
+  disk and returns identical data on every call.
+- `Dataset.filter()`, `Dataset.sort()`, `Dataset.select()`, and `Dataset.limit()`. Each
+  returns a new `Dataset`, so they chain.
+- `SortDirection` type (`"asc" | "desc"`).
+
+### Changed
+
+- **Breaking:** local loading no longer accepts arbitrary paths. Absolute paths, `..`,
+  any path separator, and symlinks that resolve outside `dataset/` are rejected with
+  `ValidationError` or `ImportError`. Pass a URL, `Blob`, or in-memory value for data
+  that lives elsewhere.
+- Derived datasets (`head`, `tail`, `filter`, `sort`, `select`, `limit`) report
+  `importReport` as `null` rather than the source import's report.
+
+### Fixed
+
+- `loadURL` no longer hangs when a response body stalls. The timeout now covers reading
+  the body, not only receiving the headers.
+- CSV delimiter detection samples the rows after `skipRows`, so a preamble that uses a
+  different separator can no longer corrupt the parse.
+- `columns`, `schema`, and `importReport` are frozen; pushing to `columns` previously
+  desynchronised `columnCount`.
+- `inferColumnType` and `describeColumn` are no longer exported; they were internal
+  helpers that leaked into the public surface without appearing in the default
+  namespace.
+- Build and test scripts use `fileURLToPath` instead of `import.meta.dirname`, which
+  needs Node 20.11 but was used in a package that supports Node 18.
+
+### Notes
+
+- `sort` is total and deterministic: missing values sort last in both directions,
+  numbers and dates compare numerically, other values compare as text, and ties keep
+  their original order.
+
 ## [0.1.0] - 2026-11-20
 
 The import and dataset foundation. This is the first release.

@@ -2,19 +2,24 @@
 
 A modular TypeScript engine for loading, normalizing, and inspecting structured data.
 
-Numiq v0.1.0 is the import and dataset foundation: it reads CSV, TSV, and JSON from
-files, URLs, and in-memory buffers, normalizes the values, and gives you an immutable
-`Dataset` you can inspect and render as a table.
+Numiq v0.2.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+normalizes the values, and gives you an immutable `Dataset` you can inspect, filter,
+sort, and render as a table.
 
 ```ts
 import { loadCSV } from "numiq";
 
-const data = await loadCSV("sales.csv");
+const data = await loadCSV("sales.csv"); // reads ./dataset/sales.csv
 
 data.shape;        // [2, 2]
 data.columns;      // ["product", "amount"]
-data.data;         // [{ product: "Mouse", amount: 25 }, ...]
 data.table();      // a box-drawing table
+
+data
+  .filter((row) => Number(row.amount) > 30)
+  .sort("amount", "desc")
+  .select(["product", "amount"])
+  .limit(10);
 ```
 
 - Zero runtime dependencies.
@@ -34,11 +39,53 @@ Node.js 18 or later. Works in browsers and bundlers; see [Environments](#environ
 
 ### Load from a file
 
-```ts
-import { loadCSV } from "numiq";
+Numiq reads local files from a `dataset/` folder in your project root. Create that
+folder, drop your data in it, and pass the filename:
 
-const data = await loadCSV("./data/sales.csv");
+```text
+my-project/
+├── dataset/
+│   ├── sales.csv
+│   └── customers.json
+├── node_modules/
+├── package.json
+└── src/
+    └── index.ts
 ```
+
+```ts
+import { loadCSV, loadJSON, loadTSV } from "numiq";
+
+const sales = await loadCSV("sales.csv");
+const customers = await loadJSON("customers.json");
+```
+
+Do not include `dataset/` in the argument. `loadCSV("./dataset/sales.csv")`,
+`loadCSV("/abs/path/sales.csv")`, and `loadCSV("../sales.csv")` are all rejected.
+
+The folder is resolved from `process.cwd()`. If your script runs from a different
+directory, such as a monorepo tool, pass the project root explicitly:
+
+```ts
+const sales = await loadCSV("sales.csv", { datasetDir: "/path/to/project" });
+```
+
+`loadCSV` reads only `<datasetDir>/dataset/<filename>`. The path is resolved with
+`realpath` before use, so a symlink inside `dataset/` that points outside it is refused.
+
+### Load the bundled sample
+
+```ts
+import { useSampleDataset } from "numiq";
+
+const sample = await useSampleDataset();
+
+sample.shape;   // [50, 7]
+sample.table();
+```
+
+The sample is a fixed 50-row sales table that ships inside the package, so it works
+without creating a `dataset/` folder and is identical on every call.
 
 ### Load from a URL
 
@@ -114,6 +161,28 @@ Inspection methods:
 | `column(name)` | Type, values, missing count, and cardinality |
 | `distinct(name)` | Distinct present values, in first-seen order |
 | `unique(name)` | Number of distinct present values |
+
+Transformation methods return a new `Dataset`, so they chain:
+
+| Method | Description |
+| --- | --- |
+| `filter(predicate)` | Rows where `predicate(row, index)` is true |
+| `sort(column, direction?)` | Sorted copy; `direction` is `"asc"` (default) or `"desc"` |
+| `select(columns)` | Only the named columns, in the requested order |
+| `limit(count)` | At most `count` rows from the start |
+
+```ts
+const top = data
+  .filter((row) => Number(row.revenue) > 100)
+  .sort("revenue", "desc")
+  .select(["order_id", "product", "revenue"])
+  .limit(10);
+```
+
+Sorting is total and deterministic: missing values (`null`/`undefined`) sort last in
+both directions, numbers and dates compare numerically, everything else compares as
+text, and equal values keep their original order. Derived datasets report
+`importReport` as `null`, because the source counts would no longer describe them.
 
 ## Table output
 
@@ -294,22 +363,24 @@ The default entry contains no Node.js built-ins, so it bundles for the browser w
 polyfills. Calling `loadCSV("./data.csv")` there fails with an `EnvironmentError` that
 explains what to do instead, rather than a bundler error or a silent failure.
 
-Local file paths are resolved against the current working directory and are not otherwise
-restricted. Numiq is a library and does not impose a sandbox on its consumer.
+Local filenames are resolved against the `dataset/` folder in the current working
+directory and are confined to it: absolute paths, `..`, path separators, and symlinks
+that resolve outside the folder are all refused.
 
 CommonJS consumers can `require("numiq")`; the `require` condition resolves to a
 CommonJS build.
 
-## Scope of v0.1.0
+## Scope of v0.2.0
 
-Implemented: import (CSV, TSV, JSON, URL), normalization, type casting, the `Dataset`
-abstraction, inspection, table rendering, the error taxonomy, and the environment split.
+Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
+casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
+table rendering, the bundled sample dataset, the error taxonomy, and the environment
+split.
 
-Deliberately not in v0.1.0: filtering, sorting, grouping, aggregation, descriptive
-statistics, joins, metrics, and Excel import. The architecture reserves space for them
-(see `docs/architecture.md`), but no partial versions ship. `Dataset` is immutable, so
-every future transformation will return a new `Dataset` without changing existing
-behaviour.
+Deliberately not in v0.2.0: grouping, aggregation, descriptive statistics, joins,
+metrics, and Excel import. The architecture reserves space for them (see
+`docs/architecture.md`). `Dataset` is immutable, so every future transformation will
+return a new `Dataset` without changing existing behaviour.
 
 ## Development
 

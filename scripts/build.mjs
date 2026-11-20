@@ -1,8 +1,12 @@
 import { rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(import.meta.dirname, "..");
+// `here` needs Node >= 20.11, but the package supports Node 18.
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+const root = path.resolve(here, "..");
 const tsc = path.join(root, "node_modules", ".bin", "tsc");
 
 const run = (args) => execFileSync(tsc, args, { cwd: root, stdio: "inherit" });

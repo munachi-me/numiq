@@ -48,7 +48,19 @@ describe("public surface", () => {
     }
   });
 
+  it("keeps every runtime export in the default namespace (automatic parity)", () => {
+    const namespace = named as Record<string, unknown>;
+    const runtimeExports = Object.keys(namespace).filter((key) => key !== "default");
+    expect(runtimeExports.length).toBeGreaterThan(10);
+    for (const key of runtimeExports) {
+      expect(Numiq, `named export "${key}" is missing from the default namespace`).toHaveProperty(key);
+      expect((Numiq as Record<string, unknown>)[key], `default.${key} is not the same object`).toBe(namespace[key]);
+    }
+  });
+
   it("does not leak internal helpers", () => {
+    expect(named).not.toHaveProperty("inferColumnType");
+    expect(named).not.toHaveProperty("describeColumn");
     expect(named).not.toHaveProperty("setLocalFileReader");
     expect(named).not.toHaveProperty("createNormalizedDataset");
     expect(named).not.toHaveProperty("ReportBuilder");

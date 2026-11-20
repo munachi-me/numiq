@@ -16,6 +16,14 @@ export interface LoadOptions {
   headers?: Record<string, string>;
   /** Only used by `loadURL`. Defaults to 30 seconds. */
   timeoutMs?: number;
+  /**
+   * Node only. Directory that local filenames resolve against.
+   *
+   * Defaults to `process.cwd()`'s `dataset/` folder, which is where a project keeps its
+   * data. Set this only when a script is launched from somewhere other than the project
+   * root (a monorepo, a test runner with a different cwd).
+   */
+  datasetDir?: string;
 }
 
 /** CSV/TSV parse options. */

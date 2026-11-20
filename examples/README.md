@@ -14,6 +14,8 @@ npx tsx examples/01-load-and-inspect.ts
 | `03-normalization.ts` | Default versus opted-in normalization |
 | `04-json-and-tsv.ts` | JSON and TSV through the same `Dataset` |
 | `05-errors.ts` | Catching typed errors |
+| `06-sample-and-chaining.ts` | The bundled sample dataset and a fluent chain |
 
-The examples import `numiq` by package name. To run them before publishing, either
-`npm link` the package or build and point your tool at `dist/`.
+The examples read from the project-root `dataset/` folder by filename, so run them from
+the repository root. They import `numiq` by package name; to run them before publishing,
+either `npm link` the package or build and point your tool at `dist/`.
