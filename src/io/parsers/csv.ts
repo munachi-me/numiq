@@ -27,7 +27,9 @@ export function parseDelimited(
   const skipRows = requireSkipRows(options.skipRows);
 
   const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const delimiter = options.delimiter ?? detectDelimiter(body);
+  // Sample after the preamble: a report header that uses a different separator must not
+  // outvote the real table, which is what happens when detection sees the whole file.
+  const delimiter = options.delimiter ?? detectDelimiter(body, 10, skipRows);
   const rawRecords = tokenize(body, delimiter);
   const nonBlank = rawRecords.filter((record) => record.some((cell) => cell.trim() !== ""));
   const remaining = nonBlank.slice(Math.min(skipRows, nonBlank.length));

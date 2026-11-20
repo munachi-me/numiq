@@ -97,11 +97,11 @@ export function tokenize(text: string, delimiter: string): string[][] {
  * Detection inspects several non-blank lines rather than only the first, so a preamble
  * line (a report title, for example) cannot decide the delimiter for the whole file.
  */
-export function detectDelimiter(text: string, sampleLines = 10): string {
+export function detectDelimiter(text: string, sampleLines = 10, skipLines = 0): string {
   const lines = text
     .split(/\r\n|\n|\r/)
     .filter((line) => line.trim() !== "")
-    .slice(0, sampleLines);
+    .slice(skipLines, skipLines + sampleLines);
   if (lines.length === 0) return ",";
 
   let best: { delimiter: string; score: number } = { delimiter: ",", score: 0 };

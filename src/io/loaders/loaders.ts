@@ -117,7 +117,7 @@ async function resolveSource(source: Source, options: LoadOptions): Promise<Reso
 
   if (typeof source === "string") {
     if (/^https?:\/\//i.test(source)) return fetchSource(source, options);
-    return readLocalFile(source);
+    return readLocalFile(source, options.datasetDir);
   }
 
   if (source instanceof ArrayBuffer || source instanceof Uint8Array) {
@@ -149,45 +149,61 @@ async function fetchSource(url: string, options: LoadOptions): Promise<ResolvedS
   const onAbort = (): void => controller.abort(external?.reason);
   external?.addEventListener("abort", onAbort, { once: true });
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      signal: controller.signal,
-      ...(options.headers === undefined ? {} : { headers: options.headers }),
-    });
-  } catch (error) {
-    if (external?.aborted) throw error;
+  const isTimeout = (): boolean => {
     const reason = controller.signal.reason;
-    const timedOut = reason instanceof Error && reason.message === "timeout";
-    throw new ImportError(
-      timedOut ? `Request to ${url} timed out after ${timeoutMs} ms.` : `Could not load ${url}: ${describe(error)}.`,
-      { source: url },
-    );
+    return reason instanceof Error && reason.message === "timeout";
+  };
+
+  try {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        signal: controller.signal,
+        ...(options.headers === undefined ? {} : { headers: options.headers }),
+      });
+    } catch (error) {
+      if (external?.aborted) throw error;
+      throw new ImportError(
+        isTimeout()
+          ? `Request to ${url} timed out after ${timeoutMs} ms.`
+          : `Could not load ${url}: ${describe(error)}.`,
+        { source: url },
+      );
+    }
+
+    if (!response.ok) {
+      throw new ImportError(`Could not load ${url}: HTTP ${response.status} ${response.statusText}.`, {
+        status: response.status,
+        source: url,
+      });
+    }
+
+    // The body is streamed after the headers arrive, so the timer and abort wiring must
+    // stay live until `text()` settles. Clearing them on the header response would let a
+    // server that stalls mid-body hang the call past the configured timeout.
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (error) {
+      if (external?.aborted) throw error;
+      throw new ImportError(
+        isTimeout()
+          ? `Reading the response body from ${url} timed out after ${timeoutMs} ms.`
+          : `Could not read the response body from ${url}: ${describe(error)}.`,
+        { source: url },
+      );
+    }
+
+    const contentType = response.headers.get("content-type") ?? undefined;
+    return {
+      text: text.charCodeAt(0) === 0xfeff ? text.slice(1) : text,
+      label: labelFromPath(safePathname(url)),
+      ...(contentType === undefined ? {} : { contentType }),
+    };
   } finally {
     clearTimeout(timer);
     external?.removeEventListener("abort", onAbort);
   }
-
-  if (!response.ok) {
-    throw new ImportError(`Could not load ${url}: HTTP ${response.status} ${response.statusText}.`, {
-      status: response.status,
-      source: url,
-    });
-  }
-
-  let text: string;
-  try {
-    text = await response.text();
-  } catch (error) {
-    throw new ImportError(`Could not read the response body from ${url}: ${describe(error)}.`, { source: url });
-  }
-
-  const contentType = response.headers.get("content-type") ?? undefined;
-  return {
-    text: text.charCodeAt(0) === 0xfeff ? text.slice(1) : text,
-    label: labelFromPath(safePathname(url)),
-    ...(contentType === undefined ? {} : { contentType }),
-  };
 }
 
 function safePathname(url: string): string {
@@ -208,7 +224,7 @@ function describe(error: unknown): string {
  * The browser entry leaves this unset, so `loadCSV("data.csv")` fails with an actionable
  * `EnvironmentError` instead of a bundler error or a silent failure.
  */
-export type LocalFileReader = (path: string) => Promise<ResolvedSource>;
+export type LocalFileReader = (filename: string, datasetDir?: string) => Promise<ResolvedSource>;
 
 let localFileReader: LocalFileReader | null = null;
 
@@ -217,9 +233,9 @@ export function setLocalFileReader(reader: LocalFileReader): void {
   localFileReader = reader;
 }
 
-async function readLocalFile(path: string): Promise<ResolvedSource> {
-  if (localFileReader === null) assertNotLocalPath(path);
-  return localFileReader!(path);
+async function readLocalFile(filename: string, datasetDir?: string): Promise<ResolvedSource> {
+  if (localFileReader === null) assertNotLocalPath(filename);
+  return localFileReader!(filename, datasetDir);
 }
 
 export { EnvironmentError, FormatError };

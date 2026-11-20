@@ -5,7 +5,7 @@
  */
 import { loadCSV } from "numiq";
 
-const sales = await loadCSV("examples/data/sales.csv");
+const sales = await loadCSV("sales.csv");
 
 console.log(sales.table());
 console.log();

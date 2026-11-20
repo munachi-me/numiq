@@ -104,6 +104,17 @@ describe("header options", () => {
     expect(csv("title\na;b\n1;2\n", { skipRows: 1 }).columns).toEqual(["a", "b"]);
   });
 
+  it("ignores a preamble that outnumbers the table when detecting the delimiter", () => {
+    // Ten preamble lines using ";" then a three-line "," table. Detection must sample the
+    // post-preamble rows, or the preamble outvotes the real separator.
+    const preamble = Array.from({ length: 10 }, (_, index) => `meta;line;${index}`).join("\n");
+    const text = `${preamble}\nid,name,score\n1,Ada,9\n2,Lin,7\n`;
+    const data = csv(text, { skipRows: 10 });
+    expect(data.columns).toEqual(["id", "name", "score"]);
+    expect(data.rowCount).toBe(2);
+    expect(data.data[0]).toEqual({ id: 1, name: "Ada", score: 9 });
+  });
+
   it("rejects a negative skipRows", () => {
     expect(() => csv("a\n1\n", { skipRows: -1 })).toThrow(ValidationError);
   });

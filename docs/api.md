@@ -51,8 +51,24 @@ rejects a source that declares a different format: `loadCSV("users.json")` throw
 `FormatError` rather than parsing JSON.
 
 `source` is `string | URL | Blob | ArrayBuffer | Uint8Array`. A string is treated as an
-http(s) URL when it starts with `http://` or `https://`, and as a file path otherwise.
-File paths require the Node entry point.
+http(s) URL when it starts with `http://` or `https://`, and as a local filename
+otherwise. Local filenames require the Node entry point.
+
+A local filename is resolved against `<datasetDir>/dataset`, where `datasetDir` defaults
+to `process.cwd()`. Only a bare filename is accepted: absolute paths, `..`, path
+separators, and symlinks that resolve outside the folder are rejected.
+
+### `useSampleDataset()`
+
+Asynchronous. Resolves to a bundled 50-row, 7-column sales dataset, so it works without
+a `dataset/` folder and is identical on every call. Content is embedded in the package,
+which keeps it available in ESM, CommonJS, and browser builds. `shape` is `[50, 7]`.
+
+```ts
+const sample = await useSampleDataset();
+```
+
+`LoadOptions.datasetDir` overrides the project root used for local filenames.
 
 ### `loadURL(url, options?)`
 
@@ -121,6 +137,33 @@ Prints `table()` via `console.log` and returns the dataset for chaining.
 
 Return a new dataset with the first or last `count` rows. Throws `ValidationError` for a
 negative or fractional count. Derived datasets report `importReport === null`.
+
+#### `filter(predicate)`
+
+Returns a new dataset of rows where `predicate(row, index)` is true, in original order.
+Rows are frozen, so a predicate that writes to its argument throws a `TypeError`.
+
+#### `sort(column, direction = "asc")`
+
+Returns a new dataset sorted by `column`. `direction` is `"asc"` or `"desc"`; anything
+else throws `ValidationError`. Ordering is total and deterministic: missing values sort
+last in both directions, numbers and dates compare numerically, other values compare as
+text, and equal values keep their original order. Throws `ColumnNotFoundError` for an
+unknown column.
+
+#### `select(columns)`
+
+Returns a new dataset with only the named columns, in the requested order. Throws
+`ColumnNotFoundError` for an unknown column and `ValidationError` for an empty or
+duplicated list.
+
+#### `limit(count)`
+
+Returns a new dataset with at most `count` rows from the start. Throws
+`ValidationError` for a negative or fractional count.
+
+All four transformations return a `Dataset`, so they chain, and all report
+`importReport === null`.
 
 #### `info()`
 

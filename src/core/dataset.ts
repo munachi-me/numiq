@@ -60,15 +60,20 @@ export class Dataset {
         const raw = source[column];
         record[column] = normalized ? cloneValue(raw ?? null) : normalizeCell(raw, policy).value;
       }
-      built[index] = record;
+      // Frozen so a `filter` predicate (or any other callback) cannot rewrite the
+      // dataset's own rows; the class promises immutability to JavaScript callers too.
+      built[index] = Object.freeze(record) as Row;
     }
 
-    this.#rows = built;
-    this.#columns = columns;
+    this.#rows = Object.freeze(built) as readonly Row[];
+    // Frozen so a JavaScript caller cannot push a phantom column past the `readonly` type.
+    this.#columns = Object.freeze(columns) as readonly string[];
     this.#options = { ...options };
     this.#importReport = options.importReport ? deepFreeze(cloneValue(options.importReport)) : null;
     this.name = options.name ?? "Dataset";
-    this.metadata = Object.freeze({ ...(options.metadata ?? {}) });
+    // Deep-frozen copy: the documented contract is immutability, and a shallow freeze
+    // would still let `metadata.nested.x = ...` corrupt the dataset.
+    this.metadata = deepFreeze(cloneValue(options.metadata ?? {}));
   }
 
   // ---------------------------------------------------------------- structure
@@ -108,8 +113,8 @@ export class Dataset {
 
   /** Per-column type and nullability. Cached; the dataset is immutable. */
   get schema(): Readonly<Record<string, ColumnSchema>> {
-    this.#schemaCache ??= Object.fromEntries(
-      this.#columns.map((column) => [column, describeColumn(column, this.#columnValues(column))]),
+    this.#schemaCache ??= deepFreeze(
+      Object.fromEntries(this.#columns.map((column) => [column, describeColumn(column, this.#columnValues(column))])),
     );
     return this.#schemaCache;
   }
@@ -183,6 +188,89 @@ export class Dataset {
   unique(name: string): number {
     this.#assertColumn(name);
     return countUnique(this.#columnValues(name));
+  }
+
+  // ---------------------------------------------------------------- transformations
+
+  /**
+   * Rows that satisfy `predicate`, in their original order.
+   *
+   * The predicate receives a frozen row record, so an accidental write throws instead of
+   * silently altering the dataset.
+   */
+  filter(predicate: (row: Row, index: number) => boolean): Dataset {
+    if (typeof predicate !== "function") {
+      throw new ValidationError("filter expects a predicate function.");
+    }
+    const kept: Row[] = [];
+    for (const [index, row] of this.#rows.entries()) {
+      if (predicate(row, index)) kept.push(row);
+    }
+    return this.#derive(kept);
+  }
+
+  /**
+   * Rows sorted by `column`.
+   *
+   * Ordering is total and deterministic: nullish values sort last in both directions,
+   * numbers and dates compare numerically, everything else compares as text. Ties keep
+   * their original relative order (stable), so sorting twice is idempotent.
+   */
+  sort(column: string, direction: SortDirection = "asc"): Dataset {
+    this.#assertColumn(column);
+    if (direction !== "asc" && direction !== "desc") {
+      throw new ValidationError(`sort direction must be "asc" or "desc", received "${String(direction)}".`);
+    }
+    const factor = direction === "asc" ? 1 : -1;
+    const indexed = this.#rows.map((row, index) => ({ row, index }));
+    indexed.sort((left, right) => {
+      const leftValue = left.row[column];
+      const rightValue = right.row[column];
+      // Missing values sort last in both directions, so they are compared before the
+      // direction factor is applied; only present values reverse.
+      const leftMissing = !isPresent(leftValue);
+      const rightMissing = !isPresent(rightValue);
+      if (leftMissing || rightMissing) {
+        if (leftMissing && rightMissing) return left.index - right.index;
+        return leftMissing ? 1 : -1;
+      }
+      const comparison = compareValues(leftValue, rightValue);
+      return comparison !== 0 ? comparison * factor : left.index - right.index;
+    });
+    return this.#derive(indexed.map((entry) => entry.row));
+  }
+
+  /** A dataset with `columns`, in the requested order. */
+  select(columns: readonly string[]): Dataset {
+    if (!Array.isArray(columns) || columns.length === 0) {
+      throw new ValidationError("select expects a non-empty array of column names.");
+    }
+    for (const column of columns) this.#assertColumn(column);
+    if (new Set(columns).size !== columns.length) {
+      throw new ValidationError(`select received duplicate column names: ${columns.join(", ")}.`);
+    }
+    return new Dataset(
+      this.#rows.map((row) => {
+        const projected: Row = {};
+        for (const column of columns) projected[column] = row[column];
+        return projected;
+      }),
+      {
+        columns: [...columns],
+        name: this.name,
+        metadata: this.metadata,
+        ...(this.#options.normalizationPolicy === undefined
+          ? {}
+          : { normalizationPolicy: this.#options.normalizationPolicy }),
+        [NORMALIZED]: true,
+      },
+    );
+  }
+
+  /** At most `count` rows from the start. */
+  limit(count: number): Dataset {
+    const size = requireCount(count, "limit");
+    return this.#derive(size >= this.#rows.length ? this.#rows : this.#rows.slice(0, size));
   }
 
   // ---------------------------------------------------------------- output
@@ -335,6 +423,19 @@ function validateColumnNames(columns: readonly string[]): void {
     if (seen.has(column)) throw new ValidationError(`Duplicate column name: "${column}".`);
     seen.add(column);
   }
+}
+
+/** Sort order accepted by `Dataset.sort`. */
+export type SortDirection = "asc" | "desc";
+
+/** Order present values only; `sort` handles nullish values before calling this. */
+function compareValues(left: unknown, right: unknown): number {
+  if (left instanceof Date && right instanceof Date) return Math.sign(left.getTime() - right.getTime());
+  if (typeof left === "number" && typeof right === "number") return Math.sign(left - right);
+  if (typeof left === "boolean" && typeof right === "boolean") return Number(left) - Number(right);
+  const leftText = String(left);
+  const rightText = String(right);
+  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
 }
 
 function requireCount(value: number, method: string): number {

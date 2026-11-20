@@ -5,7 +5,8 @@
  * Filesystem loading lives in `node.ts`, which installs a reader into the loader module.
  */
 export { Dataset, createDataset } from "./core/dataset.js";
-export { inferColumnType, describeColumn } from "./core/schema.js";
+export type { SortDirection } from "./core/dataset.js";
+export { useSampleDataset } from "./core/sample.js";
 export { renderTable } from "./display/table.js";
 export { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
 export { parseDelimited } from "./io/parsers/csv.js";
@@ -44,6 +45,7 @@ export type { NormalizedCell } from "./io/normalization/values.js";
 export type { ResolvedSource } from "./io/loaders/source.js";
 
 import { Dataset, createDataset } from "./core/dataset.js";
+import { useSampleDataset } from "./core/sample.js";
 import { renderTable } from "./display/table.js";
 import { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
 import { parseDelimited } from "./io/parsers/csv.js";
@@ -69,6 +71,7 @@ import {
 const Numiq = {
   Dataset,
   createDataset,
+  useSampleDataset,
   renderTable,
   loadCSV,
   loadJSON,

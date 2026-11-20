@@ -2,8 +2,11 @@ import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { createServer, type Server } from "node:http";
 import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadCSV, loadJSON, loadTSV, loadURL } from "../../src/node.js";
 import { FormatError, ImportError, ValidationError } from "../../src/errors/index.js";
 
@@ -13,10 +16,10 @@ let workDir: string;
 
 beforeAll(async () => {
   workDir = await mkdtemp(path.join(tmpdir(), "numiq-"));
-  await mkdir(path.join(workDir, "data"), { recursive: true });
-  await writeFile(path.join(workDir, "data", "sales.csv"), "product,amount\nMouse,25\nKeyboard,75\n");
-  await writeFile(path.join(workDir, "data", "sales.tsv"), "product\tamount\nMouse\t25\nKeyboard\t75\n");
-  await writeFile(path.join(workDir, "data", "users.json"), '[{"name":"Ada"},{"name":"Lin"}]');
+  await mkdir(path.join(workDir, "dataset"), { recursive: true });
+  await writeFile(path.join(workDir, "dataset", "sales.csv"), "product,amount\nMouse,25\nKeyboard,75\n");
+  await writeFile(path.join(workDir, "dataset", "sales.tsv"), "product\tamount\nMouse\t25\nKeyboard\t75\n");
+  await writeFile(path.join(workDir, "dataset", "users.json"), '[{"name":"Ada"},{"name":"Lin"}]');
 
   server = createServer((request, response) => {
     const url = request.url ?? "/";
@@ -44,6 +47,11 @@ beforeAll(async () => {
     } else if (url === "/boom") {
       response.writeHead(500);
       response.end("error");
+    } else if (url === "/slow-body") {
+      // Headers arrive immediately, then the body stalls forever. A timeout that is
+      // cleared when the response object resolves would never fire here.
+      response.writeHead(200, { "content-type": "text/csv" });
+      response.write("a,b\n");
     } else if (url === "/slow") {
       setTimeout(() => {
         response.writeHead(200, { "content-type": "text/csv" });
@@ -67,52 +75,53 @@ afterAll(async () => {
 });
 
 describe("local files", () => {
-  it("loads CSV, TSV, and JSON from disk", async () => {
-    const csv = await loadCSV(path.join(workDir, "data", "sales.csv"));
+  it("loads CSV, TSV, and JSON by filename from the dataset folder", async () => {
+    const csv = await loadCSV("sales.csv", { datasetDir: workDir });
     expect(csv.shape).toEqual([2, 2]);
     expect(csv.data[0]).toEqual({ product: "Mouse", amount: 25 });
     expect(csv.importReport!.source).toBe("sales");
 
-    const tsv = await loadTSV(path.join(workDir, "data", "sales.tsv"));
+    const tsv = await loadTSV("sales.tsv", { datasetDir: workDir });
     expect(tsv.data).toEqual(csv.data);
 
-    const json = await loadJSON(path.join(workDir, "data", "users.json"));
+    const json = await loadJSON("users.json", { datasetDir: workDir });
     expect(json.data).toEqual([{ name: "Ada" }, { name: "Lin" }]);
   });
 
-  it("resolves relative paths against the working directory", async () => {
+  it("resolves filenames against <datasetDir>/dataset", async () => {
     const previous = process.cwd();
     process.chdir(workDir);
     try {
-      const data = await loadCSV("data/sales.csv");
+      const data = await loadCSV("sales.csv");
       expect(data.rowCount).toBe(2);
     } finally {
       process.chdir(previous);
     }
   });
 
-  it("is not sandboxed to a magic directory", async () => {
+  it("refuses to read outside the dataset folder", async () => {
     await writeFile(path.join(workDir, "outside.csv"), "a\n1\n");
-    const data = await loadCSV(path.join(workDir, "outside.csv"));
-    expect(data.rowCount).toBe(1);
+    await expect(loadCSV("outside.csv", { datasetDir: workDir })).rejects.toThrow(ImportError);
+    await expect(loadCSV("../outside.csv", { datasetDir: workDir })).rejects.toThrow(ValidationError);
   });
 
   it("reports a missing file as an ImportError", async () => {
-    await expect(loadCSV(path.join(workDir, "nope.csv"))).rejects.toThrow(ImportError);
+    await expect(loadCSV("nope.csv", { datasetDir: workDir })).rejects.toThrow(ImportError);
   });
 
   it("reports a directory as an ImportError", async () => {
-    await expect(loadCSV(path.join(workDir, "data"))).rejects.toThrow(ImportError);
+    await mkdir(path.join(workDir, "dataset", "folder.csv"), { recursive: true });
+    await expect(loadCSV("folder.csv", { datasetDir: workDir })).rejects.toThrow(ImportError);
   });
 });
 
 describe("format-specific loaders do not guess", () => {
   it("refuses to parse a JSON file as CSV", async () => {
-    await expect(loadCSV(path.join(workDir, "data", "users.json"))).rejects.toThrow(FormatError);
+    await expect(loadCSV("users.json", { datasetDir: workDir })).rejects.toThrow(FormatError);
   });
 
   it("refuses to parse a CSV file as JSON", async () => {
-    await expect(loadJSON(path.join(workDir, "data", "sales.csv"))).rejects.toThrow(FormatError);
+    await expect(loadJSON("sales.csv", { datasetDir: workDir })).rejects.toThrow(FormatError);
   });
 });
 
@@ -168,6 +177,14 @@ describe("loadURL", () => {
     await expect(loadURL(`${baseUrl}/slow`, { timeoutMs: 50 })).rejects.toThrow(/timed out/);
   });
 
+  it("keeps the timeout active while the response body streams", async () => {
+    const started = Date.now();
+    await expect(loadURL(`${baseUrl}/slow-body`, { timeoutMs: 300 })).rejects.toBeInstanceOf(ImportError);
+    const elapsed = Date.now() - started;
+    expect(elapsed).toBeGreaterThanOrEqual(250);
+    expect(elapsed).toBeLessThan(4000);
+  });
+
   it("honours an abort signal", async () => {
     const controller = new AbortController();
     controller.abort();
@@ -193,7 +210,7 @@ describe("environment split", () => {
   beforeAll(() => {
     // These assertions run against the shipped artifact, so it must exist first.
     const built = spawnSync(process.execPath, ["scripts/build.mjs"], {
-      cwd: path.resolve(import.meta.dirname, "../.."),
+      cwd: path.resolve(here, "../.."),
       encoding: "utf8",
     });
     if (built.status !== 0) throw new Error(`build failed: ${built.stderr}`);
@@ -201,7 +218,7 @@ describe("environment split", () => {
 
   const runIsolated = (source: string): { code: number; stdout: string; stderr: string } => {
     const result = spawnSync(process.execPath, ["--input-type=module", "-e", source], {
-      cwd: path.resolve(import.meta.dirname, "../.."),
+      cwd: path.resolve(here, "../.."),
       encoding: "utf8",
     });
     return { code: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };
@@ -232,7 +249,7 @@ describe("environment split", () => {
   });
 
   it("imports without touching any node: built-in", async () => {
-    const source = await readFile(path.resolve(import.meta.dirname, "../../dist/esm/index.js"), "utf8");
+    const source = await readFile(path.resolve(here, "../../dist/esm/index.js"), "utf8");
     const builtins = [...source.matchAll(/from\s*"node:[^"]+"/g)].map((match) => match[0]);
     expect(builtins).toEqual([]);
   });

@@ -7,8 +7,12 @@
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(import.meta.dirname, "..", "src");
+// `here` needs Node >= 20.11, but the package supports Node 18.
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+const root = path.resolve(here, "..", "src");
 
 async function collectFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
