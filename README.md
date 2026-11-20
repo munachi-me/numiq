@@ -1,10 +1,11 @@
 # Numiq
 
-A modular TypeScript engine for loading, normalizing, and inspecting structured data.
+A modular TypeScript engine for loading, normalizing, preparing, and inspecting
+structured data.
 
-Numiq v0.2.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq v0.3.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter,
-sort, and render as a table.
+sort, prepare, and render as a table.
 
 ```ts
 import { loadCSV } from "numiq";
@@ -16,9 +17,11 @@ data.columns;      // ["product", "amount"]
 data.table();      // a box-drawing table
 
 data
+  .fillMissing({ amount: 0 })
+  .addColumn("tax", (row) => Number(row.amount) * 0.2)
   .filter((row) => Number(row.amount) > 30)
   .sort("amount", "desc")
-  .select(["product", "amount"])
+  .select(["product", "amount", "tax"])
   .limit(10);
 ```
 
@@ -183,6 +186,38 @@ Sorting is total and deterministic: missing values (`null`/`undefined`) sort las
 both directions, numbers and dates compare numerically, everything else compares as
 text, and equal values keep their original order. Derived datasets report
 `importReport` as `null`, because the source counts would no longer describe them.
+
+Preparation methods clean and reshape data. They return a new `Dataset`, chain with the
+transformations above, and never modify the source:
+
+| Method | Description |
+| --- | --- |
+| `drop(columns)` | Remove columns, keeping the rest in order |
+| `rename(mapping)` | Rename columns in place, preserving position and values |
+| `dropMissing(options?)` | Drop rows with missing cells (`how: "any"` by default) |
+| `fillMissing(strategyOrMapping)` | Fill gaps with `"mean"`, `"median"`, `"mode"`, a constant, or a callback |
+| `replace(rules)` | Replace values per column, by value, predicate, or callback |
+| `map(column, callback)` | Transform one column from `(value, row, index)` |
+| `addColumn(name, callbackOrValues)` | Append a computed column or a value list |
+| `cast(schema)` | Convert columns to explicit types |
+| `dropDuplicates(columns?)` | Keep the first row of each distinct combination |
+| `sample(count, options?)` | Draw rows; deterministic when `seed` is given |
+
+```ts
+const prepared = data
+  .drop(["internal_note"])
+  .rename({ qty: "quantity" })
+  .fillMissing({ quantity: 0 })
+  .dropDuplicates(["order_id"])
+  .addColumn("total", (row) => Number(row.quantity) * Number(row.unit_price));
+```
+
+Missing-value strategies never coerce: `"mean"` and `"median"` require a numeric column
+and throw `ValidationError` on text rather than parsing it. A column with no present
+values is left untouched. `replace` and `dropDuplicates` compare by value and type, so
+`1` never matches `"1"`, and `null` and `undefined` count as one missing value. When a
+callback throws, the error names the operation, row, and column, with the original error
+as `cause`.
 
 ## Table output
 
@@ -370,15 +405,16 @@ that resolve outside the folder are all refused.
 CommonJS consumers can `require("numiq")`; the `require` condition resolves to a
 CommonJS build.
 
-## Scope of v0.2.0
+## Scope of v0.3.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
-table rendering, the bundled sample dataset, the error taxonomy, and the environment
-split.
+the preparation engine (`drop`, `rename`, `dropMissing`, `fillMissing`, `replace`,
+`map`, `addColumn`, `cast`, `dropDuplicates`, `sample`), table rendering, the bundled
+sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not in v0.2.0: grouping, aggregation, descriptive statistics, joins,
-metrics, and Excel import. The architecture reserves space for them (see
+Deliberately not in v0.3.0: query DSL, grouping, aggregation, descriptive statistics,
+joins, metrics, and Excel import. The architecture reserves space for them (see
 `docs/architecture.md`). `Dataset` is immutable, so every future transformation will
 return a new `Dataset` without changing existing behaviour.
 

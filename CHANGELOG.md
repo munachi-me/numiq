@@ -8,6 +8,55 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.3.0] - 2026-11-20
+
+`Dataset` becomes a preparation engine. Ten new methods clean, reshape, and derive data
+without ever touching the source dataset.
+
+### Added
+
+- `drop(columns)` removes columns, keeping the remaining ones in their original order.
+- `rename(mapping)` renames columns in place, preserving each column's position and
+  every value it holds.
+- `dropMissing(options?)` removes rows with missing cells. `how: "any"` (default) drops a
+  row when any considered cell is missing; `how: "all"` drops only when every considered
+  cell is.
+- `fillMissing(strategyOrMapping)` fills gaps with `"mean"`, `"median"`, `"mode"`, a
+  constant, or a `(row, index) => value` callback. One strategy applies to every column, or
+  a per-column mapping narrows it.
+- `replace(rules)` replaces values per column. Rules match by value (`{ from, to }`,
+  where `from` may be a list), by predicate (`{ match, to }`), or by transformation
+  (`(value, context) => value`). Rules apply in order.
+- `map(column, callback)` transforms one column from `(value, row, index)`.
+- `addColumn(name, callbackOrValues)` appends a computed column or a value list.
+- `cast(schema)` converts columns to explicit types, reusing the loader's type names,
+  aliases, and `{ type, format }` descriptors.
+- `dropDuplicates(columns?)` keeps the first row of each distinct combination.
+- `sample(count, options?)` draws rows, deterministically when `seed` is supplied.
+- Exported types: `DropMissingOptions`, `FillStrategy`, `FillValue`, `ReplaceContext`,
+  `ReplaceRule`, `SampleOptions`.
+
+### Changed
+
+- Derived datasets now inherit the normalization policy explicitly, so a chain built from
+  a cast import keeps its policy.
+
+### Fixed
+
+- `sample` reports an empty dataset before it reports a too-large count, so drawing from
+  nothing names the real problem.
+
+### Notes
+
+- Missing-value strategies never coerce. `"mean"` and `"median"` require a numeric column
+  and throw `ValidationError` on text rather than parsing it. A column with no present
+  values is left untouched instead of being filled with a fabricated value.
+- Equality in `replace` and `dropDuplicates` compares by value and type, so `1` never
+  matches `"1"`. `null` and `undefined` are treated as the same missing value.
+- Callback failures raise `ValidationError` naming the operation, row, and column, with the
+  original error attached as `cause`.
+- Every method returns a new `Dataset`; prepared datasets report `importReport === null`.
+
 ## [0.2.0] - 2026-11-20
 
 Local data loading becomes a one-line operation, and `Dataset` gains the first

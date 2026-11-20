@@ -6,6 +6,14 @@
  */
 export { Dataset, createDataset } from "./core/dataset.js";
 export type { SortDirection } from "./core/dataset.js";
+export type {
+  DropMissingOptions,
+  FillStrategy,
+  FillValue,
+  ReplaceContext,
+  ReplaceRule,
+  SampleOptions,
+} from "./core/prepare.js";
 export { useSampleDataset } from "./core/sample.js";
 export { renderTable } from "./display/table.js";
 export { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";

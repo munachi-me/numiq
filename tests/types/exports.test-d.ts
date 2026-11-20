@@ -21,6 +21,10 @@ import Numiq, {
   type SortDirection,
   ValidationError,
   ColumnNotFoundError,
+  type DropMissingOptions,
+  type FillStrategy,
+  type ReplaceRule,
+  type SampleOptions,
 } from "../../src/index.js";
 
 declare function expectType<T>(value: T): void;
@@ -52,6 +56,49 @@ expectType<Readonly<Record<string, ColumnSchema>>>(fromRecords.schema);
 expectType<ImportReport | null>(fromRecords.importReport);
 expectType<number>(fromRecords.unique("a"));
 expectType<unknown[]>(fromRecords.distinct("a"));
+
+// v0.3.0 preparation methods return a Dataset so they chain.
+expectType<Dataset>(fromRecords.drop(["a"]));
+expectType<Dataset>(fromRecords.drop("a"));
+expectType<Dataset>(fromRecords.rename({ a: "b" }));
+expectType<Dataset>(fromRecords.dropMissing());
+expectType<Dataset>(fromRecords.dropMissing({ how: "all" }));
+expectType<Dataset>(fromRecords.fillMissing({ a: 0 }));
+expectType<Dataset>(fromRecords.fillMissing({ a: "mean" }));
+expectType<Dataset>(fromRecords.fillMissing(0));
+expectType<Dataset>(fromRecords.replace({ a: { from: 1, to: 2 } }));
+expectType<Dataset>(fromRecords.replace({ a: { from: [1, 2], to: 0 } }));
+expectType<Dataset>(fromRecords.replace({ a: { match: (value) => value === 1, to: 0 } }));
+expectType<Dataset>(fromRecords.replace({ a: (value) => value }));
+expectType<Dataset>(fromRecords.map("a", (value) => value));
+expectType<Dataset>(fromRecords.addColumn("b", (row) => row.a));
+expectType<Dataset>(fromRecords.addColumn("b", [1]));
+expectType<Dataset>(fromRecords.cast({ a: "number" }));
+expectType<Dataset>(fromRecords.cast({ a: { type: "date" } }));
+expectType<Dataset>(fromRecords.dropDuplicates());
+expectType<Dataset>(fromRecords.dropDuplicates(["a"]));
+expectType<Dataset>(fromRecords.dropDuplicates("a"));
+expectType<Dataset>(fromRecords.sample(1));
+expectType<Dataset>(fromRecords.sample(1, { seed: 1, replace: true }));
+
+// The documented option shapes are exported.
+expectType<DropMissingOptions>({ columns: ["a"], how: "any" });
+expectType<FillStrategy>("median");
+expectType<ReplaceRule>({ from: 1, to: 2 });
+expectType<SampleOptions>({ seed: 42 });
+
+// Preparation methods compose with the existing transformations.
+expectType<Dataset>(
+  fromRecords
+    .drop(["a"])
+    .rename({ a: "b" })
+    .fillMissing({ a: 0 })
+    .dropDuplicates(["a"])
+    .addColumn("c", (row) => row.a)
+    .sort("c", "desc")
+    .select(["a"])
+    .limit(1),
+);
 
 // Loaders are async and accept the documented sources.
 expectType<Promise<Dataset>>(loadCSV("a.csv"));

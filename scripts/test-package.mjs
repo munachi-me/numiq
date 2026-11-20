@@ -68,6 +68,16 @@ try {
        const data = parseDelimited("a,b\\n1,2\\n", { format: "csv" });
        const sample = await Numiq.useSampleDataset();
        const chained = sample.filter((r) => Number(r.revenue) > 100).sort("revenue", "desc").select(["order_id", "revenue"]).limit(5);
+       const prepared = createDataset([
+         { id: 1, qty: null, note: "a" },
+         { id: 1, qty: 4, note: null },
+         { id: 2, qty: 2, note: null },
+       ])
+         .drop(["note"])
+         .fillMissing({ qty: "median" })
+         .dropDuplicates(["id"])
+         .addColumn("double", (r) => Number(r.qty) * 2);
+       const sampled = prepared.sample(1, { seed: 9 }).data[0];
        console.log(JSON.stringify({
          rowCount: data.rowCount,
          identity: Numiq.createDataset === createDataset,
@@ -75,6 +85,9 @@ try {
          sampleShape: sample.shape,
          chainedRows: chained.rowCount,
          chainedColumns: chained.columns,
+         preparedColumns: prepared.columns,
+         preparedRows: prepared.data,
+         sampledValue: sampled.double,
          loadCSV: typeof loadCSV,
          table: data.table().includes("1 rows × 2 columns"),
        }));`,
@@ -90,6 +103,25 @@ try {
   check("exposes the sample helper on the default namespace", esmResult.sampleIdentity === true);
   check("chains transformations from the packed package", esmResult.chainedRows === 5, String(esmResult.chainedRows));
   check("select reorders columns", JSON.stringify(esmResult.chainedColumns) === '["order_id","revenue"]');
+  check(
+    "prepares data through the preparation engine",
+    JSON.stringify(esmResult.preparedColumns) === '["id","qty","double"]',
+    JSON.stringify(esmResult.preparedColumns),
+  );
+  check(
+    "fills, de-duplicates and derives as documented",
+    JSON.stringify(esmResult.preparedRows) ===
+      JSON.stringify([
+        { id: 1, qty: 3, double: 6 },
+        { id: 2, qty: 2, double: 4 },
+      ]),
+    JSON.stringify(esmResult.preparedRows),
+  );
+  check(
+    "samples reproducibly from the packed package",
+    esmResult.sampledValue === 4 || esmResult.sampledValue === 6,
+    String(esmResult.sampledValue),
+  );
 
   console.log("\ncjs require");
   const cjs = execFileSync(
@@ -154,7 +186,28 @@ try {
     path.join(consumer, "node_modules", "numiq", "dist", "esm", "core", "dataset.d.ts"),
     "utf8",
   );
-  for (const member of ["columns", "shape", "data", "table", "rowCount", "columnCount", "filter", "sort", "select", "limit"]) {
+  for (const member of [
+    "columns",
+    "shape",
+    "data",
+    "table",
+    "rowCount",
+    "columnCount",
+    "filter",
+    "sort",
+    "select",
+    "limit",
+    "drop",
+    "rename",
+    "dropMissing",
+    "fillMissing",
+    "replace",
+    "map",
+    "addColumn",
+    "cast",
+    "dropDuplicates",
+    "sample",
+  ]) {
     check(`Dataset declares ${member}`, datasetDeclaration.includes(member));
   }
 } finally {
