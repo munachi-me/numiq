@@ -8,11 +8,26 @@ import type {
   Row,
   TableOptions,
   NormalizationPolicy,
+  ColumnType,
+  ColumnTypeSpec,
 } from "./types.js";
 import { ColumnNotFoundError, ValidationError } from "../errors/index.js";
 import { renderTable } from "../display/table.js";
 import { cloneValue, deepFreeze, isPresent, stableKey } from "../utils/values.js";
 import { countUnique, describeColumn, distinctValues, inferColumnType } from "./schema.js";
+import {
+  addColumn,
+  castColumns,
+  dropColumns,
+  dropDuplicateRows,
+  dropMissingRows,
+  fillMissingValues,
+  mapColumn,
+  renameColumns,
+  replaceValues,
+  sampleRows,
+} from "./prepare.js";
+import type { DropMissingOptions, FillStrategy, ReplaceRule, SampleOptions } from "./prepare.js";
 import { resolveNormalization } from "../io/normalization/policy.js";
 import { normalizeCell } from "../io/normalization/values.js";
 
@@ -249,21 +264,13 @@ export class Dataset {
     if (new Set(columns).size !== columns.length) {
       throw new ValidationError(`select received duplicate column names: ${columns.join(", ")}.`);
     }
-    return new Dataset(
+    return this.#build(
       this.#rows.map((row) => {
         const projected: Row = {};
         for (const column of columns) projected[column] = row[column];
         return projected;
       }),
-      {
-        columns: [...columns],
-        name: this.name,
-        metadata: this.metadata,
-        ...(this.#options.normalizationPolicy === undefined
-          ? {}
-          : { normalizationPolicy: this.#options.normalizationPolicy }),
-        [NORMALIZED]: true,
-      },
+      [...columns],
     );
   }
 
@@ -271,6 +278,146 @@ export class Dataset {
   limit(count: number): Dataset {
     const size = requireCount(count, "limit");
     return this.#derive(size >= this.#rows.length ? this.#rows : this.#rows.slice(0, size));
+  }
+
+  // ---------------------------------------------------------------- preparation
+
+  /**
+   * A dataset without `columns`.
+   *
+   * Remaining columns keep their original order. Throws `ColumnNotFoundError` for an
+   * unknown column, and `ValidationError` if the call would remove every column.
+   */
+  drop(columns: string | readonly string[]): Dataset {
+    const toDrop = typeof columns === "string" ? [columns] : columns;
+    if (!Array.isArray(toDrop) || toDrop.length === 0) {
+      throw new ValidationError("drop expects a column name or a non-empty array of column names.");
+    }
+    const result = dropColumns(this.#rows, this.#columns, toDrop);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with `mapping` applied to column names.
+   *
+   * Renaming preserves each column's position and every value it holds. Throws
+   * `ColumnNotFoundError` for an unknown source column and `ValidationError` when the
+   * mapping would produce a duplicate or blank name.
+   */
+  rename(mapping: Readonly<Record<string, string>>): Dataset {
+    if (mapping === null || typeof mapping !== "object" || Array.isArray(mapping)) {
+      throw new ValidationError("rename expects an object mapping old names to new names.");
+    }
+    const result = renameColumns(this.#rows, this.#columns, mapping);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * Rows whose considered cells are all present.
+   *
+   * With `how: "any"` (the default) a row is dropped as soon as one considered cell is
+   * missing; `how: "all"` keeps a row unless every considered cell is missing.
+   */
+  dropMissing(options: DropMissingOptions = {}): Dataset {
+    const result = dropMissingRows(this.#rows, this.#columns, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with missing cells replaced.
+   *
+   * Pass one strategy for every column or a per-column mapping. Strategies are `"mean"`,
+   * `"median"`, `"mode"`, a constant, or a `(row, index) => value` callback. `"mean"` and
+   * `"median"` require a numeric column and throw `ValidationError` otherwise, rather than
+   * coercing text. A column with no present values is left untouched.
+   */
+  fillMissing(strategyOrMapping: FillStrategy | Readonly<Record<string, FillStrategy>>): Dataset {
+    const result = fillMissingValues(this.#rows, this.#columns, strategyOrMapping);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with values replaced, per column.
+   *
+   * Each column takes a rule or a list of rules applied in order. A rule matches by
+   * value (`{ from, to }`, where `from` may be an array), by predicate
+   * (`{ match, to }`), or by transformation (`(value, context) => value`). Comparison is
+   * by value and type, so `1` does not match `"1"`. Only listed columns are touched.
+   */
+  replace(rules: Readonly<Record<string, ReplaceRule | readonly ReplaceRule[]>>): Dataset {
+    if (rules === null || typeof rules !== "object" || Array.isArray(rules)) {
+      throw new ValidationError("replace expects an object mapping column names to rules.");
+    }
+    const result = replaceValues(this.#rows, this.#columns, rules);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with one column transformed by `callback(value, row, index)`.
+   *
+   * Every other column keeps its value, and the callback sees the row as it was before
+   * the transformation. A callback that throws produces a `ValidationError` naming the
+   * operation, row, and column, with the original error as `cause`.
+   */
+  map(column: string, callback: (value: unknown, row: Row, index: number) => unknown): Dataset {
+    const result = mapColumn(this.#rows, this.#columns, column, callback);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with `name` appended as the last column.
+   *
+   * `spec` is either `(row, index) => value` or an array of values, one per row. Throws
+   * `ValidationError` when the name already exists, when the array length does not match
+   * the row count, or when the name is blank.
+   */
+  addColumn(name: string, spec: ((row: Row, index: number) => unknown) | readonly unknown[]): Dataset {
+    const result = addColumn(this.#rows, this.#columns, name, spec);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with columns converted to explicit types.
+   *
+   * Accepts the same type names and `{ type, format }` descriptors as the loader `schema`
+   * option. A cell that cannot be converted throws `ValidationError` naming the row and
+   * column; nothing is coerced silently and no value is dropped.
+   */
+  cast(schema: Readonly<Record<string, ColumnType | ColumnTypeSpec>>): Dataset {
+    if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
+      throw new ValidationError("cast expects an object mapping column names to types.");
+    }
+    const result = castColumns(this.#rows, this.#columns, schema);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset keeping the first row of each distinct combination.
+   *
+   * With no `columns`, the whole row is compared. Comparison is by value and type, and
+   * `null` and `undefined` are treated as the same value, matching `dropMissing`.
+   */
+  dropDuplicates(columns?: string | readonly string[]): Dataset {
+    const subset = typeof columns === "string" ? [columns] : columns;
+    if (subset !== undefined && (!Array.isArray(subset) || subset.length === 0)) {
+      throw new ValidationError("dropDuplicates expects a non-empty array of column names.");
+    }
+    const result = dropDuplicateRows(this.#rows, this.#columns, subset);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A random sample of `count` rows, in draw order.
+   *
+   * Supplying `seed` makes the draw reproducible: the same seed and row count return the
+   * same rows in the same order on every call and every run. Without a seed the draw uses
+   * `Math.random`. Sampling without replacement is the default and throws
+   * `ValidationError` when `count` exceeds the row count; pass `{ replace: true }` to
+   * sample with replacement.
+   */
+  sample(count: number, options: SampleOptions = {}): Dataset {
+    const result = sampleRows(this.#rows, this.#columns, count, options);
+    return this.#build(result.rows, result.columns);
   }
 
   // ---------------------------------------------------------------- output
@@ -311,10 +458,21 @@ export class Dataset {
   // ---------------------------------------------------------------- internals
 
   #derive(rows: readonly Row[]): Dataset {
+    return this.#build(rows, this.#columns);
+  }
+
+  /**
+   * Build a derived dataset with an explicit column set.
+   *
+   * The import report is dropped: its row counts and warnings describe the source import,
+   * not the prepared result. Name, metadata, and the normalization policy carry over so a
+   * chain keeps its identity.
+   */
+  #build(rows: readonly Row[], columns: readonly string[]): Dataset {
     const { importReport: _discarded, ...inherited } = this.#options;
     return new Dataset(rows, {
       ...inherited,
-      columns: this.#columns,
+      columns,
       name: this.name,
       metadata: this.metadata,
       [NORMALIZED]: true,

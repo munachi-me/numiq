@@ -165,6 +165,151 @@ Returns a new dataset with at most `count` rows from the start. Throws
 All four transformations return a `Dataset`, so they chain, and all report
 `importReport === null`.
 
+#### Preparation methods
+
+The preparation methods return a new `Dataset`, chain with the transformations above, and
+never modify the source. All of them report `importReport === null`.
+
+#### `drop(columns)`
+
+Removes columns. Accepts a name or an array of names; the remaining columns keep their
+original order. Throws `ColumnNotFoundError` for an unknown column and `ValidationError`
+when the call would remove every column.
+
+```ts
+data.drop(["internal_note", "audit_flag"]);
+```
+
+#### `rename(mapping)`
+
+Renames columns in place. Each column keeps its position and values. Throws
+`ColumnNotFoundError` for an unknown source column and `ValidationError` when the mapping
+produces a duplicate or blank name. Swapping two names is allowed.
+
+```ts
+data.rename({ qty: "quantity", unit_price: "price" });
+```
+
+#### `dropMissing(options?)`
+
+Drops rows with missing cells. `null` and `undefined` both count as missing.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `columns` | `string[]` | every column | Columns to consider |
+| `how` | `"any" \| "all"` | `"any"` | `any` drops a row when one considered cell is missing; `all` only when every considered cell is |
+
+```ts
+data.dropMissing({ columns: ["price"], how: "all" });
+```
+
+#### `fillMissing(strategyOrMapping)`
+
+Fills missing cells. Pass one strategy for every column, or a mapping to narrow it.
+
+| Strategy | Behaviour |
+| --- | --- |
+| `"mean"` | Arithmetic mean of present values. Numeric columns only. |
+| `"median"` | Median of present values. Numeric columns only. |
+| `"mode"` | Most frequent present value; ties resolve to the earliest value. |
+| constant | `string`, `number`, `boolean`, `Date`, or `null`. |
+| callback | `(row, index) => value`. |
+
+```ts
+data.fillMissing({ quantity: 0, price: "mean" });
+```
+
+`"mean"` and `"median"` throw `ValidationError` on a non-numeric column rather than
+parsing text. A column with no present values is left untouched: there is nothing to
+compute from, and inventing a value would be worse than leaving the gap.
+
+#### `replace(rules)`
+
+Replaces values per column. Each column takes a rule or a list of rules applied in order.
+
+| Rule | Matches |
+| --- | --- |
+| `{ from, to }` | Cells equal to `from`. `from` may be an array. |
+| `{ match, to }` | Cells where `match(value, context)` is true. |
+| `(value, context) => value` | Every cell; the return value is used. |
+
+```ts
+data.replace({
+  region: { from: ["N", "S"], to: "Unknown" },
+  revenue: { match: (value) => Number(value) < 0, to: 0 },
+  note: (value) => (value === null ? "none" : value),
+});
+```
+
+Comparison is by value and type, so `1` does not match `"1"`; `null` and `undefined` are
+treated as the same missing value. A rule with both `from` and `match`, or with neither,
+throws `ValidationError`.
+
+#### `map(column, callback)`
+
+Transforms one column with `callback(value, row, index)`. Other columns keep their values,
+and `row` is the record as it was before the transformation.
+
+```ts
+data.map("price", (value) => Number(value) * 1.2);
+```
+
+#### `addColumn(name, callbackOrValues)`
+
+Appends a column last. `spec` is `(row, index) => value` or an array of values, one per
+row. Throws `ValidationError` when the name already exists, when the array length does not
+match the row count, or when the name is blank.
+
+```ts
+data.addColumn("total", (row) => Number(row.quantity) * Number(row.price));
+```
+
+#### `cast(schema)`
+
+Converts columns to explicit types, using the same type names, aliases, and
+`{ type, format }` descriptors as the loader `schema` option. A cell that cannot be
+converted throws `ValidationError` naming the row and column; nothing is coerced silently.
+
+```ts
+data.cast({ quantity: "number", ordered_on: "date" });
+```
+
+#### `dropDuplicates(columns?)`
+
+Keeps the first row of each distinct combination, comparing the whole row when no columns
+are given. Comparison is by value and type, and `null`/`undefined` count as one missing
+value. Throws `ColumnNotFoundError` for an unknown column.
+
+```ts
+data.dropDuplicates(["order_id"]);
+```
+
+#### `sample(count, options?)`
+
+Draws `count` rows in draw order.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `seed` | `number` | none | Makes the draw reproducible: same seed and count, same rows, every run |
+| `replace` | `boolean` | `false` | Sample with replacement, allowing repeats and counts above the row count |
+
+```ts
+data.sample(100, { seed: 42 });
+```
+
+Without `replace`, a `count` above the row count throws `ValidationError`. Without a
+`seed`, the draw uses `Math.random`.
+
+#### Callback errors
+
+When a callback passed to `fillMissing`, `replace`, `map`, or `addColumn` throws, the
+error becomes a `ValidationError` naming the operation, row, and column, with the original
+error attached as `cause`:
+
+```
+map failed at row 1, column "a": bad
+```
+
 #### `info()`
 
 Returns `DatasetInfo`: `name`, `rowCount`, `columnCount`, `shape`, `dtypes`,
