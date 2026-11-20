@@ -1,6 +1,6 @@
 {
   "name": "numiq",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A modular JavaScript data analysis engine: load, normalize, inspect, and table structured data.",
   "keywords": [
     "data",
@@ -79,16 +79,20 @@
     "test:watch": "vitest",
     "test:types": "tsc -p tests/types/tsconfig.json --noEmit",
     "test:package": "node scripts/test-package.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run check:cycles && npm run test && npm run build && npm run test:types && npm run test:package",
+    "verify": "npm run typecheck && npm run typecheck:examples && npm run lint && npm run format:check && npm run check:cycles && npm run test && npm run build && npm run check:no-runtime-deps && npm run test:types && npm run test:package",
     "prepublishOnly": "npm run verify",
     "check:cycles": "node scripts/check-cycles.mjs",
-    "generate:sample": "node scripts/generate-sample.mjs"
+    "generate:sample": "node scripts/generate-sample.mjs",
+    "typecheck:examples": "tsc -p tsconfig.examples.json",
+    "check:no-runtime-deps": "node scripts/check-no-runtime-deps.mjs",
+    "examples": "for f in examples/*.ts; do echo \"-- $f\"; npx tsx \"$f\" || exit 1; done"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1",
     "vitest": "^2.1.8"

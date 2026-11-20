@@ -6,6 +6,19 @@
  */
 export { Dataset, createDataset } from "./core/dataset.js";
 export type { SortDirection } from "./core/dataset.js";
+export { Query } from "./core/query.js";
+export type {
+  CellShape,
+  ComparisonOperator,
+  NullOperator,
+  QueryDirection,
+  QueryOperator,
+  QuerySource,
+  RangeOperator,
+  SetOperator,
+  StringOperator,
+  WhereOptions,
+} from "./core/query.js";
 export type {
   DropMissingOptions,
   FillStrategy,
@@ -53,6 +66,7 @@ export type { NormalizedCell } from "./io/normalization/values.js";
 export type { ResolvedSource } from "./io/loaders/source.js";
 
 import { Dataset, createDataset } from "./core/dataset.js";
+import { Query } from "./core/query.js";
 import { useSampleDataset } from "./core/sample.js";
 import { renderTable } from "./display/table.js";
 import { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
@@ -78,6 +92,7 @@ import {
  */
 const Numiq = {
   Dataset,
+  Query,
   createDataset,
   useSampleDataset,
   renderTable,

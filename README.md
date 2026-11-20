@@ -1,11 +1,11 @@
 # Numiq
 
-A modular TypeScript engine for loading, normalizing, preparing, and inspecting
-structured data.
+A modular TypeScript engine for loading, normalizing, preparing, querying, and
+inspecting structured data.
 
-Numiq v0.3.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq v0.4.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter,
-sort, prepare, and render as a table.
+sort, prepare, query, and render as a table.
 
 ```ts
 import { loadCSV } from "numiq";
@@ -19,10 +19,13 @@ data.table();      // a box-drawing table
 data
   .fillMissing({ amount: 0 })
   .addColumn("tax", (row) => Number(row.amount) * 0.2)
-  .filter((row) => Number(row.amount) > 30)
-  .sort("amount", "desc")
+  .query()
+  .where("amount", ">", 30)
+  .and("product", "contains", "a", { ignoreCase: true })
+  .orderBy("amount", "desc")
   .select(["product", "amount", "tax"])
-  .limit(10);
+  .limit(10)
+  .execute();
 ```
 
 - Zero runtime dependencies.
@@ -218,6 +221,41 @@ values is left untouched. `replace` and `dropDuplicates` compare by value and ty
 `1` never matches `"1"`, and `null` and `undefined` count as one missing value. When a
 callback throws, the error names the operation, row, and column, with the original error
 as `cause`.
+
+Query methods filter, order, and project in one chain. Conditions are typed values passed
+to methods rather than text, so there is no query string to parse and no way for data to
+become executable code:
+
+```ts
+const result = data
+  .query()
+  .where("revenue", ">", 100)
+  .and("region", "in", ["North", "West"])
+  .or("priority", "isNull")
+  .orderBy("revenue", "desc")
+  .select(["product", "region", "revenue"])
+  .limit(20)
+  .execute();
+```
+
+| Operator | Meaning |
+| --- | --- |
+| `=`, `!=`, `>`, `>=`, `<`, `<=` | Comparison, by value and type |
+| `in`, `notIn` | Membership in a non-empty array |
+| `between` | Inclusive range, given as `[low, high]` |
+| `contains`, `startsWith`, `endsWith` | Substring tests on text |
+| `isNull`, `isNotNull` | Missing-value tests |
+
+`and` binds tighter than `or`, so `.where("a", "=", 1).or("b", "=", 2).and("c", "=", 3)`
+means `a OR (b AND c)`. Use `andGroup` / `orGroup` to parenthesise, and `toString()` to see
+how the conditions were grouped.
+
+A missing cell never satisfies a comparison, including `!=` and `notIn`, matching SQL.
+Add `.or("column", "isNull")` when missing rows should be included.
+
+Queries are immutable: every builder step returns a new `Query`, so a partially built query
+is safe to reuse as a starting point for several branches. Nothing runs until `execute()`,
+which returns a new `Dataset` and never modifies the source.
 
 ## Table output
 
