@@ -8,6 +8,68 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.7.0] - 2026-11-20
+
+`Dataset` gains advanced statistics: relationships between columns, distribution shape,
+position within a distribution, and outlier detection. Every result carries the evidence
+behind it, and undefined answers are `null` with a reason rather than `NaN` or `0`.
+
+### Added
+
+- `Dataset.covariance(left, right, options?)`, with `ddof` selecting the sample (default)
+  or population formula.
+- `Dataset.correlation(left, right)` and `Dataset.rankCorrelation(left, right)`, returning
+  `{ r, n, reason }`.
+- `Dataset.correlationMatrix(columns?, method?)`, returning a symmetric matrix with
+  `columns`, `matrix`, `cells`, `method`, and a `get(x, y)` lookup.
+- `Dataset.zScores(column, options?)` returning `{ values, mean, std, reason }`, aligned to
+  the source rows.
+- `Dataset.withZScores(column, name?, options?)`, adding a score column without mutating the
+  source dataset.
+- `Dataset.percentileRank(column, value)`.
+- `Dataset.skewness(column)` and `Dataset.kurtosis(column)`.
+- `Dataset.fiveNumberSummary(column)`, returning `min`, `q1`, `median`, `q3`, `max`, plus
+  `mean` and `count`.
+- `Dataset.outliers(column, options?)`, using Tukey's IQR fences (default, `k = 1.5`) or a
+  z-score threshold.
+- Standalone functions: `covariance`, `pearsonCorrelation`, `spearmanCorrelation`,
+  `correlationMatrix`, `zScores`, `standardize`, `normalize`, `percentileRank`, `skewness`,
+  `kurtosis`, `fiveNumberSummary`, and `detectOutliers`.
+- `examples/11-advanced-statistics.ts`.
+
+### Changed
+
+- Undefined statistics return `null` with a `reason` of `"insufficient-data"` or
+  `"zero-variance"`. A caller can branch on the reason; `NaN` would poison downstream
+  arithmetic and `0` would misreport "no relationship" as a measurement.
+- Skewness and kurtosis use the bias-corrected sample formulas that `scipy.stats` reports
+  with `bias=False`, not the raw moment ratios. Kurtosis is excess, so a normal
+  distribution is `0`.
+- Spearman correlation assigns average ranks to ties, matching `scipy.stats.spearmanr`.
+  Assigning arbitrary distinct ranks would invent an ordering the data does not have.
+- Correlation results carry no p-value and no significance flag. Deciding whether a
+  relationship is real needs a test with its own distributional assumptions.
+
+### Fixed
+
+- The numeric-column guard compared against the `"number"` dtype alone and rejected every
+  `integer` column, which is most real-world data. It now defers to `columnKind()`, so
+  `number` and `integer` are treated alike. Caught by an integration test before release
+  and covered by a regression test that fails against the old check.
+- `correlationMatrix` clamps coefficients to `[-1, 1]`; floating point could otherwise
+  report `1.0000000000000002`.
+
+### Notes
+
+- Missing values are handled pairwise: two-column statistics use only rows where both
+  values are present, and report the `n` they used. Nothing is imputed, so in a matrix over
+  gappy data different cells can rest on different row sets.
+- Outlier detection identifies unusual values, not errors. A single extreme value inflates
+  the standard deviation enough to hide itself from a z-score test, which is why IQR fences
+  are the default.
+- No hypothesis tests, p-values, or machine-learning models in this release.
+- Formulas are cross-checked against `numpy` and `scipy.stats` on fixed fixtures.
+
 ## [0.6.0] - 2026-11-20
 
 `Dataset` gains descriptive statistics. `describe()` profiles every column at once;

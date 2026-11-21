@@ -31,8 +31,29 @@ import {
 import type { DropMissingOptions, FillStrategy, ReplaceRule, SampleOptions } from "./prepare.js";
 import { Query, detectCellShape } from "./query.js";
 import { GroupedDataset } from "./group.js";
-import { DatasetDescription, profileColumn, validateDescribeOptions } from "../analytics/describe.js";
+import { DatasetDescription, columnKind, profileColumn, validateDescribeOptions } from "../analytics/describe.js";
 import type { ColumnProfile, DescribeOptions } from "../analytics/describe.js";
+import {
+  correlationMatrix,
+  covariance,
+  detectOutliers,
+  fiveNumberSummary,
+  kurtosis,
+  pearsonCorrelation,
+  percentileRank,
+  skewness,
+  spearmanCorrelation,
+  zScores,
+} from "../analytics/advanced.js";
+import type {
+  AdvancedOptions,
+  CorrelationMatrix,
+  CorrelationResult,
+  FiveNumberSummary,
+  OutlierOptions,
+  OutlierResult,
+  ZScoreResult,
+} from "../analytics/advanced.js";
 import { resolveNormalization } from "../io/normalization/policy.js";
 import { normalizeCell } from "../io/normalization/values.js";
 
@@ -253,6 +274,125 @@ export class Dataset {
     return new DatasetDescription<Dataset>(this.rowCount, this.columnCount, profiles, ddof, (rows, columns) =>
       this.#build(rows, columns),
     );
+  }
+
+  // ------------------------------------------------------------ advanced statistics
+
+  /**
+   * Covariance of two columns, over rows where both are present.
+   *
+   * `ddof` of 1 (default) is the sample covariance; 0 is the population covariance.
+   */
+  covariance(left: string, right: string, options: AdvancedOptions = {}): number | null {
+    this.#assertNumericColumns([left, right], "covariance");
+    return covariance(this.#columnValues(left), this.#columnValues(right), options);
+  }
+
+  /**
+   * Pearson correlation of two columns, with the pair count and a reason when undefined.
+   *
+   * Reports no p-value and makes no claim of significance; see `pearsonCorrelation`.
+   */
+  correlation(left: string, right: string): CorrelationResult {
+    this.#assertNumericColumns([left, right], "correlation");
+    return pearsonCorrelation(this.#columnValues(left), this.#columnValues(right));
+  }
+
+  /** Spearman rank correlation of two columns. Monotonic, and robust to outliers. */
+  rankCorrelation(left: string, right: string): CorrelationResult {
+    this.#assertNumericColumns([left, right], "rankCorrelation");
+    return spearmanCorrelation(this.#columnValues(left), this.#columnValues(right));
+  }
+
+  /**
+   * Correlation matrix over numeric columns.
+   *
+   * With no arguments every numeric column is included, in dataset order. Pass column
+   * names to choose and order a subset.
+   */
+  correlationMatrix(columns?: readonly string[], method: "pearson" | "spearman" = "pearson"): CorrelationMatrix {
+    const chosen = columns ?? this.#numericColumnNames();
+    if (chosen.length === 0) {
+      throw new ValidationError("correlationMatrix() found no numeric columns to correlate.");
+    }
+    this.#assertNumericColumns(chosen, "correlationMatrix");
+    return correlationMatrix({
+      columns: chosen.map((name) => ({ name, values: this.#columnValues(name) })),
+      method,
+    });
+  }
+
+  /** Z-scores for one column, aligned to its rows. */
+  zScores(column: string, options: AdvancedOptions = {}): ZScoreResult {
+    this.#assertNumericColumns([column], "zScores");
+    return zScores(this.#columnValues(column), options);
+  }
+
+  /** Percentile rank of `value` within one column, in `[0, 100]`. */
+  percentileRank(column: string, value: number): number | null {
+    this.#assertNumericColumns([column], "percentileRank");
+    return percentileRank(this.#columnValues(column), value);
+  }
+
+  /** Skewness of one column. `null` below three values or with zero variance. */
+  skewness(column: string): number | null {
+    this.#assertNumericColumns([column], "skewness");
+    return skewness(this.#columnValues(column));
+  }
+
+  /** Excess kurtosis of one column. `null` below four values or with zero variance. */
+  kurtosis(column: string): number | null {
+    this.#assertNumericColumns([column], "kurtosis");
+    return kurtosis(this.#columnValues(column));
+  }
+
+  /** Minimum, Q1, median, Q3, maximum, and mean of one column. */
+  fiveNumberSummary(column: string): FiveNumberSummary {
+    this.#assertNumericColumns([column], "fiveNumberSummary");
+    return fiveNumberSummary(this.#columnValues(column));
+  }
+
+  /** Outliers in one column, by IQR fences (default) or z-score threshold. */
+  outliers(column: string, options: OutlierOptions = {}): OutlierResult {
+    this.#assertNumericColumns([column], "outliers");
+    return detectOutliers(this.#columnValues(column), options);
+  }
+
+  /**
+   * Add a z-score column computed from `column`.
+   *
+   * The new column is `null` wherever the score is undefined, so a constant column yields
+   * an all-null column rather than silently scaling by zero.
+   */
+  withZScores(column: string, name = `${column}_z`, options: AdvancedOptions = {}): Dataset {
+    this.#assertNumericColumns([column], "withZScores");
+    const scores = zScores(this.#columnValues(column), options);
+    const table = addColumn(this.#rows, this.#columns, name, scores.values);
+    return this.#build(table.rows, table.columns);
+  }
+
+  /** Numeric column names, in dataset order. */
+  #numericColumnNames(): string[] {
+    const schema = this.schema;
+    return this.#columns.filter((column) => columnKind(schema[column]?.type ?? "unknown") === "numeric");
+  }
+
+  /**
+   * Reject a non-numeric column before any computation.
+   *
+   * Arithmetic on text silently yields `null` deep inside a formula; failing at the call
+   * site names the column that is wrong. Uses `columnKind` rather than comparing against
+   * `"number"`, because `integer` is a separate dtype and is equally numeric.
+   */
+  #assertNumericColumns(columns: readonly string[], method: string): void {
+    const schema = this.schema;
+    for (const column of columns) {
+      this.#assertColumn(column);
+      const type = schema[column]?.type ?? "unknown";
+      if (columnKind(type) !== "numeric") {
+        throw new ValidationError(`${method}() needs a numeric column, but "${column}" is ${type}.`);
+      }
+    }
   }
 
   // ---------------------------------------------------------------- transformations

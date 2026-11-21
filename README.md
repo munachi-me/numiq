@@ -524,7 +524,133 @@ the full-precision values on `profiles`.
 The standalone statistics are exported too, for use outside a dataset:
 `quantile`, `percentile`, `quartiles`, `iqr`, `mode`, `range`, and `extremes`.
 
-## Scope of v0.6.0
+## Advanced statistics
+
+Correlation, distribution shape, position, and outliers. Every function returns a typed
+result rather than a bare number where the answer needs context.
+
+```ts
+sales.correlation("quantity", "revenue");      // { r: 0.43724861958188593, n: 50, reason: null }
+sales.rankCorrelation("quantity", "revenue");  // { r: 0.5244511749947358, n: 50, reason: null }
+sales.correlationMatrix();                     // every numeric column, symmetric
+sales.zScores("revenue");                      // { values, mean, std, reason }
+sales.outliers("revenue");                     // Tukey's fences by default
+sales.fiveNumberSummary("revenue");
+sales.skewness("revenue");                     // 1.7133020612357541
+sales.kurtosis("revenue");                     // 2.3952120604810103 (excess)
+```
+
+### Undefined is `null`, never `NaN` or `0`
+
+A coefficient that does not exist for the data returns `null` with a `reason`, so a caller
+can branch on it:
+
+| Situation | Result |
+| --- | --- |
+| fewer than two complete pairs | `{ r: null, n, reason: "insufficient-data" }` |
+| one column is constant | `{ r: null, n, reason: "zero-variance" }` |
+| both columns vary | `{ r: number, n, reason: null }` |
+
+`NaN` would silently poison downstream arithmetic; `0` would claim "no relationship" when
+the honest answer is "cannot be computed".
+
+### Missing values are handled pairwise
+
+`covariance` and the correlations use only the rows where *both* columns are present.
+A row missing either coordinate cannot contribute to a relationship, and imputing one would
+invent data. Consequently `n` can differ between pairs, and every result reports the `n` it
+used so this stays visible.
+
+### No significance claims
+
+The correlation results carry `r`, `n`, and `reason` — and nothing else. There is no
+p-value and no "significant" flag. Deciding whether a relationship is real needs a test
+with its own distributional assumptions, and a bare `r` from nine points looks identical
+to one from nine thousand. Ship the number, not a verdict.
+
+### Correlation method choice
+
+| Method | Measures | Use when |
+| --- | --- | --- |
+| Pearson (`correlation`) | linear association | both columns are roughly continuous and outlier-free |
+| Spearman (`rankCorrelation`) | any monotonic association | data is skewed, has outliers, or is ordinal |
+
+Pearson on `[1..5]` against `[1, 8, 27, 64, 125]` (a perfect cubic) is well under 1;
+Spearman is exactly 1. A single wild outlier drops Pearson sharply and leaves Spearman
+untouched. Both are correct answers to different questions.
+
+### Outliers
+
+```ts
+sales.outliers("revenue");                            // IQR fences, k = 1.5
+sales.outliers("revenue", { threshold: 3 });          // Tukey's "extreme" fence
+sales.outliers("revenue", { method: "zscore" });      // |z| > 3
+```
+
+IQR is the default because it assumes nothing about the distribution. A z-score threshold
+assumes roughly normal data and, on a skewed column, flags the long tail — which is often
+a real feature. On the bundled sample, revenue has 4 IQR outliers with an upper fence of
+`1903.9875`.
+
+One trap worth knowing: a single extreme value inflates the standard deviation enough to
+hide itself. For `[1, 2, 3, 4, 5, 6, 7, 8, 9, 100]` the z-score of `100` is `2.836` —
+under a threshold of 3 — so the z-score method finds nothing while IQR finds it. This is
+arithmetic, not a bug, and it is why IQR is the default.
+
+An outlier is not an error. It is a value that is unusual relative to its neighbours, and
+the usual right response is to look at it.
+
+### Shape
+
+`skewness` and `kurtosis` use the bias-corrected sample formulas (the ones `pandas` and
+`scipy.stats` report with `bias=False`), not the raw moment ratios. Kurtosis is reported as
+**excess**: a normal distribution is `0`, not `3`, so the number reads as "heavier or
+lighter than normal" without a mental subtraction.
+
+Both return `null` below their minimum sample size — three values for skewness, four for
+kurtosis — and for a constant column.
+
+### Scaling helpers
+
+```ts
+standardize([1, 2, 3]);                          // z-scores: [-1, 0, 1]
+normalize([1, 2, 3]);                            // [0, 0.5, 1]
+normalize([1, 2, 3], { min: -1, max: 1 });       // [-1, 0, 1]
+normalize([-2, 1, 2], { method: "maxabs" });     // [-1, 0.5, 1]
+```
+
+`standardize` is `zScores` under its other name. `normalize` maps the observed range onto a
+target range, or divides by the largest absolute value. Both return `null` for every value
+when the scale is undefined — an empty column, a constant column, or an all-zero column
+under `maxabs` — rather than dividing by zero.
+
+Both are sensitive to a single extreme value, which compresses everything else toward one
+end. That is a property of the transformation, not a defect, and it is why `standardize` is
+often the better choice.
+
+### Adding scores as a column
+
+```ts
+sales.withZScores("revenue");            // adds revenue_z, aligned to rows
+sales.withZScores("revenue", "rev_z");   // custom name
+```
+
+The source dataset is unchanged. A constant source column produces an all-null score
+column, so the scaling failure is visible in the data rather than silently absent.
+
+### Verification
+
+The formulas are cross-checked against `numpy` and `scipy.stats` on fixed fixtures:
+`np.cov`, `np.corrcoef`, `scipy.stats.spearmanr`, `scipy.stats.skew(bias=False)`, and
+`scipy.stats.kurtosis(bias=False)`. Ties in Spearman use average ranks, which is what
+`scipy.stats.spearmanr` does.
+
+The standalone functions are exported for use outside a dataset: `covariance`,
+`pearsonCorrelation`, `spearmanCorrelation`, `correlationMatrix`, `zScores`, `standardize`,
+`normalize`, `percentileRank`, `skewness`, `kurtosis`, `fiveNumberSummary`, and
+`detectOutliers`.
+
+## Scope of v0.7.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
@@ -532,11 +658,13 @@ the preparation engine (`drop`, `rename`, `dropMissing`, `fillMissing`, `replace
 `map`, `addColumn`, `cast`, `dropDuplicates`, `sample`), structured queries
 (`Dataset.query()` with typed conditions, boolean grouping, ordering, and projection),
 grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven operations,
-`ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()` for one
-column or all of them, with quartiles, percentiles, IQR, and type-aware nulls), table
-rendering, the bundled sample dataset, the error taxonomy, and the environment split.
+`ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()`),
+advanced statistics (correlation, rank correlation, correlation matrices, z-scores,
+percentile rank, outlier detection, skewness, kurtosis, five-number summaries, and
+normalization helpers), table rendering, the bundled sample dataset, the error taxonomy,
+and the environment split.
 
-Deliberately not in v0.6.0: correlation and rank statistics, outlier detection, joins,
+Deliberately not in v0.7.0: hypothesis tests and p-values, machine-learning models, joins,
 metrics, and Excel import. The architecture reserves space for them (see
 `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
 `Dataset` without changing existing behaviour.
