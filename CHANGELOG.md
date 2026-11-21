@@ -8,6 +8,58 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.10.0] - 2026-11-20
+
+Window functions and time-series operations: values that depend on a row's position among
+its neighbours, and grouping by calendar intervals. Every window function requires an
+explicit `orderBy`, so a result can never depend on the dataset's current row order.
+
+### Added
+
+- `Dataset.window(name, { partitionBy?, orderBy, fn })` and the standalone
+  `windowColumn(...)` for a window value the named helpers do not cover. The callback
+  receives the row, its 1-based position, its partition index, and that partition's
+  ordered rows.
+- Ranking: `rowNumber`, `rank`, and `denseRank`. `rank` leaves a gap after a tie and
+  `denseRank` does not, matching the SQL meaning of both. `rankRows()` returns the
+  ordering itself as `{ index, rank }` pairs.
+- Offsets: `lag` and `lead` with an explicit `offset` and `fill`.
+- Running values: `cumSum` and `cumMean`.
+- Moving values: `rollingSum`, `rollingMean`, `rollingMin`, `rollingMax`, and
+  `rollingStd`, each with an explicit `window` and an optional `minPeriods`.
+- Time series: `sortByTime`, `extractPeriod(name, column, interval)`, `resample(...)`,
+  `resampleReport(...)`, and `periodBuckets(...)`.
+- Standalone `toTime`, `periodStart`, and `periodLabel` for callers who need the same
+  parsing and bucketing rules outside a `Dataset`.
+- Intervals `hour`, `day`, `week`, `month`, `quarter`, and `year`. Weeks start on Monday
+  and quarters on the first day of months 1, 4, 7, and 10.
+
+### Behaviour
+
+- Missing ordering values sort last in both directions, matching `Dataset.sort`, so a
+  `desc` order does not move nulls to the top. Ties keep their input order.
+- Windows never cross a partition boundary. `lag` on the first row of a partition returns
+  `fill`, not the previous partition's last value.
+- A rolling window is trailing and ends at the current row. By default a row with fewer
+  than `window` predecessors emits `null`; lower `minPeriods` to accept a short window.
+- `rollingStd` uses the sample divisor `n - 1`, consistent with `std`, so a window with
+  one observation has no spread and emits `null` rather than `0`.
+- All calendar arithmetic is UTC. A `Date` is an instant, so bucketing in local time would
+  move rows between buckets depending on where the code runs.
+- `resample` emits one row per non-empty bucket in ascending time order and does not
+  invent rows for empty periods.
+- A row whose time is present but unparseable always throws. A row whose time is missing
+  is dropped by default and counted, or rejected with `onMissingTime: "error"`.
+- Window results are appended, so a name that already exists is rejected rather than
+  overwriting the column. Row order and every input column are preserved.
+
+### Notes
+
+- No runtime dependencies were added, and no Node.js built-ins enter the browser entry
+  graph: the new modules use only `Date` and `Math`.
+- `Dataset` gained 19 methods and the package gained 21 named exports, all mirrored in the
+  default namespace.
+
 ## [0.9.0] - 2026-11-21
 
 Conditional columns, joins, and reshaping: derive a column from ordered rules, bring in
