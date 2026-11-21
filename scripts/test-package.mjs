@@ -100,6 +100,7 @@ try {
          labels: (rows) => rows.length,
        });
        const described = sample.describe();
+       const totalRevenue = sample.createMetric({ name: "Total Revenue", column: "revenue", aggregation: "sum" });
        const revenue = sample.describe("revenue");
        const revenueCol = sample.column("revenue").values.filter((v) => v !== null && v !== undefined);
        const notN = missing.query().where("r", "!=", "N").execute();
@@ -200,6 +201,67 @@ try {
            standaloneStandardize: Numiq.standardize([1, 2, 3]),
            standaloneSkew: Numiq.skewness([1, 2, 3, 4, 100]),
            AdvancedIdentity: Numiq.correlationMatrix !== undefined && Numiq.detectOutliers !== undefined,
+         },
+         metrics: {
+           name: totalRevenue.name,
+           value: totalRevenue.value,
+           definition: totalRevenue.definition,
+           evidence: totalRevenue.metric,
+           count: sample.createMetric({ name: "Orders", aggregation: "count" }).value,
+           grouped: (() => {
+             const metric = sample.createMetric({
+               name: "Region Revenue",
+               column: "revenue",
+               aggregation: "sum",
+               groupBy: ["region"],
+             });
+             return metric.byGroup().groups.map((group) => [group.key.region, group.value]);
+           })(),
+           custom: sample.createMetric({
+             name: "Revenue range",
+             column: "revenue",
+             fn: (values) => Math.max(...values) - Math.min(...values),
+           }).value,
+           recalculated: sample
+             .createMetric({ name: "Revenue", column: "revenue", aggregation: "sum" })
+             .recalculate(sample.limit(5).data, sample.columns).rowCount,
+           comparison: sample
+             .createMetric({ name: "Revenue", column: "revenue", aggregation: "sum" })
+             .compare({ to: 1000 }),
+           format: sample.createMetric({
+             name: "Revenue",
+             column: "revenue",
+             aggregation: "sum",
+             format: { prefix: "$", decimals: 2 },
+           }).format,
+           emptyReason: sample.limit(0).createMetric({ name: "R", column: "revenue", aggregation: "sum" }).metric.reason,
+           standalone: Numiq.createMetric({ name: "Rows", aggregation: "count" }, sample.data, sample.columns).value,
+           MetricIdentity: Numiq.Metric !== undefined && Numiq.createMetric !== undefined,
+         },
+         insights: {
+           report: (() => {
+             const report = sample.insights();
+             return {
+               count: report.insights.length,
+               kinds: [...new Set(report.insights.map((insight) => insight.kind))].sort(),
+               truncated: report.truncated,
+               skipped: report.skipped.length,
+               thresholds: report.thresholds,
+               allHaveEvidence: report.insights.every((insight) => Object.keys(insight.evidence).length > 0),
+               allNameColumns: report.insights.every((insight) => insight.columns.length > 0),
+             };
+           })(),
+           deterministic: JSON.stringify(sample.insights()) === JSON.stringify(sample.insights()),
+           lowered: sample
+             .insights({ strongCorrelation: 0.4 })
+             .insights.filter((insight) => insight.kind === "correlation").length,
+           outlierAgreement:
+             sample.insights().insights.find((insight) => insight.kind === "outliers")?.evidence.count ===
+             sample.outliers("revenue").outliers.length,
+           emptySkipped: sample.limit(0).insights().skipped.length,
+           standalone: Numiq.analyze({ rows: sample.data, columns: sample.columns, schema: sample.schema }).thresholds
+             .maxInsights,
+           InsightsIdentity: Numiq.analyze !== undefined && Numiq.resolveInsightOptions !== undefined,
          },
          loadCSV: typeof loadCSV,
          table: data.table().includes("1 rows × 2 columns"),
@@ -387,6 +449,36 @@ try {
   check("exports standardize", JSON.stringify(adv.standaloneStandardize) === "[-1,0,1]", JSON.stringify(adv.standaloneStandardize));
   check("exports skewness", adv.standaloneSkew > 1, String(adv.standaloneSkew));
   check("exposes advanced helpers on the default namespace", adv.AdvancedIdentity === true);
+
+  console.log("\nmetrics");
+  const met = esmResult.metrics;
+  check("names a metric", met.name === "Total Revenue");
+  check("computes the metric sum", Math.abs(met.value - 31122.69) < 1e-6, String(met.value));
+  check("states the definition", met.definition === 'sum("revenue")');
+  check("reports rows and values", met.evidence.rows === 50 && met.evidence.values === 50, JSON.stringify(met.evidence));
+  check("counts rows", met.count === 50, String(met.count));
+  check("computes grouped metrics", met.grouped.length === 4, JSON.stringify(met.grouped));
+  check("runs a custom callback", met.custom > 0, String(met.custom));
+  check("recalculates against new data", met.recalculated === 5, String(met.recalculated));
+  check("compares against a baseline", met.comparison.difference > 0 && met.comparison.reason === null);
+  check("carries format hints", met.format.prefix === "$" && met.format.decimals === 2);
+  check("explains an empty metric", met.emptyReason === "empty", String(met.emptyReason));
+  check("exports a standalone createMetric", met.standalone === 50);
+  check("exposes metrics on the default namespace", met.MetricIdentity === true);
+
+  console.log("\ninsights");
+  const ins = esmResult.insights;
+  check("produces insights", ins.report.count > 0, String(ins.report.count));
+  check("reports the insight kinds found", ins.report.kinds.length > 0, JSON.stringify(ins.report.kinds));
+  check("attaches evidence to every insight", ins.report.allHaveEvidence === true);
+  check("names columns on every insight", ins.report.allNameColumns === true);
+  check("reports nothing truncated", ins.report.truncated === 0, String(ins.report.truncated));
+  check("is deterministic", ins.deterministic === true);
+  check("respects a lowered correlation threshold", ins.lowered === 1, String(ins.lowered));
+  check("agrees with the outlier statistics", ins.outlierAgreement === true);
+  check("explains every check on an empty dataset", ins.emptySkipped === 7, String(ins.emptySkipped));
+  check("exports a standalone analyze", ins.standalone === 50, String(ins.standalone));
+  check("exposes insights on the default namespace", ins.InsightsIdentity === true);
 
   console.log("\ncjs require");
   const cjs = execFileSync(

@@ -900,6 +900,81 @@ Warning codes: `ragged-row`, `invalid-value`, `unsafe-integer`.
 | `showIndex` | `boolean` | `true` |
 | `showShape` | `boolean` | `true` |
 
+## Metrics
+
+### `Dataset.createMetric(spec)` / `createMetric(spec, rows, columns)`
+
+Returns a `Metric`. A spec supplies exactly one calculation: `aggregation` or `fn`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | `string` | Required. Non-empty; becomes the output column name |
+| `column` | `string` | Required for every aggregation except `count` |
+| `aggregation` | `AggregationOp` | One of `count`, `sum`, `mean`, `min`, `max`, `median`, `first`, `last`, `nunique`, `std`, `variance` |
+| `fn` | `(values, context) => unknown` | Custom calculation, with `column` |
+| `fn` | `(rows, context) => unknown` | Custom calculation, without `column` |
+| `ddof` | `number` | Applies to `std` and `variance` only |
+| `format` | `MetricFormat` | Carried, never applied |
+| `metadata` | `Readonly<Record<string, unknown>>` | Carried, never interpreted |
+| `groupBy` | `readonly string[]` | Grouping columns |
+
+### `Metric`
+
+| Member | Type |
+| --- | --- |
+| `name` | `string` |
+| `value` | `unknown` |
+| `definition` | `string` |
+| `aggregation` | `AggregationOp \| null` |
+| `column` | `string \| null` |
+| `metric` | `MetricResult` |
+| `format` | `MetricFormat` |
+| `metadata` | `MetricMetadata` |
+| `groupBy` | `readonly string[]` |
+| `rowCount` | `number` |
+| `rows` | `readonly Readonly<Row>[]` |
+| `columns` | `readonly string[]` |
+| `byGroup()` | `GroupedMetricResult` |
+| `toDataset()` | `{ columns, rows }` |
+| `recalculate(rows, columns?)` | `Metric` |
+| `compare(options)` | `MetricComparison` |
+| `toJSON()` | Plain object, for logging |
+
+`MetricResult` is `{ value, rows, values, reason }`, where `reason` is `"empty"`,
+`"no-values"`, `"not-numeric"`, or `null`.
+
+`MetricComparison` is `{ other, value, otherValue, difference, ratio, percentChange, reason }`.
+`reason` is `"not-numeric"`, `"zero-baseline"`, or `null`.
+
+### `isAggregationOp(value)`
+
+Type guard for the built-in aggregation names.
+
+## Insights
+
+### `Dataset.insights(options?)` / `analyze(input, options?)`
+
+Returns an `InsightReport`: `{ insights, skipped, truncated, thresholds }`.
+
+`Insight` carries `kind`, `severity`, `title`, `detail`, `evidence`, and `columns`.
+`SkippedInsight` carries `kind`, `reason`, and `columns`.
+
+### `resolveInsightOptions(options?)`
+
+Returns the resolved thresholds, rejecting out-of-range values with `RangeError`.
+
+| Option | Default | Valid range |
+| --- | --- | --- |
+| `strongCorrelation` | `0.7` | `0 <= x <= 1` |
+| `dominanceShare` | `0.5` | `0 < x <= 1` |
+| `outlierThreshold` | `1.5` | `> 0` |
+| `trendStrength` | `0.7` | `0 <= x <= 1` |
+| `minGroupSize` | `3` | `>= 1` |
+| `maxCategoryRatio` | `0.5` | `0 < x <= 1` |
+| `minRelativeGap` | `0.25` | `0 <= x <= 1` |
+| `maxInsights` | `50` | `>= 1` |
+| `minTrendPoints` | `4` | `>= 3` |
+
 ## Errors
 
 | Class | `code` | Extra fields |

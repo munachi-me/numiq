@@ -8,6 +8,51 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.8.0] - 2026-11-20
+
+Metrics and insights: reusable calculations that carry their definition, and an engine
+that reports only what the data supports. Every insight includes the values behind it, and
+every check that could not run says why.
+
+### Added
+
+- `Dataset.createMetric(spec)` and the standalone `createMetric(spec, rows, columns)`.
+  A metric is a value plus the definition that produced it: name, aggregation, column,
+  format hints, and metadata.
+- Built-in aggregation metrics over all eleven operations, plus custom callbacks that
+  receive either a column's present values or the whole row set.
+- `Metric.byGroup()` and `Metric.toDataset()` for grouped metrics, in first-appearance
+  order of the group key.
+- `Metric.recalculate(rows, columns?)`, which returns a new metric with the same
+  definition against different data.
+- `Metric.compare({ to, label? })` for differences, ratios, and percentage change against
+  a baseline, reporting `not-numeric` or `zero-baseline` instead of inventing a number.
+- `Metric.definition`, a one-line account such as `sum("revenue")`, so a printed value can
+  be audited.
+- `Dataset.insights(options?)` and the standalone `analyze(input, options?)`, returning
+  `{ insights, skipped, truncated, thresholds }`.
+- Seven insight checks: missing data, IQR outliers, strong correlations, category extremes,
+  the widest gap between comparable groups, category dominance, and monotonic trends over
+  time.
+- `resolveInsightOptions(options?)` for the documented defaults, which are also reported
+  back in every result.
+
+### Notes
+
+- Metric aggregations delegate to the same primitives `GroupedDataset.aggregate()` uses,
+  so a metric and a grouped aggregation over one column cannot disagree.
+- A metric never counts a missing cell as zero; each result reports both `rows` and
+  `values` so the difference is visible.
+- Insights claim no statistical significance, and the correlation check says so in its own
+  detail text. A relationship is only described as "strong" at the conventional 0.7, even
+  when a caller lowers the reporting threshold.
+- Identifier-like columns are excluded as grouping dimensions: a near-unique text column
+  would otherwise rank the extreme of a set of one-row samples as a category finding.
+- Group gaps are measured against the measure's observed range, so a difference that is
+  noise on that scale is not reported.
+- Output is deterministic for the same input, and truncation is reported rather than
+  dropping observations silently.
+
 ## [0.7.0] - 2026-11-20
 
 `Dataset` gains advanced statistics: relationships between columns, distribution shape,

@@ -3,12 +3,13 @@
 A modular TypeScript engine for loading, normalizing, preparing, querying, and
 analyzing structured data.
 
-Numiq v0.7.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq v0.8.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter, sort,
 prepare, query, group, summarize, and render as a table. It also describes each column and
 measures how columns relate to each other: correlation, rank correlation, correlation
 matrices, z-scores, percentile rank, skewness, kurtosis, five-number summaries, and
-outlier detection.
+outlier detection. Beyond describing what is there, it defines reusable metrics that keep
+their own definition, and reports observations that carry their evidence.
 
 ```ts
 import { loadCSV } from "numiq";
@@ -653,7 +654,138 @@ The standalone functions are exported for use outside a dataset: `covariance`,
 `normalize`, `percentileRank`, `skewness`, `kurtosis`, `fiveNumberSummary`, and
 `detectOutliers`.
 
-## Scope of v0.7.0
+## Metrics
+
+A metric is a named calculation that keeps its definition. The number travels with an
+account of how it was produced, so it can be printed, grouped, compared, and recalculated
+later.
+
+```ts
+const revenue = data.createMetric({
+  name: "Total Revenue",
+  column: "revenue",
+  aggregation: "sum",
+  format: { prefix: "$", decimals: 2, unit: "currency" },
+});
+
+revenue.name;        // "Total Revenue"
+revenue.value;       // 31122.690000000002
+revenue.definition;  // 'sum("revenue")'
+revenue.metric;      // { value, rows: 50, values: 50, reason: null }
+```
+
+`metric` reports the rows the calculation ran over and the present values it saw. When the
+two differ, the column has gaps, and the aggregation skipped them rather than counting them
+as zero.
+
+### Grouped metrics
+
+Pass `groupBy` to compute the metric per group. Groups appear in first-appearance order of
+their key, so output is deterministic.
+
+```ts
+const byRegion = data.createMetric({
+  name: "Revenue",
+  column: "revenue",
+  aggregation: "sum",
+  groupBy: ["region"],
+});
+
+byRegion.byGroup().groups;   // [{ key: { region: "North" }, value: 6058.01, rows: 13, ... }, ...]
+byRegion.toDataset().columns; // ["region", "Revenue"]
+```
+
+### Custom calculations
+
+Supply `fn` instead of `aggregation`. With a `column`, the callback receives that column's
+present values. Without one, it receives the whole row set.
+
+```ts
+const spread = data.createMetric({
+  name: "Revenue range",
+  column: "revenue",
+  fn: (values) => Math.max(...(values as number[])) - Math.min(...(values as number[])),
+});
+
+const rows = data.createMetric({
+  name: "Rows",
+  fn: (rows) => rows.length,
+});
+```
+
+### Recalculation and comparison
+
+```ts
+const north = data.filter((row) => row.region === "North");
+const scoped = revenue.recalculate(north.data, north.columns);
+scoped.value; // a smaller total, over 13 rows
+
+revenue.compare({ to: scoped.metric, label: "North" });
+// { difference, ratio, percentChange, reason: null }
+```
+
+`compare` returns `reason: "not-numeric"` when either side is not a number, and
+`reason: "zero-baseline"` when the baseline is zero, rather than producing `Infinity`.
+
+Metric aggregations delegate to the same primitives `groupBy().aggregate()` uses, so a
+metric and a grouped aggregation over the same column cannot disagree.
+
+## Insights
+
+`Dataset.insights()` reports defensible observations, each with the values behind it. It
+never generates a narrative the data does not support, and a check that cannot run is
+listed in `skipped` with a reason rather than being silently omitted.
+
+```ts
+const report = data.insights();
+
+report.insights;   // Insight[]
+report.skipped;    // { kind, reason, columns }[]
+report.truncated;  // how many were dropped by maxInsights
+report.thresholds; // the defaults actually used
+```
+
+Each insight has `kind`, `severity`, `title`, `detail`, `evidence`, and `columns`. The
+`detail` is a plain sentence built from `evidence`; nothing is rendered.
+
+| `kind` | What it reports |
+| --- | --- |
+| `missing-data` | Columns with absent values, as a count and share |
+| `outliers` | Values outside the IQR fences, with the fences themselves |
+| `correlation` | Numeric pairs at or above `strongCorrelation` |
+| `category-extreme` | Highest and lowest group means for each category |
+| `group-change` | The widest gap between comparable groups |
+| `dominance` | A category value holding at least `dominanceShare` of rows |
+| `trend` | Monotonic movement of a measure over a date or datetime column |
+
+### Thresholds and their defaults
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `strongCorrelation` | `0.7` | Minimum \|r\| to report a relationship |
+| `dominanceShare` | `0.5` | Share one value needs to count as dominant |
+| `outlierThreshold` | `1.5` | IQR fence multiplier (Tukey's convention) |
+| `trendStrength` | `0.7` | Minimum \|rho\| against time for a trend |
+| `minGroupSize` | `3` | Rows a group needs before its mean is ranked |
+| `maxCategoryRatio` | `0.5` | Highest distinct-to-rows ratio still treated as a category |
+| `minRelativeGap` | `0.25` | Smallest gap worth reporting, as a fraction of the range |
+| `maxInsights` | `50` | Maximum insights returned |
+| `minTrendPoints` | `4` | Distinct timestamps a trend needs |
+
+### What it refuses to claim
+
+- **No significance.** The correlation detail says so explicitly. There is no p-value
+  anywhere, and `strongly` is only used at the conventional 0.7 even if you lower the
+  reporting threshold.
+- **No identifier rankings.** A near-unique text column such as an order id is excluded as a
+  grouping dimension, because ranking one-row groups would describe a single row as a
+  category.
+- **No noise as findings.** A group gap is measured against the measure's observed range, so
+  a difference of 0.17 on a 1-to-7 scale is not reported.
+- **No silent omissions.** `skipped` explains every check that could not run, so an empty
+  `insights` array is distinguishable from a check that never executed.
+
+## Scope of v0.8.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
@@ -664,11 +796,13 @@ grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven oper
 `ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()`),
 advanced statistics (correlation, rank correlation, correlation matrices, z-scores,
 percentile rank, outlier detection, skewness, kurtosis, five-number summaries, and
-normalization helpers), table rendering, the bundled sample dataset, the error taxonomy,
-and the environment split.
+normalization helpers), metrics (`createMetric`, grouped metrics, custom calculations,
+recalculation, comparison, and format hints), insights (`Dataset.insights()` with seven
+checks, configurable thresholds, and evidence on every observation), table rendering, the
+bundled sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not in v0.7.0: hypothesis tests and p-values, machine-learning models, joins,
-metrics, and Excel import. The architecture reserves space for them (see
+Deliberately not in v0.8.0: hypothesis tests and p-values, machine-learning models, joins,
+reshaping, and Excel import. The architecture reserves space for them (see
 `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
 `Dataset` without changing existing behaviour.
 

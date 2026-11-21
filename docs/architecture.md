@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how Numiq v0.7.0 is organised, why it is organised that way, and
+This document describes how Numiq v0.8.0 is organised, why it is organised that way, and
 where the remaining capabilities attach.
 
 ## Design principles
@@ -113,9 +113,8 @@ only happens when a caller asks for it.
 
 ## Where the remaining capabilities attach
 
-Preparation, querying, grouping, descriptive statistics, and advanced statistics have
-landed. The spec (§11) still reserves room for metrics, and it attaches as follows,
-alongside the layers already built.
+Preparation, querying, grouping, descriptive statistics, advanced statistics, metrics, and
+insights have landed. Each attaches as follows, alongside the layers already built.
 
 - **Preparation and transformation** are `Dataset` methods returning new datasets,
   implemented in `src/core/prepare.ts`. They needed no changes to the import layer.
@@ -129,22 +128,28 @@ alongside the layers already built.
   v0.6.0 this way: `src/analytics/stats.ts` holds the arithmetic and `describe.ts` adds the
   profiling layer, neither of which knows about `Dataset` internals. v0.7.0 extends the same
   pattern with `advanced.ts` for two-column statistics and distribution shape; `Dataset`
-  methods are thin wrappers that extract column values and delegate.
+  methods are thin wrappers that extract column values and delegate. v0.8.0 adds two layers
+  on top of the same primitives rather than beside them: `src/metrics/metric.ts` binds a
+  definition to a calculation and delegates to `src/core/aggregate.ts`, so a metric and a
+  grouped aggregation cannot diverge; `src/insights/insights.ts` reads column profiles and
+  the statistics layer, then applies thresholds to decide what is worth reporting. Neither
+  module imports `Dataset`; `createMetric()` and `insights()` are thin wrappers, and the
+  standalone `createMetric()` and `analyze()` take rows and columns directly.
 - **Numviz integration** (§12) is a boundary, not a dependency: a separate export subpath
   that converts a `Dataset` into whatever shape Numviz consumes. Numiq must not depend on
   a visualisation library.
 
 Each layer landed without changes to the import layer or the `Dataset` invariants, which is
-what the split was for. Metrics, joins, and the Numviz subpath attach the same way.
+what the split was for. Joins, reshaping, and the Numviz subpath attach the same way.
 
 ## Testing strategy
 
 - `tests/unit/` — parsers, tokenizer, normalization, dataset, table, errors, public API,
-  preparation, querying, grouping and aggregation, descriptive statistics, and advanced
-  statistics.
+  preparation, querying, grouping and aggregation, descriptive statistics, advanced
+  statistics, metrics, and insights.
 - `tests/integration/` — loaders against a real HTTP server and a real temporary
   directory; the environment split in a separate process; and one suite per release
-  (`v020` … `v070`) that exercises that release's public API end to end.
+  (`v020` … `v080`) that exercises that release's public API end to end.
 - `tests/types/` — a compile-time contract for the published declarations, including
   negative assertions that invalid usage fails to compile.
 - `scripts/test-package.mjs` — packs the tarball, installs it into a throwaway consumer,
