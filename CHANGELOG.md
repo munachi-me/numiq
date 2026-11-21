@@ -8,7 +8,7 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
-## [0.9.0] - 2026-11-20
+## [0.9.0] - 2026-11-21
 
 Conditional columns, joins, and reshaping: derive a column from ordered rules, bring in
 columns from a related dataset, and change a table's shape without changing its data.
@@ -53,7 +53,7 @@ columns from a related dataset, and change a table's shape without changing its 
   against a nullable column must test for missing first; the behaviour is documented and
   covered by a test rather than silently rewritten.
 
-## [0.8.0] - 2026-11-20
+## [0.8.0] - 2026-11-21
 
 Metrics and insights: reusable calculations that carry their definition, and an engine
 that reports only what the data supports. Every insight includes the values behind it, and
@@ -98,7 +98,7 @@ every check that could not run says why.
 - Output is deterministic for the same input, and truncation is reported rather than
   dropping observations silently.
 
-## [0.7.0] - 2026-11-20
+## [0.7.0] - 2026-11-21
 
 `Dataset` gains advanced statistics: relationships between columns, distribution shape,
 position within a distribution, and outlier detection. Every result carries the evidence
@@ -160,7 +160,7 @@ behind it, and undefined answers are `null` with a reason rather than `NaN` or `
 - No hypothesis tests, p-values, or machine-learning models in this release.
 - Formulas are cross-checked against `numpy` and `scipy.stats` on fixed fixtures.
 
-## [0.6.0] - 2026-11-20
+## [0.6.0] - 2026-11-21
 
 `Dataset` gains descriptive statistics. `describe()` profiles every column at once;
 `describe(column)` returns one column's profile directly.
@@ -207,7 +207,7 @@ behind it, and undefined answers are `null` with a reason rather than `NaN` or `
 - A single value has no sample spread: `variance` and `std` are `null`, `iqr` and `range`
   are `0`.
 
-## [0.5.0] - 2026-11-20
+## [0.5.0] - 2026-11-21
 
 `Dataset` gains grouping and aggregation. `groupBy()` describes a split and computes
 nothing; `aggregate()` runs it and returns an ordinary `Dataset`, so summaries compose with
@@ -281,7 +281,7 @@ queries, sorting, and preparation like any other data.
 `describe()` and the wider descriptive-statistics API, which arrive in 0.6.0. Correlation,
 rank statistics, and outlier detection follow in 0.7.0.
 
-## [0.4.0] - 2026-11-20
+## [0.4.0] - 2026-11-21
 
 `Dataset` gains a structured query API. Conditions are typed values passed to methods
 rather than text, so there is no query language to parse and no way for data to become
