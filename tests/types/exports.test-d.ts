@@ -29,6 +29,25 @@ import Numiq, {
   type QueryOperator,
   type ComparisonOperator,
   type QueryDirection,
+  GroupedDataset,
+  sum,
+  mean,
+  median,
+  variance,
+  std,
+  min,
+  max,
+  first,
+  last,
+  nunique,
+  type AggregateSpec,
+  type AggregationEntry,
+  type AggregationFn,
+  type GroupAggregationFn,
+  type AggregationOp,
+  type AggregationContext,
+  type DispersionOptions,
+  type CustomAggregation,
 } from "../../src/index.js";
 
 declare function expectType<T>(value: T): void;
@@ -243,3 +262,103 @@ queryable.query().select("a");
 queryable.query().where("a", "isNull", 1);
 // @ts-expect-error ignoreCase must be a boolean
 queryable.query().where("b", "=", "x", { ignoreCase: "yes" });
+
+// ---------------------------------------------------------------- grouping (v0.5.0)
+
+// groupBy returns a GroupedDataset whose aggregate() is a Dataset.
+const grouped = queryable.groupBy("a");
+const aggregated = grouped.aggregate({ n: { op: "count" } });
+expectType<Dataset>(aggregated);
+expectType<readonly Row[]>(aggregated.data);
+
+// Grouping metadata is typed.
+expectType<readonly string[]>(grouped.columns);
+expectType<number>(grouped.groupCount);
+expectType<readonly number[]>(grouped.sizes);
+expectType<readonly Readonly<Record<string, unknown>>[]>(grouped.keys);
+
+// Several columns, as varargs or an array.
+queryable.groupBy("a", "b");
+queryable.groupBy(["a", "b"] as const);
+
+// Every operation is accepted.
+grouped.aggregate({ x: { column: "a", op: "count" } });
+grouped.aggregate({ x: { column: "a", op: "sum" } });
+grouped.aggregate({ x: { column: "a", op: "mean" } });
+grouped.aggregate({ x: { column: "a", op: "min" } });
+grouped.aggregate({ x: { column: "a", op: "max" } });
+grouped.aggregate({ x: { column: "a", op: "median" } });
+grouped.aggregate({ x: { column: "a", op: "first" } });
+grouped.aggregate({ x: { column: "a", op: "last" } });
+grouped.aggregate({ x: { column: "a", op: "nunique" } });
+grouped.aggregate({ x: { column: "a", op: "std" } });
+grouped.aggregate({ x: { column: "a", op: "variance" } });
+
+// count may omit its column.
+grouped.aggregate({ rows: { op: "count" } });
+
+// Dispersion options are typed.
+grouped.aggregate({ x: { column: "a", op: "std", ddof: 0 } });
+grouped.aggregate({ x: { column: "a", op: "variance", ddof: 1 } });
+
+// Custom aggregators: a bare callback gets rows, a column-bound one gets values.
+grouped.aggregate({ x: (rows) => rows.length });
+// A bare callback sees Row objects, so it can read a column without a cast.
+grouped.aggregate({ x: (rows) => rows[0]?.a });
+expectType<GroupAggregationFn>((rows) => rows[0]?.a);
+grouped.aggregate({ x: (rows, context) => `${String(context.column)}:${rows.length}` });
+grouped.aggregate({ x: { column: "a", fn: (values) => values.length } });
+grouped.aggregate({ x: { column: "a", fn: (_values, context) => context.rows.length } });
+
+// The aggregated result composes with the rest of the API.
+aggregated.groupBy("n").aggregate({ total: { op: "count" } });
+aggregated.query().where("n", ">", 0).execute();
+
+// toDataset and mapGroups return datasets.
+expectType<Dataset>(grouped.toDataset());
+expectType<Dataset>(grouped.mapGroups((rows, key) => [{ a: key.a, n: rows.length }]));
+
+// @ts-expect-error operations are a closed union
+grouped.aggregate({ x: { column: "a", op: "mode" } });
+// @ts-expect-error an aggregation needs an op
+grouped.aggregate({ x: { column: "a" } });
+// @ts-expect-error ddof must be a number
+grouped.aggregate({ x: { column: "a", op: "std", ddof: "0" } });
+// @ts-expect-error column must be a string
+grouped.aggregate({ x: { column: 1, op: "sum" } });
+// @ts-expect-error aggregate takes a spec object, not a bare string
+grouped.aggregate("a");
+// @ts-expect-error groupBy takes column names
+queryable.groupBy(1);
+// @ts-expect-error mapGroups must return rows
+grouped.mapGroups(() => "nope");
+
+// Standalone aggregation helpers are exported with narrow signatures.
+expectType<number>(sum([1, 2, 3]));
+expectType<number | null>(mean([1, 2, 3]));
+expectType<number | null>(median([1, 2, 3]));
+expectType<number | null>(variance([1, 2, 3]));
+expectType<number | null>(variance([1, 2, 3], { ddof: 0 }));
+expectType<number | null>(std([1, 2, 3]));
+expectType<unknown>(min([1, 2, 3]));
+expectType<unknown>(max([1, 2, 3]));
+expectType<unknown>(first([1, 2, 3]));
+expectType<unknown>(last([1, 2, 3]));
+expectType<number>(nunique([1, 1, 2]));
+// @ts-expect-error sum takes numbers, not strings
+sum(["1"]);
+
+// The published grouping types are importable and shaped as documented.
+expectType<AggregationOp>("sum");
+const entry: AggregationEntry = { column: "a", op: "median" };
+const fnEntry: AggregationFn = (values) => values.length;
+const custom: CustomAggregation = { column: "a", fn: (values) => values.length };
+expectType<DispersionOptions>({ ddof: 0 });
+expectType<(context: AggregationContext) => readonly Row[]>((context) => context.rows);
+const spec: AggregateSpec = { x: entry, y: fnEntry, z: custom };
+grouped.aggregate(spec);
+expectType<GroupedDataset<Dataset>>(grouped);
+expectType<readonly string[]>(grouped.columns);
+
+// @ts-expect-error AggregationOp is a closed union
+expectType<AggregationOp>("mode");

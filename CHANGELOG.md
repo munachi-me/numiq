@@ -8,6 +8,76 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.5.0] - 2026-11-20
+
+`Dataset` gains grouping and aggregation. `groupBy()` describes a split and computes
+nothing; `aggregate()` runs it and returns an ordinary `Dataset`, so summaries compose with
+queries, sorting, and preparation like any other data.
+
+### Added
+
+- `Dataset.groupBy(...columns)` returns a `GroupedDataset`. Accepts one or more columns, or
+  a single array of them.
+- `GroupedDataset.aggregate(spec)` computes one output column per spec entry and returns a
+  `Dataset` whose columns are the grouping columns followed by the spec's keys.
+- Aggregations: `count`, `sum`, `mean`, `min`, `max`, `median`, `first`, `last`, `nunique`,
+  `std`, and `variance`.
+- `ddof` option on `std` and `variance`, selecting the sample formula (default, divides by
+  `n - 1`) or the population formula (`ddof: 0`, divides by `n`).
+- Custom aggregators in two forms: a bare callback receiving the group's rows, and a
+  `{ column, fn }` entry receiving that column's present values. Both receive frozen copies.
+- `GroupedDataset` metadata that computes nothing: `columns`, `groupCount`, `rowCount`,
+  `sizes`, and `keys`.
+- `GroupedDataset.toDataset()` and `mapGroups(fn)` for working with grouped rows directly.
+- Standalone helpers exported for use outside a grouping: `sum`, `mean`, `median`,
+  `variance`, `std`, `min`, `max`, `first`, `last`, and `nunique`.
+- Exported types: `GroupedDataset`, `GroupSource`, `AggregateSpec`, `AggregationEntry`,
+  `AggregationFn`, `AggregationOp`, `AggregationSpec`, `AggregationContext`,
+  `CustomAggregation`, and `DispersionOptions`.
+- `examples/09-grouping.ts` walks through totals, dispersion, missing values, and custom
+  aggregators.
+
+### Behaviour
+
+- **Groups keep first-appearance order** of their key, so output is deterministic and
+  independent of hashing. Rows keep source order within each group, which is what makes
+  `first` and `last` meaningful.
+- **A missing key forms its own group** with a `null` key rather than being dropped.
+  Discarding such rows silently makes totals that do not add up. Filter with
+  `.query().where(key, "isNotNull")` when the group is not wanted.
+- **Missing cells inside a group are excluded from every aggregation**, so `mean` of
+  `[1, null, 3]` is `2`. `count` with no column counts rows; with a column it counts
+  present cells.
+- **Noncalculatable results are `null`**, not `0` or `NaN`: a group with no present values
+  has a `null` mean, and a single-row group has a `null` sample variance, because one
+  observation says nothing about spread. `count`, `nunique`, and `sum` report `0`.
+- **Numeric-only operations are validated against the column's type before any row is
+  scanned.** `sum` on a text column throws `ValidationError` naming the column and its
+  type, rather than quietly returning `null`. `min`, `max`, `first`, `last`, `count`, and
+  `nunique` are allowed on text, booleans, and dates.
+- **`aggregate` validates the whole spec before computing**, so a mistake in the last entry
+  cannot leave a partial result. Output names must not collide with grouping columns.
+
+### Numerical notes
+
+- `sum` uses Neumaier compensated summation. Naive left-to-right addition returns `0` for
+  `[1e16, 1, -1e16]` and `0.9999999999999999` for ten copies of `0.1`; compensated
+  summation returns `1` for both.
+- `variance` is two-pass, computing deviations from the known mean. The one-pass
+  `E[x²] - E[x]²` shortcut returns `0` for `[1000000001, 1000000002, 1000000003]`, where
+  the correct answer is `1`.
+
+### Removed
+
+- `AUDIT-AND-ARCHITECTURE-v0.1.0.md`. The audit it recorded was superseded by the
+  implementation, and keeping a stale snapshot of the codebase invites readers to trust
+  descriptions that no longer match the code.
+
+### Not included
+
+`describe()` and the wider descriptive-statistics API, which arrive in 0.6.0. Correlation,
+rank statistics, and outlier detection follow in 0.7.0.
+
 ## [0.4.0] - 2026-11-20
 
 `Dataset` gains a structured query API. Conditions are typed values passed to methods

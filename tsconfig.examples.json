@@ -6,8 +6,18 @@
     "declarationMap": false,
     "sourceMap": false,
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "paths": {
+      "numiq": [
+        "./src/node.ts"
+      ]
+    }
   },
-  "include": ["examples/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "examples/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }

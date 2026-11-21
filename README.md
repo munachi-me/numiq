@@ -443,18 +443,42 @@ that resolve outside the folder are all refused.
 CommonJS consumers can `require("numiq")`; the `require` condition resolves to a
 CommonJS build.
 
-## Scope of v0.3.0
+## Grouping and aggregation
+
+`groupBy()` describes a split and computes nothing; `aggregate()` runs it and returns an
+ordinary `Dataset`, so a summary composes with queries, sorting, and preparation.
+
+```ts
+const summary = data.groupBy("region").aggregate({
+  totalRevenue: { column: "revenue", op: "sum" },
+  averageOrder: { column: "revenue", op: "mean" },
+  orderCount: { op: "count" },
+});
+
+summary.query().where("totalRevenue", ">", 1000).orderBy("totalRevenue", "desc").execute();
+```
+
+Groups keep first-appearance order, so output is deterministic. Rows with a missing key form
+their own group with a `null` key rather than being dropped, and missing cells inside a group
+are excluded from every aggregation. `std` and `variance` default to the sample formula;
+pass `ddof: 0` for the population formula.
+
+## Scope of v0.5.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
 the preparation engine (`drop`, `rename`, `dropMissing`, `fillMissing`, `replace`,
-`map`, `addColumn`, `cast`, `dropDuplicates`, `sample`), table rendering, the bundled
-sample dataset, the error taxonomy, and the environment split.
+`map`, `addColumn`, `cast`, `dropDuplicates`, `sample`), structured queries
+(`Dataset.query()` with typed conditions, boolean grouping, ordering, and projection),
+grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven operations,
+`ddof` control, and custom callbacks), table rendering, the bundled sample dataset, the
+error taxonomy, and the environment split.
 
-Deliberately not in v0.3.0: query DSL, grouping, aggregation, descriptive statistics,
-joins, metrics, and Excel import. The architecture reserves space for them (see
-`docs/architecture.md`). `Dataset` is immutable, so every future transformation will
-return a new `Dataset` without changing existing behaviour.
+Deliberately not in v0.5.0: `describe()` and the wider descriptive-statistics API,
+correlation and rank statistics, outlier detection, joins, metrics, and Excel import.
+The architecture reserves space for them (see `docs/architecture.md`). `Dataset` is
+immutable, so every transformation returns a new `Dataset` without changing existing
+behaviour.
 
 ## Development
 
