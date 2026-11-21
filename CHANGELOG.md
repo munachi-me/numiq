@@ -57,6 +57,10 @@ queries, sorting, and preparation like any other data.
   `nunique` are allowed on text, booleans, and dates.
 - **`aggregate` validates the whole spec before computing**, so a mistake in the last entry
   cannot leave a partial result. Output names must not collide with grouping columns.
+- **Group keys are compared by value and type, with an injective encoding.** Values that
+  contain the internal separator cannot forge a key boundary, so `["x\u0000y", "z"]` and
+  `["x", "y\u0000z"]` stay distinct groups. `null` and the string `"null"` are likewise
+  different keys.
 
 ### Numerical notes
 

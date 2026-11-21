@@ -208,7 +208,7 @@ export class GroupedDataset<TResult> {
     const byKey = new Map<string, { key: unknown[]; rows: Row[] }>();
     for (const row of this.#source.rows) {
       const key = this.#columns.map((column) => row[column] ?? null);
-      const identity = key.map((value) => stableKey(value)).join("\u0000");
+      const identity = key.map((value) => encodeKeyPart(stableKey(value))).join("");
       let bucket = byKey.get(identity);
       if (bucket === undefined) {
         bucket = { key, rows: [] };
@@ -302,6 +302,17 @@ export class GroupedDataset<TResult> {
 
     return { name, compute: (group) => applyOp(op, valuesOf(group), ddof) };
   }
+}
+
+/**
+ * Encode one key component with its length.
+ *
+ * Concatenating raw values would let a separator inside a value forge a boundary, so
+ * `["x\u0000y", "z"]` and `["x", "y\u0000z"]` would collide and merge into one group.
+ * Prefixing the length makes the encoding injective regardless of content.
+ */
+function encodeKeyPart(value: string): string {
+  return `${value.length}:${value}`;
 }
 
 function isAggregationOp(value: string): value is AggregationOp {

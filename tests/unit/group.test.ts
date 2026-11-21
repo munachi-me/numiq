@@ -659,3 +659,29 @@ describe("groupBy: toDataset and mapGroups", () => {
     expect(() => byRegion().mapGroups(() => ({}) as never)).toThrow(/array of rows/);
   });
 });
+
+describe("groupBy: key encoding", () => {
+  it("keeps keys distinct when a value contains the separator", () => {
+    // Concatenating raw key values lets a separator inside a value forge a boundary, which
+    // would merge two unrelated groups and double their counts.
+    const data = createDataset([
+      { a: "x\u0000string:y", b: "z" },
+      { a: "x", b: "y\u0000string:z" },
+    ]);
+
+    const grouped = data.groupBy("a", "b");
+    expect(grouped.groupCount).toBe(2);
+    expect(grouped.sizes).toEqual([1, 1]);
+    expect(grouped.aggregate({ n: { op: "count" } }).data).toEqual([
+      { a: "x\u0000string:y", b: "z", n: 1 },
+      { a: "x", b: "y\u0000string:z", n: 1 },
+    ]);
+  });
+
+  it('keeps null distinct from the string "null"', () => {
+    // The type tag in `stableKey` is what separates these; a bare `String(value)` would merge them.
+    const data = createDataset([{ k: null }, { k: "null" }, { k: "undefined" }, { k: undefined }]);
+
+    expect(data.groupBy("k").groupCount).toBe(3);
+  });
+});
