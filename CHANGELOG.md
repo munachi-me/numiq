@@ -8,6 +8,53 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.4.0] - 2026-11-20
+
+`Dataset` gains a structured query API. Conditions are typed values passed to methods
+rather than text, so there is no query language to parse and no way for data to become
+executable code.
+
+### Added
+
+- `Dataset.query()` returns a `Query<Dataset>`.
+- `Query` operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `between`,
+  `contains`, `startsWith`, `endsWith`, `isNull`, and `isNotNull`.
+- `where`, `and`, `or`, plus `andGroup` and `orGroup` for explicit parenthesisation.
+- `orderBy`, `select`, `limit`, and `execute`.
+- `Query.toString()` renders the compiled conditions with their grouping.
+- `ignoreCase` option on the value operators, for case-insensitive text comparisons.
+- Exported types: `QueryOperator`, `ComparisonOperator`, `SetOperator`, `RangeOperator`,
+  `StringOperator`, `NullOperator`, `QueryDirection`, `WhereOptions`, `QuerySource`,
+  and `CellShape`.
+
+### Design notes
+
+- `and` binds tighter than `or`, so `a OR b AND c` reads as `a OR (b AND c)`.
+- A missing cell never satisfies a comparison, including `!=` and `notIn`, matching SQL's
+  three-valued logic. `isNull` and `isNotNull` test for missingness directly.
+- Equality compares by value and type, so `1` never equals `"1"`.
+- Conditions are validated against the column's type before any row is scanned. Comparing
+  a numeric column against a string raises `ValidationError` instead of silently matching
+  nothing. `mixed` and `unknown` columns are exempt.
+- `between` rejects inverted bounds, missing bounds, and bounds of different types.
+- Every builder step returns a new `Query`; a partially built query is safe to reuse.
+  Nothing runs until `execute()`, which returns a new `Dataset` with
+  `importReport === null`.
+- A `date` column may hold ISO strings (as imported) or `Date` objects (after `cast`).
+  Query values are converted to the column's own representation, using strict ISO parsing,
+  so comparing either form against an ISO string works instead of silently matching
+  nothing. Non-ISO text is rejected rather than becoming an Invalid Date.
+- `Dataset.sort` and `Query.orderBy` share one comparator, so they can never disagree
+  about ordering.
+
+### Tooling
+
+- `tsx` is now a development dependency, so the documented example command works.
+- Examples are typechecked in `verify` via `tsconfig.examples.json`. They were previously
+  unchecked, which allowed them to rot.
+- `check:no-runtime-deps` fails the build if `package.json` declares a runtime dependency,
+  or if `src/` or `dist/` imports a bare package specifier.
+
 ## [0.3.0] - 2026-11-20
 
 `Dataset` becomes a preparation engine. Ten new methods clean, reshape, and derive data

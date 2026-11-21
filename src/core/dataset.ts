@@ -14,6 +14,7 @@ import type {
 import { ColumnNotFoundError, ValidationError } from "../errors/index.js";
 import { renderTable } from "../display/table.js";
 import { cloneValue, deepFreeze, isPresent, stableKey } from "../utils/values.js";
+import { compareValues } from "../utils/compare.js";
 import { countUnique, describeColumn, distinctValues, inferColumnType } from "./schema.js";
 import {
   addColumn,
@@ -28,6 +29,7 @@ import {
   sampleRows,
 } from "./prepare.js";
 import type { DropMissingOptions, FillStrategy, ReplaceRule, SampleOptions } from "./prepare.js";
+import { Query, detectCellShape } from "./query.js";
 import { resolveNormalization } from "../io/normalization/policy.js";
 import { normalizeCell } from "../io/normalization/values.js";
 
@@ -222,6 +224,43 @@ export class Dataset {
       if (predicate(row, index)) kept.push(row);
     }
     return this.#derive(kept);
+  }
+
+  /**
+   * Start a structured query against this dataset.
+   *
+   * The returned `Query` is an immutable description: nothing runs until `execute()`,
+   * which returns a new `Dataset`. Conditions are typed values rather than text, so no
+   * query string is ever parsed or evaluated.
+   *
+   * ```ts
+   * data
+   *   .query()
+   *   .where("revenue", ">", 100)
+   *   .and("region", "in", ["North", "West"])
+   *   .orderBy("revenue", "desc")
+   *   .limit(20)
+   *   .execute();
+   * ```
+   */
+  query(): Query<Dataset> {
+    const dtypes = this.dtypes;
+    // Shape detection scans a column, and a query may compare the same column repeatedly.
+    const shapes = new Map<string, ReturnType<typeof detectCellShape>>();
+    return new Query<Dataset>({
+      columns: this.#columns,
+      rows: this.#rows,
+      dtypes,
+      shapeOf: (column) => {
+        let shape = shapes.get(column);
+        if (shape === undefined) {
+          shape = detectCellShape(this.#rows, column, dtypes[column]);
+          shapes.set(column, shape);
+        }
+        return shape;
+      },
+      build: (rows, columns) => this.#build(rows, columns),
+    });
   }
 
   /**
@@ -585,16 +624,6 @@ function validateColumnNames(columns: readonly string[]): void {
 
 /** Sort order accepted by `Dataset.sort`. */
 export type SortDirection = "asc" | "desc";
-
-/** Order present values only; `sort` handles nullish values before calling this. */
-function compareValues(left: unknown, right: unknown): number {
-  if (left instanceof Date && right instanceof Date) return Math.sign(left.getTime() - right.getTime());
-  if (typeof left === "number" && typeof right === "number") return Math.sign(left - right);
-  if (typeof left === "boolean" && typeof right === "boolean") return Number(left) - Number(right);
-  const leftText = String(left);
-  const rightText = String(right);
-  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
-}
 
 function requireCount(value: number, method: string): number {
   if (!Number.isInteger(value) || value < 0) {

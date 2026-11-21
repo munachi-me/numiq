@@ -25,6 +25,10 @@ import Numiq, {
   type FillStrategy,
   type ReplaceRule,
   type SampleOptions,
+  Query,
+  type QueryOperator,
+  type ComparisonOperator,
+  type QueryDirection,
 } from "../../src/index.js";
 
 declare function expectType<T>(value: T): void;
@@ -186,3 +190,56 @@ fromRecords.limit("1");
 fromRecords.filter("a");
 // @ts-expect-error datasetDir must be a string
 loadCSV("sales.csv", { datasetDir: 42 });
+
+// ---------------------------------------------------------------- query engine
+
+const queryable = createDataset([{ a: 1, b: "x" }]);
+
+// execute() returns the same dataset type the builder was created from.
+expectType<Dataset>(queryable.query().execute());
+expectType<Dataset>(queryable.query().where("a", ">", 1).execute());
+
+// Every builder step returns a Query, so chains keep their type.
+expectType<Query<Dataset>>(queryable.query().where("a", "=", 1));
+expectType<Query<Dataset>>(queryable.query().where("a", "=", 1).and("b", "=", "x"));
+expectType<Query<Dataset>>(queryable.query().where("a", "=", 1).or("b", "=", "x"));
+expectType<Query<Dataset>>(queryable.query().orderBy("a", "desc").limit(2).select(["a"]));
+
+// Operators are a closed set of string literals.
+const operator: QueryOperator = "between";
+expectType<QueryOperator>(operator);
+const comparison: ComparisonOperator = ">=";
+expectType<ComparisonOperator>(comparison);
+const direction2: QueryDirection = "asc";
+expectType<QueryDirection>(direction2);
+
+// Null operators take no value.
+queryable.query().where("a", "isNull");
+queryable.query().where("a", "isNotNull");
+
+// Set operators take an array, including a readonly one.
+queryable.query().where("b", "in", ["x", "y"]);
+queryable.query().where("b", "notIn", ["x"] as const);
+
+// between takes a two-element pair.
+queryable.query().where("a", "between", [1, 2]);
+
+// ignoreCase is a typed option on value operators.
+queryable.query().where("b", "contains", "x", { ignoreCase: true });
+
+// Groups receive a Query and must return one.
+queryable.query().andGroup((group) => group.where("a", "=", 1).or("b", "=", "x"));
+queryable.query().orGroup((group) => group.where("a", "=", 1));
+
+// @ts-expect-error unknown operators are rejected at compile time
+queryable.query().where("a", "~", 1);
+// @ts-expect-error sort directions are a closed union
+queryable.query().orderBy("a", "ascending");
+// @ts-expect-error limit takes a number
+queryable.query().limit("2");
+// @ts-expect-error select takes column names, not a bare string
+queryable.query().select("a");
+// @ts-expect-error isNull takes no value
+queryable.query().where("a", "isNull", 1);
+// @ts-expect-error ignoreCase must be a boolean
+queryable.query().where("b", "=", "x", { ignoreCase: "yes" });

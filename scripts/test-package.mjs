@@ -78,6 +78,18 @@ try {
          .dropDuplicates(["id"])
          .addColumn("double", (r) => Number(r.qty) * 2);
        const sampled = prepared.sample(1, { seed: 9 }).data[0];
+       const queried = sample
+         .query()
+         .where("revenue", ">", 0)
+         .and("region", "isNotNull")
+         .or("region", "isNull")
+         .orderBy("revenue", "desc")
+         .select(["order_id", "revenue"])
+         .limit(3)
+         .execute();
+       const missing = createDataset([{ r: "N", v: 1 }, { r: null, v: 2 }]);
+       const notN = missing.query().where("r", "!=", "N").execute();
+       const notNOrNull = missing.query().where("r", "!=", "N").or("r", "isNull").execute();
        console.log(JSON.stringify({
          rowCount: data.rowCount,
          identity: Numiq.createDataset === createDataset,
@@ -88,6 +100,14 @@ try {
          preparedColumns: prepared.columns,
          preparedRows: prepared.data,
          sampledValue: sampled.double,
+         queryColumns: queried.columns,
+         queryRows: queried.rowCount,
+         queryFirst: queried.data[0]?.order_id,
+         queryDescending: queried.data.map((r) => Number(r.revenue)),
+         queryGrouping: sample.query().where("region", "=", "North").or("revenue", ">", 100).and("revenue", "<", 200).toString(),
+         notN: notN.rowCount,
+         notNOrNull: notNOrNull.rowCount,
+         QueryIdentity: Numiq.Query !== undefined,
          loadCSV: typeof loadCSV,
          table: data.table().includes("1 rows × 2 columns"),
        }));`,
@@ -122,6 +142,25 @@ try {
     esmResult.sampledValue === 4 || esmResult.sampledValue === 6,
     String(esmResult.sampledValue),
   );
+  check("queries from the packed package", esmResult.queryRows === 3, String(esmResult.queryRows));
+  check(
+    "query selects and reorders columns",
+    JSON.stringify(esmResult.queryColumns) === '["order_id","revenue"]',
+    JSON.stringify(esmResult.queryColumns),
+  );
+  check(
+    "query orders descending",
+    JSON.stringify(esmResult.queryDescending) === JSON.stringify([...esmResult.queryDescending].sort((a, b) => b - a)),
+    JSON.stringify(esmResult.queryDescending),
+  );
+  check(
+    "query reports its grouping",
+    esmResult.queryGrouping === "(region = North OR (revenue > 100 AND revenue < 200))",
+    esmResult.queryGrouping,
+  );
+  check("query excludes missing cells from !=", esmResult.notN === 0, String(esmResult.notN));
+  check("query can include missing cells via isNull", esmResult.notNOrNull === 1, String(esmResult.notNOrNull));
+  check("exposes Query on the default namespace", esmResult.QueryIdentity === true);
 
   console.log("\ncjs require");
   const cjs = execFileSync(
@@ -207,6 +246,7 @@ try {
     "cast",
     "dropDuplicates",
     "sample",
+    "query",
   ]) {
     check(`Dataset declares ${member}`, datasetDeclaration.includes(member));
   }

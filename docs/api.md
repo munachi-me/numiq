@@ -310,6 +310,124 @@ error attached as `cause`:
 map failed at row 1, column "a": bad
 ```
 
+#### Query methods
+
+#### `query()`
+
+Starts a structured query and returns a `Query<Dataset>`. Nothing runs until `execute()`.
+
+Conditions are typed values passed to methods, never text, so there is no query language
+to parse and no way for data or column names to become executable code.
+
+```ts
+const result = data
+  .query()
+  .where("revenue", ">", 100)
+  .and("region", "in", ["North", "West"])
+  .orderBy("revenue", "desc")
+  .select(["product", "region", "revenue"])
+  .limit(20)
+  .execute();
+```
+
+`execute()` returns a new `Dataset` with `importReport === null`. The source dataset is
+never modified.
+
+##### Lifecycle
+
+Every builder method returns a **new** `Query`; the receiver is never changed. A partially
+built query is therefore safe to reuse as a starting point:
+
+```ts
+const base = data.query().where("region", "in", ["North", "West"]);
+const big = base.and("revenue", ">", 1000).execute();
+const small = base.and("revenue", "<", 100).execute(); // `base` is unchanged
+```
+
+`execute()` may be called any number of times; each call returns a fresh dataset.
+
+##### Operators
+
+| Operator | Value | Meaning |
+| --- | --- | --- |
+| `=`, `!=` | any present value | Equality, compared by value **and** type |
+| `>`, `>=`, `<`, `<=` | number, string, boolean, or date | Ordered comparison |
+| `in`, `notIn` | non-empty array | Membership |
+| `between` | `[low, high]` | Inclusive on both bounds |
+| `contains`, `startsWith`, `endsWith` | string | Substring tests on text cells |
+| `isNull`, `isNotNull` | none | Missing-value tests |
+
+`where` and `and` are the same operation, so the first condition in a chain may be written
+with either. `or` starts a new alternative.
+
+##### Precedence
+
+`and` binds tighter than `or`, so this reads as `a OR (b AND c)`:
+
+```ts
+data.query().where("a", "=", 1).or("b", "=", 2).and("c", "=", 3);
+```
+
+Use `andGroup` / `orGroup` to parenthesise explicitly:
+
+```ts
+// a AND (b OR c)
+data.query().where("a", "=", 1).andGroup((g) => g.where("b", "=", 2).or("c", "=", 3));
+```
+
+`toString()` renders the compiled conditions with their grouping, which is useful when a
+query does not match what you expected:
+
+```ts
+data.query().where("a", "=", 1).or("b", "=", 2).and("c", "=", 3).toString();
+// "(a = 1 OR (b = 2 AND c = 3))"
+```
+
+##### Missing values
+
+`null` and `undefined` both mean missing. A missing cell never satisfies a comparison,
+including `!=` and `notIn`, matching SQL's three-valued logic:
+
+```ts
+// Rows where region is missing are excluded by the first query and kept by the second.
+data.query().where("region", "!=", "North").execute();
+data.query().where("region", "!=", "North").or("region", "isNull").execute();
+```
+
+##### Type checking
+
+Conditions are checked against the column's type before any row is scanned. Comparing a
+numeric column against a string raises `ValidationError` rather than silently returning
+no rows, because that is almost always a typo:
+
+```ts
+data.query().where("revenue", ">", "100"); // ValidationError: pass a number
+```
+
+Columns typed `mixed` or `unknown` are exempt, since their contents genuinely vary. When
+two cell types cannot be compared, the row simply does not match; the scan never throws
+part-way through.
+
+`between` also rejects inverted bounds, missing bounds, and bounds of different types,
+because each of those could only ever match nothing.
+
+##### Ordering
+
+`orderBy(column, direction = "asc")` may be called repeatedly; keys apply in the order
+given. Missing values sort last in both directions, ties keep their original order, and
+the rules are identical to `Dataset.sort`, so the two never disagree.
+
+##### Selecting and limiting
+
+`select(columns)` projects the named columns in the requested order. `limit(count)` keeps
+at most `count` rows **after** filtering and ordering.
+
+#### `execute()`
+
+Runs the query and returns a `Dataset`. Validating conditions happens while the query is
+being built, so an invalid query throws at the point of the mistake rather than at
+execution.
+
 #### `info()`
 
 Returns `DatasetInfo`: `name`, `rowCount`, `columnCount`, `shape`, `dtypes`,
