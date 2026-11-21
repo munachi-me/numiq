@@ -264,6 +264,169 @@ match the row count, or when the name is blank.
 data.addColumn("total", (row) => Number(row.quantity) * Number(row.price));
 ```
 
+#### `addConditionalColumn(name, rules, options?)`
+
+Appends a column filled from ordered rules. The first rule whose `when` returns `true`
+supplies the value, so later rules only see rows earlier rules did not claim. This is the
+declarative counterpart to `addColumn`: the branching lives in data, so the decision table
+can be logged, tested, and reviewed instead of being buried in a nested ternary.
+
+```ts
+const result = data.addConditionalColumn(
+  "category",
+  [
+    { when: (row) => Number(row.age) < 18, then: "Child" },
+    { when: (row) => Number(row.age) < 65, then: "Adult" },
+    { when: (row) => Number(row.age) >= 65, then: "Elder" },
+  ],
+  { else: "Unknown" },
+);
+```
+
+`then` and `else` each accept a static value or a callback. `then` callbacks receive
+`(row, index, context)`; `else` callbacks receive `(row, index)`. The value is cloned per
+row, so a shared object or `Date` is never aliased across rows.
+
+`else` defaults to `null`, the library's representation of a missing cell.
+
+Throws `ValidationError` when the name is blank or already exists, when `rules` is not a
+non-empty array, when a rule is missing `when` or `then`, when a `when` returns a
+non-boolean, or when a callback throws. A throw names the rule position and row, and keeps
+the original error as `cause`.
+
+Rules are validated before any row is evaluated, so a malformed list fails immediately
+rather than after partially processing the data.
+
+##### Missing values in predicates
+
+The library evaluates predicates verbatim and does not rewrite them. A `null` cell is
+passed through as `null`, and `null < 18` is `true` in JavaScript, so a predicate written
+against a nullable column must test for missing first:
+
+```ts
+{ when: (row) => row.age !== null && Number(row.age) < 18, then: "Child" }
+```
+
+##### `addConditionalColumnReport(name, rules, options?)`
+
+Returns `{ dataset, report }`. `report` carries `column`, `rowCount`, `matched` (one count
+per rule, in order), and `unmatched`. The report is the point: a rule that never fires is
+usually a predicate mistake, and counting matches makes that visible without inspecting the
+output column.
+
+```ts
+const { dataset, report } = data.addConditionalColumnReport("band", rules, { else: "Unknown" });
+report.matched;   // e.g. [21, 14]
+report.unmatched; // e.g. 15
+```
+
+##### Standalone `addConditionalColumn(rows, columns, name, rules, options?)`
+
+Works on raw rows and returns `{ rows, columns, report }`, so the same rules can be
+applied without building a `Dataset`.
+
+#### `join(other, options)`
+
+Joins another dataset onto this one and returns a new `Dataset`; both sources are
+untouched. Keys are matched by value and type, so `1` never matches `"1"`.
+
+```ts
+const result = orders.join(customers, { on: "customer_id", how: "left" });
+```
+
+| Option | Meaning |
+| --- | --- |
+| `on` | Key column name, or several for a composite key |
+| `leftOn` / `rightOn` | Key names when the two sides differ; must be the same length |
+| `how` | `"inner"` (default), `"left"`, `"right"`, or `"full"` |
+| `suffixes` | Pair applied to both sides on a non-key collision; default `["_left", "_right"]` |
+| `nullsMatch` | Whether two missing keys count as equal; default `false` |
+| `maxRows` | Guard against an accidental Cartesian product; default 1,000,000 |
+
+Behaviour worth knowing:
+
+- **A missing key matches nothing by default.** `null` means "unknown", so an unknown key
+  cannot be known to match another unknown key. Set `nullsMatch: true` to join null to null.
+- **A right key column is dropped when it duplicates its left partner**, because the values
+  are equal by definition. When the left side is absent (right and full joins) the key is
+  sourced from the right row, so the key column is never null in the output.
+- **Only colliding non-key columns are suffixed**, on both sides, so neither side silently
+  wins. The collision list is reported.
+- **A many-to-many join multiplies rows.** `maxRows` turns a runaway product into an error
+  naming the cause rather than a million-row result.
+- **Row order is deterministic**: left rows in order, then unmatched right rows for `full`.
+
+Throws `ColumnNotFoundError` for an unknown key, and `ValidationError` for an unknown
+`how`, a mismatched key mapping, identical suffixes, or an exceeded `maxRows`.
+
+##### `joinReport(other, options)`
+
+Returns `{ dataset, report }` with `how`, `leftKeys`, `rightKeys`, `rowCount`, `matched`,
+`leftUnmatched`, `rightUnmatched`, and `collisions`.
+
+#### `pivot(options)`
+
+Turns long data into one column per distinct value of `options.columns`.
+
+```ts
+sales.pivot({ columns: "quarter", values: "revenue" });
+```
+
+| Option | Meaning |
+| --- | --- |
+| `columns` | Column whose distinct values become new column names |
+| `values` | Column holding the cell values |
+| `aggregate` | `"first"` (default), `"last"`, `"sum"`, `"mean"`, `"min"`, `"max"`, `"count"` |
+| `index` | Row-identity columns; defaults to every column not named by `columns` or `values` |
+
+Generated columns appear in first-appearance order, not sorted, so a pivot is reproducible
+without assuming anything about the value types. A combination with no row becomes `null`.
+Rows whose pivot key is missing are dropped: a missing key has no column name to become,
+and collecting them under a `"null"` column would invent a category. When several rows share
+a cell, `aggregate` decides how they combine and the collapse count is reported.
+
+Throws `ColumnNotFoundError` for an unknown column, and `ValidationError` when `columns` and
+`values` name the same column, when `aggregate` is unknown, or when a generated column name
+collides with an index column.
+
+##### `pivotReport(options)`
+
+Returns `{ dataset, pivoted, collapsed }`, where `pivoted` lists the generated column names
+and `collapsed` counts input rows that shared a cell.
+
+#### `melt(options?)`
+
+Unpivots wide data into variable/value pairs. Round trips with `pivot()`.
+
+```ts
+wide.melt({ idVars: "region" });  // { region, variable, value }
+```
+
+| Option | Meaning |
+| --- | --- |
+| `idVars` | Columns kept as-is |
+| `valueVars` | Columns to unpivot; defaults to every column not in `idVars` |
+| `variableName` | Name for the former column names; default `"variable"` |
+| `valueName` | Name for the former cell values; default `"value"` |
+| `dropMissing` | Drop rows whose value is missing instead of emitting `null` |
+
+At least one of `idVars` or `valueVars` is required. Throws `ColumnNotFoundError` for an
+unknown column, and `ValidationError` when a column is both an id and a value, when there
+is nothing to unpivot, or when the generated names collide.
+
+#### `concat(others, options?)`
+
+Stacks rows, keeping this dataset's rows first. `others` is a `Dataset` or an array.
+
+```ts
+data.head(10).concat(data.tail(10));
+data.concat([a, b], { columns: "strict" });
+```
+
+With the default `"union"` policy the result takes the union of column names in
+first-appearance order and fills gaps with `null`. `"strict"` rejects any difference in
+column sets, which catches a schema drift a union would hide.
+
 #### `cast(schema)`
 
 Converts columns to explicit types, using the same type names, aliases, and

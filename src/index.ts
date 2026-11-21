@@ -66,6 +66,19 @@ export type {
   StringOperator,
   WhereOptions,
 } from "./core/query.js";
+export { addConditionalColumn } from "./core/conditional.js";
+export { joinTables } from "./core/join.js";
+export type { JoinHow, JoinOptions, JoinReport, JoinResult } from "./core/join.js";
+export { concatRows, meltRows, pivotRows } from "./core/reshape.js";
+export type { ConcatOptions, MeltOptions, PivotAggregation, PivotOptions, PivotResult } from "./core/reshape.js";
+export type {
+  ConditionalColumnOptions,
+  ConditionalColumnReport,
+  ConditionalColumnResult,
+  ConditionalRule,
+  ConditionalRuleContext,
+  ConditionalThen,
+} from "./core/conditional.js";
 export type {
   DropMissingOptions,
   FillStrategy,
@@ -158,6 +171,9 @@ import {
   standardize,
   zScores,
 } from "./analytics/advanced.js";
+import { addConditionalColumn } from "./core/conditional.js";
+import { joinTables } from "./core/join.js";
+import { concatRows, meltRows, pivotRows } from "./core/reshape.js";
 import { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
 import { analyze, resolveInsightOptions } from "./insights/insights.js";
 import { useSampleDataset } from "./core/sample.js";
@@ -221,6 +237,11 @@ const Numiq = {
   spearmanCorrelation,
   standardize,
   zScores,
+  addConditionalColumn,
+  joinTables,
+  pivotRows,
+  meltRows,
+  concatRows,
   Metric,
   createMetric,
   isAggregationOp,

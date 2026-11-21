@@ -17,6 +17,14 @@ import { cloneValue, deepFreeze, isPresent, stableKey } from "../utils/values.js
 import { compareValues } from "../utils/compare.js";
 import { countUnique, describeColumn, distinctValues, inferColumnType } from "./schema.js";
 import {
+  addConditionalColumn,
+  type ConditionalColumnOptions,
+  type ConditionalColumnReport,
+  type ConditionalRule,
+} from "./conditional.js";
+import { joinTables, type JoinOptions, type JoinReport } from "./join.js";
+import { concatRows, meltRows, pivotRows, type ConcatOptions, type MeltOptions, type PivotOptions } from "./reshape.js";
+import {
   addColumn,
   castColumns,
   dropColumns,
@@ -669,6 +677,106 @@ export class Dataset {
    */
   addColumn(name: string, spec: ((row: Row, index: number) => unknown) | readonly unknown[]): Dataset {
     const result = addColumn(this.#rows, this.#columns, name, spec);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with `name` appended, filled from ordered conditional rules.
+   *
+   * Rules are evaluated in order and the first whose `when` returns `true` supplies the
+   * value, so later rules only see rows earlier rules did not claim. Rows that match no
+   * rule take `options.else`, which defaults to `null`. Unlike `addColumn`, the branching
+   * lives in data rather than in one callback.
+   *
+   * Returns a new `Dataset`; the source is untouched. Use `addConditionalColumnReport()`
+   * for the same column plus per-rule match counts.
+   */
+  addConditionalColumn(name: string, rules: readonly ConditionalRule[], options?: ConditionalColumnOptions): Dataset {
+    const result = addConditionalColumn(this.#rows, this.#columns, name, rules, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * `addConditionalColumn()` plus a report of how many rows each rule matched.
+   *
+   * The report is the point: a rule that never fires is usually a predicate mistake, and
+   * counting matches makes that visible without inspecting the output column.
+   */
+  addConditionalColumnReport(
+    name: string,
+    rules: readonly ConditionalRule[],
+    options?: ConditionalColumnOptions,
+  ): { dataset: Dataset; report: ConditionalColumnReport } {
+    const result = addConditionalColumn(this.#rows, this.#columns, name, rules, options);
+    return { dataset: this.#build(result.rows, result.columns), report: result.report };
+  }
+
+  /**
+   * Join another dataset onto this one.
+   *
+   * Returns a new `Dataset`; both sources are untouched. Keys are matched by value and
+   * type, so `1` never matches `"1"`. A missing key matches nothing unless
+   * `nullsMatch` is set, which is the SQL reading of `null`. Non-key columns whose names
+   * collide are suffixed on both sides, and the collision list is reported.
+   *
+   * Use `joinReport()` for the same result plus match counts.
+   */
+  join(other: Dataset, options: JoinOptions): Dataset {
+    if (!(other instanceof Dataset)) throw new ValidationError("join expects another Dataset.");
+    const result = joinTables(this.#rows, this.#columns, other.#rows, other.#columns, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** `join()` plus a report of matched and unmatched rows on each side. */
+  joinReport(other: Dataset, options: JoinOptions): { dataset: Dataset; report: JoinReport } {
+    if (!(other instanceof Dataset)) throw new ValidationError("join expects another Dataset.");
+    const result = joinTables(this.#rows, this.#columns, other.#rows, other.#columns, options);
+    return { dataset: this.#build(result.rows, result.columns), report: result.report };
+  }
+
+  /**
+   * Pivot long data into one column per distinct value of `options.columns`.
+   *
+   * Rows whose pivot key is missing are dropped: a missing key has no column name to
+   * become, and collecting them under a `"null"` column would invent a category. When
+   * several rows share a cell, `options.aggregate` decides how they combine; the default
+   * `"first"` keeps the earliest and reports the collapse count.
+   */
+  pivot(options: PivotOptions): Dataset {
+    const result = pivotRows(this.#rows, this.#columns, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** `pivot()` plus the generated column names and how many cells were collapsed. */
+  pivotReport(options: PivotOptions): { dataset: Dataset; pivoted: readonly string[]; collapsed: number } {
+    const result = pivotRows(this.#rows, this.#columns, options);
+    return {
+      dataset: this.#build(result.rows, result.columns),
+      pivoted: result.pivoted,
+      collapsed: result.collapsed,
+    };
+  }
+
+  /** Unpivot wide data into `variable`/`value` pairs. */
+  melt(options: MeltOptions = {}): Dataset {
+    const result = meltRows(this.#rows, this.#columns, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * Stack the rows of this dataset with `others`, keeping this dataset's rows first.
+   *
+   * With the default `"union"` column policy the result takes the union of column names
+   * in first-appearance order and fills gaps with `null`. Use `"strict"` to reject any
+   * difference in column sets, which catches schema drift a union would hide.
+   */
+  concat(others: Dataset | readonly Dataset[], options: ConcatOptions = {}): Dataset {
+    const rest = Array.isArray(others) ? others : [others as Dataset];
+    for (const other of rest) {
+      if (!(other instanceof Dataset)) throw new ValidationError("concat expects Datasets.");
+    }
+    const tables = [this, ...rest].map((dataset) => ({ rows: dataset.#rows, columns: dataset.#columns }));
+    const result = concatRows(tables, options);
     return this.#build(result.rows, result.columns);
   }
 
