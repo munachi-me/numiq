@@ -20,6 +20,7 @@ npx tsx examples/01-load-and-inspect.ts
 | `09-grouping.ts` | Grouping and aggregation: totals, dispersion, missing values, custom aggregators |
 | `10-describe.ts` | Descriptive statistics: profiling columns, quartiles, percentiles, type-aware nulls |
 | `11-advanced-statistics.ts` | Advanced statistics: correlation, matrices, shape, outliers, z-score columns |
+| `12-metrics-and-insights.ts` | Metrics that keep their definition, and insights that carry their evidence |
 
 The examples read from the project-root `dataset/` folder by filename, so run them from
 the repository root. They import `numiq` by package name; to run them before publishing,

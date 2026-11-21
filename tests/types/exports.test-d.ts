@@ -28,6 +28,24 @@ import Numiq, {
   type CorrelationResult,
   type CorrelationMatrix,
   type CorrelationCell,
+  Metric,
+  createMetric,
+  isAggregationOp,
+  analyze,
+  resolveInsightOptions,
+  type MetricSpec,
+  type MetricResult,
+  type MetricFormat,
+  type MetricContext,
+  type MetricComparison,
+  type GroupedMetricResult,
+  type Insight,
+  type InsightReport,
+  type InsightOptions,
+  type InsightKind,
+  type InsightSeverity,
+  type SkippedInsight,
+  type ResolvedInsightOptions,
   type FiveNumberSummary,
   type OutlierResult,
   type Outlier,
@@ -506,3 +524,69 @@ expectType<OutlierMethod>("mad");
 correlationMatrix({ columns: [["a", [1, 2]]] });
 // @ts-expect-error the correlation result carries no significance claim
 void pearsonCorrelation([1, 2], [3, 4]).pValue;
+
+// ------------------------------------------------------------------ v0.8.0 metrics
+
+expectType<Metric>(described.createMetric({ name: "n", column: "a", aggregation: "sum" }));
+expectType<unknown>(described.createMetric({ name: "n", column: "a", aggregation: "sum" }).value);
+expectType<MetricResult>(described.createMetric({ name: "n", column: "a", aggregation: "sum" }).metric);
+expectType<MetricFormat>(described.createMetric({ name: "n", column: "a", aggregation: "sum" }).format);
+expectType<GroupedMetricResult>(described.createMetric({ name: "n", column: "a", aggregation: "sum" }).byGroup());
+expectType<MetricComparison>(described.createMetric({ name: "n", column: "a", aggregation: "sum" }).compare({ to: 1 }));
+expectType<Metric>(described.createMetric({ name: "n", column: "a", aggregation: "sum" }).recalculate([]));
+expectType<Metric>(createMetric({ name: "n", aggregation: "count" }, [], ["a"]));
+const metricSpec: MetricSpec = { name: "n", column: "a", aggregation: "sum" };
+expectType<MetricSpec>(metricSpec);
+const insightOptions: InsightOptions = { strongCorrelation: 0.8 };
+expectType<InsightOptions>(insightOptions);
+expectType<boolean>(isAggregationOp("sum"));
+
+// A custom metric callback sees its context, so the parameter types must line up.
+described.createMetric({
+  name: "n",
+  column: "a",
+  fn: (values, context) => {
+    expectType<readonly unknown[]>(values);
+    expectType<MetricContext>(context);
+    expectType<string | null>(context.column);
+    return values.length;
+  },
+});
+described.createMetric({
+  name: "n",
+  fn: (rows, context) => {
+    expectType<readonly Readonly<Row>[]>(rows);
+    expectType<MetricContext>(context);
+    return rows.length;
+  },
+});
+
+// ----------------------------------------------------------------- v0.8.0 insights
+
+expectType<InsightReport>(described.insights());
+expectType<InsightReport>(described.insights({ strongCorrelation: 0.8 }));
+expectType<ResolvedInsightOptions>(resolveInsightOptions());
+expectType<InsightReport>(analyze({ rows: [], columns: [], schema: {} }));
+expectType<readonly Insight[]>(described.insights().insights);
+expectType<readonly SkippedInsight[]>(described.insights().skipped);
+expectType<number>(described.insights().truncated);
+expectType<InsightKind>(described.insights().insights[0]!.kind);
+expectType<InsightSeverity>(described.insights().insights[0]!.severity);
+expectType<readonly string[]>(described.insights().insights[0]!.columns);
+
+// @ts-expect-error an insight kind is a closed union
+expectType<InsightKind>("anomaly");
+// @ts-expect-error a metric needs exactly one calculation, so aggregation and fn cannot pair
+described.createMetric({ name: "n", column: "a", aggregation: "sum", fn: () => 1 });
+// @ts-expect-error an unknown aggregation is not assignable
+described.createMetric({ name: "n", column: "a", aggregation: "total" });
+// @ts-expect-error insight thresholds are numbers
+described.insights({ strongCorrelation: "0.8" });
+// @ts-expect-error a metric is not a Dataset, so it has no row accessor by that name
+void described.createMetric({ name: "n", aggregation: "count" }).rows();
+// @ts-expect-error metrics expose no significance claim
+void described.createMetric({ name: "n", column: "a", aggregation: "sum" }).pValue;
+
+// The default namespace must expose the same constructors as the named exports.
+expectType<typeof Metric>(Numiq.Metric);
+expectType<typeof analyze>(Numiq.analyze);

@@ -74,6 +74,32 @@ export type {
   ReplaceRule,
   SampleOptions,
 } from "./core/prepare.js";
+export { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
+export type {
+  GroupedMetricResult,
+  MetricCompareOptions,
+  MetricComparison,
+  MetricComparisonReason,
+  MetricContext,
+  MetricFormat,
+  MetricGroupValue,
+  MetricMetadata,
+  MetricReason,
+  MetricResult,
+  MetricSpec,
+} from "./metrics/metric.js";
+export { analyze, resolveInsightOptions } from "./insights/insights.js";
+export type {
+  Insight,
+  InsightEvidence,
+  InsightInput,
+  InsightKind,
+  InsightOptions,
+  InsightReport,
+  InsightSeverity,
+  ResolvedInsightOptions,
+  SkippedInsight,
+} from "./insights/insights.js";
 export { useSampleDataset } from "./core/sample.js";
 export { renderTable } from "./display/table.js";
 export { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
@@ -132,6 +158,8 @@ import {
   standardize,
   zScores,
 } from "./analytics/advanced.js";
+import { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
+import { analyze, resolveInsightOptions } from "./insights/insights.js";
 import { useSampleDataset } from "./core/sample.js";
 import { renderTable } from "./display/table.js";
 import { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
@@ -193,6 +221,11 @@ const Numiq = {
   spearmanCorrelation,
   standardize,
   zScores,
+  Metric,
+  createMetric,
+  isAggregationOp,
+  analyze,
+  resolveInsightOptions,
   useSampleDataset,
   renderTable,
   loadCSV,

@@ -54,6 +54,10 @@ import type {
   OutlierResult,
   ZScoreResult,
 } from "../analytics/advanced.js";
+import { Metric } from "../metrics/metric.js";
+import type { MetricSpec } from "../metrics/metric.js";
+import { analyze } from "../insights/insights.js";
+import type { InsightOptions, InsightReport } from "../insights/insights.js";
 import { resolveNormalization } from "../io/normalization/policy.js";
 import { normalizeCell } from "../io/normalization/values.js";
 
@@ -393,6 +397,30 @@ export class Dataset {
         throw new ValidationError(`${method}() needs a numeric column, but "${column}" is ${type}.`);
       }
     }
+  }
+
+  // ------------------------------------------------------------------------- metrics
+
+  /**
+   * Build a reusable, named metric over this dataset.
+   *
+   * The metric retains this dataset's rows, so it can be recalculated against another
+   * dataset and compared across groups without the caller threading data back in.
+   */
+  createMetric(spec: MetricSpec): Metric {
+    return new Metric(spec, this.#rows, this.#columns);
+  }
+
+  // ------------------------------------------------------------------------ insights
+
+  /**
+   * Defensible observations about this dataset, each carrying its evidence.
+   *
+   * Deterministic for the same input. Checks that cannot run are reported in `skipped`
+   * rather than omitted, so an empty result is never ambiguous.
+   */
+  insights(options: InsightOptions = {}): InsightReport {
+    return analyze({ rows: this.#rows, columns: this.#columns, schema: this.schema }, options);
   }
 
   // ---------------------------------------------------------------- transformations
