@@ -3,13 +3,15 @@
 A modular TypeScript engine for loading, normalizing, preparing, querying, and
 analyzing structured data.
 
-Numiq v0.8.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq v0.9.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter, sort,
 prepare, query, group, summarize, and render as a table. It also describes each column and
 measures how columns relate to each other: correlation, rank correlation, correlation
 matrices, z-scores, percentile rank, skewness, kurtosis, five-number summaries, and
 outlier detection. Beyond describing what is there, it defines reusable metrics that keep
-their own definition, and reports observations that carry their evidence.
+their own definition, and reports observations that carry their evidence. Columns can be
+derived from ordered conditional rules, related datasets can be joined, and tables can be
+pivoted, melted, and stacked.
 
 ```ts
 import { loadCSV } from "numiq";
@@ -206,6 +208,10 @@ transformations above, and never modify the source:
 | `replace(rules)` | Replace values per column, by value, predicate, or callback |
 | `map(column, callback)` | Transform one column from `(value, row, index)` |
 | `addColumn(name, callbackOrValues)` | Append a computed column or a value list |
+| `addConditionalColumn(name, rules, options?)` | Append a column from ordered rules, first match wins |
+| `join(other, options)` | Join another dataset (`inner`, `left`, `right`, `full`) |
+| `pivot(options)` / `melt(options?)` | Reshape between wide and long |
+| `concat(others, options?)` | Stack rows, with `"union"` or `"strict"` columns |
 | `cast(schema)` | Convert columns to explicit types |
 | `dropDuplicates(columns?)` | Keep the first row of each distinct combination |
 | `sample(count, options?)` | Draw rows; deterministic when `seed` is given |
@@ -785,12 +791,105 @@ Each insight has `kind`, `severity`, `title`, `detail`, `evidence`, and `columns
 - **No silent omissions.** `skipped` explains every check that could not run, so an empty
   `insights` array is distinguishable from a check that never executed.
 
-## Scope of v0.8.0
+## Conditional columns
+
+`addConditionalColumn()` builds a column from ordered rules. The first rule whose `when`
+returns `true` supplies the value, so later rules only see rows earlier rules did not
+claim.
+
+```ts
+const banded = data.addConditionalColumn(
+  "category",
+  [
+    { when: (row) => Number(row.age) < 18, then: "Child" },
+    { when: (row) => Number(row.age) < 65, then: "Adult" },
+    { when: (row) => Number(row.age) >= 65, then: "Elder" },
+  ],
+  { else: "Unknown" },
+);
+```
+
+`then` and `else` each accept a static value or a callback, and `else` defaults to `null`.
+The value is cloned per row, so a shared object or `Date` is never aliased.
+
+`addColumn()` is unchanged. The difference is where the branching lives: a callback has to
+encode every branch, while a rule list is data that can be logged, tested, and reviewed.
+
+### Counting rule coverage
+
+`addConditionalColumnReport()` returns the same dataset plus per-rule match counts. A rule
+that never fires is usually a predicate mistake, and the count makes that visible without
+inspecting the output column.
+
+```ts
+const { dataset, report } = data.addConditionalColumnReport("band", rules, { else: "Unknown" });
+report.matched;   // e.g. [21, 14] — one count per rule
+report.unmatched; // e.g. 15
+```
+
+### Predicates are evaluated verbatim
+
+A `null` cell is passed through as `null`, and `null < 18` is `true` in JavaScript. A
+predicate against a nullable column must test for missing first:
+
+```ts
+{ when: (row) => row.age !== null && Number(row.age) < 18, then: "Child" }
+```
+
+The library does not rewrite predicates. Silently treating a null comparison as false would
+hide the caller's bug behind a plausible-looking label.
+
+## Joins
+
+`join()` brings columns from a related dataset. Both sources are left untouched.
+
+```ts
+const result = orders.join(customers, { on: "customer_id", how: "left" });
+```
+
+Supports `inner`, `left`, `right`, and `full`, an explicit `leftOn`/`rightOn` mapping for
+differently named keys, and composite keys via an array.
+
+Keys match by value and type, so `1` never matches `"1"`. A `null` key matches nothing by
+default — the SQL reading of an unknown key — unless `nullsMatch: true` is set. A right key
+column is dropped when it duplicates its left partner, since the values are equal by
+definition; when the left side is absent, the key is sourced from the right row.
+
+Only colliding non-key columns are suffixed, on both sides, so neither side silently wins.
+A many-to-many join multiplies rows, so `maxRows` (default 1,000,000) turns a runaway
+product into an error naming the cause.
+
+`joinReport()` adds matched and unmatched counts for each side.
+
+## Reshaping
+
+`pivot()` turns long data into one column per distinct value; `melt()` does the reverse and
+round trips with it.
+
+```ts
+const long = wide.melt({ idVars: "region" });          // { region, variable, value }
+const back = long.pivot({ columns: "variable", values: "value" });
+```
+
+`pivot()` keeps generated columns in first-appearance order rather than sorting them, so the
+result is reproducible without assuming anything about the value types. A missing
+combination becomes `null`, and rows whose pivot key is missing are dropped: a missing key
+has no column name to become, and a `"null"` column would invent a category. When several
+rows share a cell, `aggregate` (`"first"` by default, plus `"last"`, `"sum"`, `"mean"`,
+`"min"`, `"max"`, `"count"`) decides how they combine.
+
+`concat()` stacks rows, keeping this dataset's rows first. The default `"union"` policy
+takes the union of column names and fills gaps with `null`; `"strict"` rejects any
+difference, which catches a schema drift a union would hide.
+
+## Scope of v0.9.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
 the preparation engine (`drop`, `rename`, `dropMissing`, `fillMissing`, `replace`,
-`map`, `addColumn`, `cast`, `dropDuplicates`, `sample`), structured queries
+`map`, `addColumn`, `addConditionalColumn`, `cast`, `dropDuplicates`, `sample`),
+joins (`inner`, `left`, `right`, `full`, with key mapping and collision suffixes),
+reshaping (`pivot`, `melt`, `concat`), structured queries
 (`Dataset.query()` with typed conditions, boolean grouping, ordering, and projection),
 grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven operations,
 `ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()`),
@@ -801,9 +900,9 @@ recalculation, comparison, and format hints), insights (`Dataset.insights()` wit
 checks, configurable thresholds, and evidence on every observation), table rendering, the
 bundled sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not in v0.8.0: hypothesis tests and p-values, machine-learning models, joins,
-reshaping, and Excel import. The architecture reserves space for them (see
-`docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
+Deliberately not in v0.9.0: hypothesis tests and p-values, machine-learning models, window
+functions and time-series operations, and Excel import. The architecture reserves space for
+them (see `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
 `Dataset` without changing existing behaviour.
 
 ## Development

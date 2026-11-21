@@ -5,6 +5,9 @@
  * regresses. It imports from `src` so it exercises the same declarations consumers get.
  */
 import Numiq, {
+  addConditionalColumn,
+  joinTables,
+  pivotRows,
   createDataset,
   loadCSV,
   Dataset,
@@ -18,6 +21,7 @@ import Numiq, {
   type CsvOptions,
   type JsonOptions,
   useSampleDataset,
+  type JoinHow,
   DatasetDescription,
   type ColumnProfile,
   type ColumnKind,
@@ -587,6 +591,44 @@ void described.createMetric({ name: "n", aggregation: "count" }).rows();
 // @ts-expect-error metrics expose no significance claim
 void described.createMetric({ name: "n", column: "a", aggregation: "sum" }).pValue;
 
+// v0.9.0: conditional columns, joins, and reshaping.
+
+expectType<Dataset>(described.addConditionalColumn("band", [{ when: () => true, then: "x" }]));
+expectType<Dataset>(
+  described.addConditionalColumn("band", [{ when: (row) => row.a === 1, then: (row) => row.a }], {
+    else: "other",
+  }),
+);
+expectType<readonly number[]>(
+  described.addConditionalColumnReport("band", [{ when: () => true, then: 1 }]).report.matched,
+);
+expectType<number>(described.addConditionalColumnReport("band", [{ when: () => true, then: 1 }]).report.unmatched);
+// @ts-expect-error a rule requires a when predicate
+described.addConditionalColumn("band", [{ then: "x" }]);
+// @ts-expect-error a rule requires a then value; use null for a deliberate empty
+described.addConditionalColumn("band", [{ when: () => true }]);
+// @ts-expect-error a when predicate returns a boolean, not a string
+described.addConditionalColumn("band", [{ when: () => "yes", then: 1 }]);
+
+expectType<Dataset>(described.join(described, { on: "a" }));
+expectType<Dataset>(described.join(described, { leftOn: "a", rightOn: "b", how: "full" }));
+expectType<JoinHow>("inner");
+// @ts-expect-error join strategies are a closed union
+described.join(described, { on: "a", how: "cross" });
+// @ts-expect-error suffixes are a pair
+described.join(described, { on: "a", suffixes: ["_x"] });
+
+expectType<Dataset>(described.pivot({ columns: "a", values: "b" }));
+expectType<readonly string[]>(described.pivotReport({ columns: "a", values: "b" }).pivoted);
+expectType<Dataset>(described.melt({ idVars: "a" }));
+expectType<Dataset>(described.concat(described));
+expectType<Dataset>(described.concat([described, described], { columns: "strict" }));
+// @ts-expect-error a pivot needs both a column source and a value source
+described.pivot({ columns: "a" });
+
 // The default namespace must expose the same constructors as the named exports.
 expectType<typeof Metric>(Numiq.Metric);
 expectType<typeof analyze>(Numiq.analyze);
+expectType<typeof joinTables>(Numiq.joinTables);
+expectType<typeof pivotRows>(Numiq.pivotRows);
+expectType<typeof addConditionalColumn>(Numiq.addConditionalColumn);

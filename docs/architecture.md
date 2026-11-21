@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how Numiq v0.8.0 is organised, why it is organised that way, and
+This document describes how Numiq v0.9.0 is organised, why it is organised that way, and
 where the remaining capabilities attach.
 
 ## Design principles
@@ -35,6 +35,9 @@ src/
 │   ├── query.ts              Dataset.query(), conditions, ordering, projection
 │   ├── group.ts              GroupedDataset, aggregate(), mapGroups()
 │   ├── aggregate.ts          sum, mean, variance, std, and the other primitives
+│   ├── conditional.ts        addConditionalColumn, ordered rule evaluation
+│   ├── join.ts               hash join: inner, left, right, full
+│   ├── reshape.ts            pivot, melt, concat
 │   └── sample.ts             the bundled sample dataset accessor
 ├── analytics/
 │   ├── stats.ts              quantile, percentile, quartiles, iqr, mode, extremes
@@ -113,8 +116,9 @@ only happens when a caller asks for it.
 
 ## Where the remaining capabilities attach
 
-Preparation, querying, grouping, descriptive statistics, advanced statistics, metrics, and
-insights have landed. Each attaches as follows, alongside the layers already built.
+Preparation, querying, grouping, descriptive statistics, advanced statistics, metrics,
+insights, conditional columns, joins, and reshaping have landed. Each attaches as follows,
+alongside the layers already built.
 
 - **Preparation and transformation** are `Dataset` methods returning new datasets,
   implemented in `src/core/prepare.ts`. They needed no changes to the import layer.
@@ -135,21 +139,34 @@ insights have landed. Each attaches as follows, alongside the layers already bui
   the statistics layer, then applies thresholds to decide what is worth reporting. Neither
   module imports `Dataset`; `createMetric()` and `insights()` are thin wrappers, and the
   standalone `createMetric()` and `analyze()` take rows and columns directly.
+- **Conditional columns** live in `src/core/conditional.ts`. The rule list is validated in
+  full before any row is evaluated, so a malformed list fails immediately instead of after
+  partially processing the data, and the module returns a per-rule match count so a rule
+  that never fires is observable. Like the preparation functions it takes rows and columns
+  and returns new ones.
+- **Joins** live in `src/core/join.ts` and build a hash index on the right side, so a
+  one-to-many join is linear in the left row count rather than quadratic. The module
+  decides the output column plan before emitting a single row, which is what lets a
+  collision be suffixed consistently and a duplicate column name be rejected up front.
+- **Reshaping** lives in `src/core/reshape.ts`. `pivot()` orders generated columns by first
+  appearance rather than by sort, so the result does not depend on the value types, and
+  `pivot()`/`melt()` round trip through the same plain `{ rows, columns }` shape every other
+  primitive uses.
 - **Numviz integration** (§12) is a boundary, not a dependency: a separate export subpath
   that converts a `Dataset` into whatever shape Numviz consumes. Numiq must not depend on
   a visualisation library.
 
 Each layer landed without changes to the import layer or the `Dataset` invariants, which is
-what the split was for. Joins, reshaping, and the Numviz subpath attach the same way.
+what the split was for. Window functions and the Numviz subpath attach the same way.
 
 ## Testing strategy
 
 - `tests/unit/` — parsers, tokenizer, normalization, dataset, table, errors, public API,
   preparation, querying, grouping and aggregation, descriptive statistics, advanced
-  statistics, metrics, and insights.
+  statistics, metrics, insights, conditional columns, joins, and reshaping.
 - `tests/integration/` — loaders against a real HTTP server and a real temporary
   directory; the environment split in a separate process; and one suite per release
-  (`v020` … `v080`) that exercises that release's public API end to end.
+  (`v020` … `v090`) that exercises that release's public API end to end.
 - `tests/types/` — a compile-time contract for the published declarations, including
   negative assertions that invalid usage fails to compile.
 - `scripts/test-package.mjs` — packs the tarball, installs it into a throwaway consumer,

@@ -8,6 +8,51 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.9.0] - 2026-11-20
+
+Conditional columns, joins, and reshaping: derive a column from ordered rules, bring in
+columns from a related dataset, and change a table's shape without changing its data.
+
+### Added
+
+- `Dataset.addConditionalColumn(name, rules, options?)` and the standalone
+  `addConditionalColumn(rows, columns, name, rules, options?)`. Rules are evaluated in
+  order and the first match wins, so later rules only see rows earlier rules did not claim.
+  `then` and `else` each accept a static value or a callback, and `else` defaults to `null`.
+- `Dataset.addConditionalColumnReport(...)` for per-rule match counts, so a rule that never
+  fires is visible without inspecting the output column.
+- `Dataset.join(other, options)` and `joinTables(...)`, with `inner`, `left`, `right`, and
+  `full` strategies; `on` or an explicit `leftOn`/`rightOn` mapping; a documented suffix
+  policy for colliding non-key columns; and `nullsMatch` for the deliberate null-to-null
+  case.
+- `Dataset.joinReport(other, options)` for matched and unmatched counts on each side.
+- `Dataset.pivot(options)` and `pivotRows(...)`, with `first`, `last`, `sum`, `mean`, `min`,
+  `max`, and `count` aggregation, plus `pivotReport(...)` for generated column names and
+  the collapse count.
+- `Dataset.melt(options?)` and `meltRows(...)` for unpivoting wide data. Round trips with
+  `pivot()`.
+- `Dataset.concat(others, options?)` and `concatRows(...)` with `"union"` and `"strict"`
+  column policies.
+- `examples/13-conditional-joins-reshape.ts`.
+
+### Changed
+
+- `ConditionalThen` is a union of concrete value kinds rather than `unknown | callback`.
+  A union containing `unknown` collapses to `unknown`, which left callback parameters
+  without contextual types and silently made them `any`.
+
+### Notes
+
+- `addColumn()` is unchanged. `addConditionalColumn()` complements it: the same result for
+  simple cases, with the branching expressed as data rather than as a nested callback.
+- A join key of `null` matches nothing by default, which is the SQL reading of an unknown
+  key. `nullsMatch: true` opts into null-to-null matching.
+- `maxRows` (default 1,000,000) turns an accidental many-to-many explosion into an error
+  naming the cause instead of a runaway result.
+- Predicates are evaluated verbatim. Since `null < 18` is `true` in JavaScript, a predicate
+  against a nullable column must test for missing first; the behaviour is documented and
+  covered by a test rather than silently rewritten.
+
 ## [0.8.0] - 2026-11-20
 
 Metrics and insights: reusable calculations that carry their definition, and an engine
