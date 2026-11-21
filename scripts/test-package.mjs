@@ -27,6 +27,9 @@ function check(name, condition, detail = "") {
   }
 }
 
+/** The bundled sample's columns, in order. */
+const SAMPLE_COLUMNS = ["order_id", "date", "product", "category", "region", "quantity", "revenue"];
+
 const workDir = await mkdtemp(path.join(tmpdir(), "numiq-pkg-"));
 
 try {
@@ -96,6 +99,9 @@ try {
        const customGrouped = sample.groupBy("region").aggregate({
          labels: (rows) => rows.length,
        });
+       const described = sample.describe();
+       const revenue = sample.describe("revenue");
+       const revenueCol = sample.column("revenue").values.filter((v) => v !== null && v !== undefined);
        const notN = missing.query().where("r", "!=", "N").execute();
        const notNOrNull = missing.query().where("r", "!=", "N").or("r", "isNull").execute();
        console.log(JSON.stringify({
@@ -128,6 +134,44 @@ try {
          standaloneSum: Numiq.sum([1, 2, 3]),
          standaloneMedian: Numiq.median([3, 1, 2]),
          standaloneStd: Numiq.std([1, 2, 3, 4, 5], { ddof: 0 }),
+         describeColumns: described.columns,
+         describeProfiles: described.profiles.length,
+         describeShape: [described.rowCount, described.columnCount],
+         revenueProfile: {
+           count: revenue.count,
+           missing: revenue.missing,
+           unique: revenue.unique,
+           sum: revenue.sum,
+           mean: revenue.mean,
+           median: revenue.median,
+           min: revenue.min,
+           max: revenue.max,
+           q1: revenue.q1,
+           q3: revenue.q3,
+           iqr: revenue.iqr,
+           range: revenue.range,
+           kind: revenue.kind,
+         },
+         revenueManual: {
+           count: revenueCol.length,
+           sum: revenueCol.reduce((t, v) => t + v, 0),
+           min: Math.min(...revenueCol),
+           max: Math.max(...revenueCol),
+         },
+         categoryProfile: {
+           kind: sample.describe("category").kind,
+           sum: sample.describe("category").sum,
+           mean: sample.describe("category").mean,
+         },
+         describedTableHasColumns: described.table().includes("column"),
+         describedRows: described.toDataset().rowCount,
+         percentileColumns: sample.describe({ percentiles: [90] }).toDataset().columns.includes("p90"),
+         percentileValue: sample.describe({ percentiles: [90] }).toDataset().data.find((row) => row.name === "revenue")?.p90,
+         standaloneQuantile: Numiq.quantile([1, 2, 3, 4], 0.5),
+         standalonePercentile: Numiq.percentile([2, 4, 4, 4, 5, 5, 7, 9], 90),
+         standaloneIqr: Numiq.iqr([2, 4, 4, 4, 5, 5, 7, 9]),
+         standaloneMode: Numiq.mode([1, 2, 2, 3]),
+         DescribeIdentity: Numiq.DatasetDescription !== undefined,
          loadCSV: typeof loadCSV,
          table: data.table().includes("1 rows × 2 columns"),
        }));`,
@@ -199,6 +243,89 @@ try {
     Math.abs(Number(esmResult.standaloneStd) - Math.sqrt(2)) < 1e-12,
     String(esmResult.standaloneStd),
   );
+  check(
+    "describe profiles every column",
+    esmResult.describeProfiles === esmResult.describeShape[1] &&
+      JSON.stringify(esmResult.describeColumns) === JSON.stringify(SAMPLE_COLUMNS),
+    `${esmResult.describeProfiles} profiles for ${esmResult.describeShape[1]} columns: ${esmResult.describeColumns}`,
+  );
+  check(
+    "describe reports the dataset shape",
+    JSON.stringify(esmResult.describeShape) === "[50,7]",
+    JSON.stringify(esmResult.describeShape),
+  );
+  check(
+    "single-column describe counts match the column",
+    esmResult.revenueProfile.count === esmResult.revenueManual.count &&
+      esmResult.revenueProfile.unique > 0 &&
+      esmResult.revenueProfile.missing === 50 - esmResult.revenueManual.count,
+    JSON.stringify(esmResult.revenueProfile),
+  );
+  check(
+    "single-column describe sum matches a manual pass",
+    Math.abs(Number(esmResult.revenueProfile.sum) - Number(esmResult.revenueManual.sum)) < 1e-9,
+    `${esmResult.revenueProfile.sum} vs ${esmResult.revenueManual.sum}`,
+  );
+  check(
+    "single-column describe bounds match a manual pass",
+    esmResult.revenueProfile.min === esmResult.revenueManual.min &&
+      esmResult.revenueProfile.max === esmResult.revenueManual.max,
+    JSON.stringify([esmResult.revenueProfile.min, esmResult.revenueProfile.max]),
+  );
+  check(
+    "describe reports a numeric kind for a numeric column",
+    esmResult.revenueProfile.kind === "numeric",
+    String(esmResult.revenueProfile.kind),
+  );
+  check(
+    "quartiles bracket the median",
+    esmResult.revenueProfile.q1 <= esmResult.revenueProfile.median &&
+      esmResult.revenueProfile.median <= esmResult.revenueProfile.q3,
+    JSON.stringify([esmResult.revenueProfile.q1, esmResult.revenueProfile.median, esmResult.revenueProfile.q3]),
+  );
+  check(
+    "iqr equals q3 minus q1",
+    Math.abs(Number(esmResult.revenueProfile.iqr) - (esmResult.revenueProfile.q3 - esmResult.revenueProfile.q1)) < 1e-9,
+    String(esmResult.revenueProfile.iqr),
+  );
+  check(
+    "range equals max minus min",
+    Math.abs(Number(esmResult.revenueProfile.range) - (esmResult.revenueProfile.max - esmResult.revenueProfile.min)) <
+      1e-9,
+    String(esmResult.revenueProfile.range),
+  );
+  check(
+    "non-numeric columns report null arithmetic, not zero",
+    esmResult.categoryProfile.kind === "categorical" &&
+      esmResult.categoryProfile.sum === null &&
+      esmResult.categoryProfile.mean === null,
+    JSON.stringify(esmResult.categoryProfile),
+  );
+  check("describe renders a table", esmResult.describedTableHasColumns === true);
+  check(
+    "describe converts to a Dataset with one row per column",
+    esmResult.describedRows === esmResult.describeShape[1],
+    `${esmResult.describedRows} rows`,
+  );
+  check("exposes the DatasetDescription export", esmResult.DescribeIdentity === true);
+  check(
+    "toDataset names requested percentiles as columns",
+    esmResult.percentileColumns === true,
+    String(esmResult.percentileColumns),
+  );
+  check(
+    "toDataset flattens percentiles into cell values",
+    typeof esmResult.percentileValue === "number" && esmResult.percentileValue > 1600,
+    String(esmResult.percentileValue),
+  );
+  check("exports standalone quantile", esmResult.standaloneQuantile === 2.5, String(esmResult.standaloneQuantile));
+  check(
+    "exports standalone percentile without float drift",
+    esmResult.standalonePercentile === 7.6,
+    String(esmResult.standalonePercentile),
+  );
+  check("exports standalone iqr", esmResult.standaloneIqr === 1.5, String(esmResult.standaloneIqr));
+  check("exports standalone mode", esmResult.standaloneMode === 2, String(esmResult.standaloneMode));
   check("query excludes missing cells from !=", esmResult.notN === 0, String(esmResult.notN));
   check("query can include missing cells via isNull", esmResult.notNOrNull === 1, String(esmResult.notNOrNull));
   check("exposes Query on the default namespace", esmResult.QueryIdentity === true);
@@ -289,8 +416,20 @@ try {
     "sample",
     "query",
     "groupBy",
+    "describe",
   ]) {
     check(`Dataset declares ${member}`, datasetDeclaration.includes(member));
+  }
+
+  const descriptionDeclaration = await readFile(
+    path.join(consumer, "node_modules", "numiq", "dist", "esm", "analytics", "describe.d.ts"),
+    "utf8",
+  );
+  for (const member of ["profiles", "get", "table", "toDataset", "rowCount", "columnCount"]) {
+    check(`DatasetDescription declares ${member}`, descriptionDeclaration.includes(member));
+  }
+  for (const field of ["count", "missing", "unique", "sum", "mean", "median", "mode", "iqr", "ddof"]) {
+    check(`ColumnProfile declares ${field}`, descriptionDeclaration.includes(field));
   }
 
   const groupingDeclaration = await readFile(

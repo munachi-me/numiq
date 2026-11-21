@@ -18,6 +18,19 @@ import Numiq, {
   type CsvOptions,
   type JsonOptions,
   useSampleDataset,
+  DatasetDescription,
+  type ColumnProfile,
+  type ColumnKind,
+  type DescribeOptions,
+  type Quartiles,
+  type Extremes,
+  quantile,
+  percentile,
+  quartiles,
+  iqr,
+  mode,
+  range,
+  extremes,
   type SortDirection,
   ValidationError,
   ColumnNotFoundError,
@@ -362,3 +375,70 @@ expectType<readonly string[]>(grouped.columns);
 
 // @ts-expect-error AggregationOp is a closed union
 expectType<AggregationOp>("mode");
+
+// ---------------------------------------------------------------- describe (v0.6.0)
+
+const described: Dataset = createDataset([{ a: 1 }, { a: 2 }]);
+
+// The overloads are the contract: no argument gives a description, a column gives a profile.
+expectType<DatasetDescription<Dataset>>(described.describe());
+expectType<DatasetDescription<Dataset>>(described.describe({ ddof: 0 }));
+expectType<DatasetDescription<Dataset>>(described.describe({ percentiles: [90] }));
+expectType<ColumnProfile>(described.describe("a"));
+expectType<ColumnProfile>(described.describe("a", { ddof: 0 }));
+expectType<ColumnProfile>(described.describe("a", { percentiles: [90] }));
+
+// A profile exposes every documented statistic with a stable type.
+const profile = described.describe("a");
+expectType<string>(profile.name);
+expectType<DType>(profile.type);
+expectType<ColumnKind>(profile.kind);
+expectType<number>(profile.count);
+expectType<number>(profile.missing);
+expectType<number>(profile.total);
+expectType<number>(profile.unique);
+expectType<number | null>(profile.sum);
+expectType<number | null>(profile.mean);
+expectType<number | null>(profile.median);
+expectType<unknown>(profile.mode);
+expectType<unknown>(profile.min);
+expectType<unknown>(profile.max);
+expectType<number | null>(profile.range);
+expectType<number | null>(profile.variance);
+expectType<number | null>(profile.std);
+expectType<number | null>(profile.q1);
+expectType<number | null>(profile.q3);
+expectType<number | null>(profile.iqr);
+expectType<Readonly<Record<string, number | null>>>(profile.percentiles);
+expectType<number>(profile.ddof);
+
+// The description holds profiles and converts back to a Dataset of the same type.
+const description = described.describe();
+expectType<number>(description.rowCount);
+expectType<number>(description.columnCount);
+expectType<readonly ColumnProfile[]>(description.profiles);
+expectType<readonly string[]>(description.columns);
+expectType<ColumnProfile>(description.get("a"));
+expectType<string>(description.table());
+expectType<Dataset>(description.toDataset());
+
+expectType<DescribeOptions>({ ddof: 0, percentiles: [25, 75] });
+expectType<ColumnKind>("numeric");
+
+// Standalone statistics.
+expectType<number | null>(quantile([1, 2, 3], 0.5));
+expectType<number | null>(percentile([1, 2, 3], 90));
+expectType<Quartiles | null>(quartiles([1, 2, 3]));
+expectType<number | null>(iqr([1, 2, 3]));
+expectType<unknown>(mode([1, 1, 2]));
+expectType<number | null>(range([1, 2, 3]));
+expectType<Extremes | null>(extremes([1, 2, 3]));
+
+// @ts-expect-error a profile is not a Dataset; the distinction is deliberate
+void described.describe("a").rowCount;
+// @ts-expect-error quantile takes numbers
+quantile(["1"], 0.5);
+// @ts-expect-error ddof must be a number
+described.describe("a", { ddof: "1" });
+// @ts-expect-error ColumnKind is a closed union
+expectType<ColumnKind>("ordinal");

@@ -8,6 +8,53 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.6.0] - 2026-11-20
+
+`Dataset` gains descriptive statistics. `describe()` profiles every column at once;
+`describe(column)` returns one column's profile directly.
+
+### Added
+
+- `Dataset.describe()` returns a `DatasetDescription` holding one `ColumnProfile` per
+  column, with `get(column)`, `columns`, `table(options?)`, `toDataset()`, and `toJSON()`.
+- `Dataset.describe(column, options?)` returns that column's `ColumnProfile` directly. The
+  two overloads return different types on purpose, so a single-column answer needs no
+  unwrapping.
+- `ColumnProfile` reports `count`, `missing`, `total`, `unique`, `sum`, `mean`, `median`,
+  `mode`, `min`, `max`, `range`, `variance`, `std`, `q1`, `q3`, `iqr`, and requested
+  `percentiles`.
+- `ddof` option on `describe`, selecting the sample formula (default) or the population
+  formula for `variance` and `std`. Every profile records the `ddof` it used.
+- `percentiles` option, adding named percentiles to a profile as `p<value>`.
+- `DatasetDescription.toDataset()` returns a `Dataset` with every statistic as a column, for
+  piping into charting tools. Requested percentiles become columns named after their keys
+  (`p90`), with the values flattened into the cells.
+- Standalone statistics: `quantile`, `percentile`, `quartiles`, `iqr`, `mode`, `range`, and
+  `extremes`.
+- `ColumnKind` classification (`numeric`, `boolean`, `temporal`, `categorical`, `mixed`,
+  `empty`) via `columnKind(type)`.
+
+### Changed
+
+- Statistics that do not apply to a column's type are `null`, never `0`. Only numeric
+  columns get `sum`, `mean`, `median`, `range`, `variance`, `std`, quartiles, and IQR;
+  `count`, `missing`, `unique`, `mode`, `min`, and `max` work on every type.
+
+### Fixed
+
+- `toDataset()` listed `percentiles` as a column but left it out of the row shape, so
+  requested percentiles disappeared on conversion. They are now flattened into their own
+  columns.
+- `percentile` computes its position as `(n - 1) * p / 100` in one expression. Dividing `p`
+  by 100 first made `p10` of `[2, 4, 4, 4, 5, 5, 7, 9]` read `3.4000000000000004`.
+
+### Notes
+
+- Quantiles use linear interpolation between order statistics (Hyndman-Fan type 7), the
+  same default as `numpy.percentile` and R's `quantile(type = 7)`.
+- A single value has no sample spread: `variance` and `std` are `null`, `iqr` and `range`
+  are `0`.
+
 ## [0.5.0] - 2026-11-20
 
 `Dataset` gains grouping and aggregation. `groupBy()` describes a split and computes
