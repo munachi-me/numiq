@@ -30,6 +30,7 @@ import {
 } from "./prepare.js";
 import type { DropMissingOptions, FillStrategy, ReplaceRule, SampleOptions } from "./prepare.js";
 import { Query, detectCellShape } from "./query.js";
+import { GroupedDataset } from "./group.js";
 import { resolveNormalization } from "../io/normalization/policy.js";
 import { normalizeCell } from "../io/normalization/values.js";
 
@@ -261,6 +262,47 @@ export class Dataset {
       },
       build: (rows, columns) => this.#build(rows, columns),
     });
+  }
+
+  /**
+   * Split rows into groups by one or more columns.
+   *
+   * Returns a `GroupedDataset`, which computes nothing until `aggregate()` runs. Groups
+   * keep first-appearance order, so the output is deterministic. Rows whose key is missing
+   * form their own group with a `null` key rather than being dropped.
+   *
+   * ```ts
+   * data.groupBy("region").aggregate({
+   *   totalRevenue: { column: "revenue", op: "sum" },
+   *   orderCount: { op: "count" },
+   * });
+   * ```
+   */
+  groupBy(...columns: (string | readonly string[])[]): GroupedDataset<Dataset> {
+    const requested = columns.flat();
+    if (requested.length === 0) {
+      throw new ValidationError("groupBy() needs at least one column.");
+    }
+    for (const column of requested) {
+      if (typeof column !== "string" || column.length === 0) {
+        throw new ValidationError("groupBy() needs non-empty column names.");
+      }
+      if (!this.#columns.includes(column)) {
+        throw new ColumnNotFoundError(column, this.#columns);
+      }
+    }
+    if (new Set(requested).size !== requested.length) {
+      throw new ValidationError("groupBy() received the same column twice.");
+    }
+    return new GroupedDataset<Dataset>(
+      {
+        columns: this.#columns,
+        rows: this.#rows,
+        dtypes: this.dtypes,
+        build: (rows, buildColumns) => this.#build(rows, buildColumns),
+      },
+      requested,
+    );
   }
 
   /**

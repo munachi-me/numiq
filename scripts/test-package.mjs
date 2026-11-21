@@ -88,6 +88,14 @@ try {
          .limit(3)
          .execute();
        const missing = createDataset([{ r: "N", v: 1 }, { r: null, v: 2 }]);
+       const grouped = sample.groupBy("region").aggregate({
+         total: { column: "revenue", op: "sum" },
+         avg: { column: "revenue", op: "mean" },
+         n: { op: "count" },
+       });
+       const customGrouped = sample.groupBy("region").aggregate({
+         labels: (rows) => rows.length,
+       });
        const notN = missing.query().where("r", "!=", "N").execute();
        const notNOrNull = missing.query().where("r", "!=", "N").or("r", "isNull").execute();
        console.log(JSON.stringify({
@@ -108,6 +116,18 @@ try {
          notN: notN.rowCount,
          notNOrNull: notNOrNull.rowCount,
          QueryIdentity: Numiq.Query !== undefined,
+         groupedColumns: grouped.columns,
+         groupedRows: grouped.rowCount,
+         groupedCounts: grouped.data.map((r) => Number(r.n)),
+         groupedCountTotal: grouped.data.reduce((t, r) => t + Number(r.n), 0),
+         groupedFirst: grouped.data[0],
+         customGroupedRows: customGrouped.rowCount,
+         groupSizes: sample.groupBy("region").sizes,
+         groupCount: sample.groupBy("region").groupCount,
+         GroupedDatasetIdentity: Numiq.GroupedDataset !== undefined,
+         standaloneSum: Numiq.sum([1, 2, 3]),
+         standaloneMedian: Numiq.median([3, 1, 2]),
+         standaloneStd: Numiq.std([1, 2, 3, 4, 5], { ddof: 0 }),
          loadCSV: typeof loadCSV,
          table: data.table().includes("1 rows × 2 columns"),
        }));`,
@@ -157,6 +177,27 @@ try {
     "query reports its grouping",
     esmResult.queryGrouping === "(region = North OR (revenue > 100 AND revenue < 200))",
     esmResult.queryGrouping,
+  );
+  check(
+    "groups from the packed package",
+    JSON.stringify(esmResult.groupedColumns) === '["region","total","avg","n"]',
+    JSON.stringify(esmResult.groupedColumns),
+  );
+  check("aggregate produces one row per group", esmResult.groupedRows === 4, String(esmResult.groupedRows));
+  check(
+    "group counts sum to the row count",
+    esmResult.groupedCountTotal === 50,
+    String(esmResult.groupedCountTotal),
+  );
+  check("aggregates a first group correctly", esmResult.groupedFirst?.n === 13, JSON.stringify(esmResult.groupedFirst));
+  check("supports custom aggregators", esmResult.customGroupedRows === 4, String(esmResult.customGroupedRows));
+  check("exposes group sizes", Array.isArray(esmResult.groupSizes), JSON.stringify(esmResult.groupSizes));
+  check("exposes the GroupedDataset export", esmResult.GroupedDatasetIdentity === true);
+  check("exports standalone aggregation helpers", esmResult.standaloneSum === 6 && esmResult.standaloneMedian === 2, String(esmResult.standaloneSum));
+  check(
+    "standalone std honours ddof",
+    Math.abs(Number(esmResult.standaloneStd) - Math.sqrt(2)) < 1e-12,
+    String(esmResult.standaloneStd),
   );
   check("query excludes missing cells from !=", esmResult.notN === 0, String(esmResult.notN));
   check("query can include missing cells via isNull", esmResult.notNOrNull === 1, String(esmResult.notNOrNull));
@@ -247,8 +288,17 @@ try {
     "dropDuplicates",
     "sample",
     "query",
+    "groupBy",
   ]) {
     check(`Dataset declares ${member}`, datasetDeclaration.includes(member));
+  }
+
+  const groupingDeclaration = await readFile(
+    path.join(consumer, "node_modules", "numiq", "dist", "esm", "core", "group.d.ts"),
+    "utf8",
+  );
+  for (const member of ["aggregate", "toDataset", "mapGroups", "groupCount", "sizes", "keys"]) {
+    check(`GroupedDataset declares ${member}`, groupingDeclaration.includes(member));
   }
 } finally {
   await rm(workDir, { recursive: true, force: true });

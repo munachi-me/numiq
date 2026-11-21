@@ -7,6 +7,20 @@
 export { Dataset, createDataset } from "./core/dataset.js";
 export type { SortDirection } from "./core/dataset.js";
 export { Query } from "./core/query.js";
+export { GroupedDataset } from "./core/group.js";
+export type { GroupSource } from "./core/group.js";
+export { sum, mean, median, variance, std, min, max, first, last, nunique } from "./core/aggregate.js";
+export type {
+  AggregateSpec,
+  AggregationContext,
+  AggregationEntry,
+  AggregationFn,
+  GroupAggregationFn,
+  AggregationOp,
+  AggregationSpec,
+  CustomAggregation,
+  DispersionOptions,
+} from "./core/aggregate.js";
 export type {
   CellShape,
   ComparisonOperator,
@@ -67,6 +81,8 @@ export type { ResolvedSource } from "./io/loaders/source.js";
 
 import { Dataset, createDataset } from "./core/dataset.js";
 import { Query } from "./core/query.js";
+import { GroupedDataset } from "./core/group.js";
+import { first, last, max, mean, median, min, nunique, std, sum, variance } from "./core/aggregate.js";
 import { useSampleDataset } from "./core/sample.js";
 import { renderTable } from "./display/table.js";
 import { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
@@ -93,7 +109,18 @@ import {
 const Numiq = {
   Dataset,
   Query,
+  GroupedDataset,
   createDataset,
+  sum,
+  mean,
+  median,
+  variance,
+  std,
+  min,
+  max,
+  first,
+  last,
+  nunique,
   useSampleDataset,
   renderTable,
   loadCSV,

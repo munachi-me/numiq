@@ -446,6 +446,139 @@ Distinct present values in first-seen order, and their count. `null` is excluded
 
 Returns `{ name, columns, shape, rows, metadata }`, so `JSON.stringify(dataset)` works.
 
+#### Grouping methods
+
+#### `groupBy(...columns)`
+
+Returns a `GroupedDataset`: a description of how to split rows. Nothing is computed until
+`aggregate()` runs. Accepts one or more column names, or a single array of them.
+
+```ts
+data.groupBy("region").aggregate({
+  totalRevenue: { column: "revenue", op: "sum" },
+  orderCount: { op: "count" },
+});
+```
+
+Groups appear in **first-appearance order** of their key, so output is deterministic and
+independent of hashing. Rows keep their source order inside each group, which is what makes
+`first` and `last` meaningful.
+
+Rows whose key is missing form their own group with a `null` key rather than being dropped.
+Silently discarding them makes totals that do not add up; drop the group explicitly when it
+is not wanted:
+
+```ts
+summary.query().where("region", "isNotNull").execute()
+```
+
+`groupBy` throws `ValidationError` for no columns, an empty name, or the same column twice,
+and `ColumnNotFoundError` for a column that does not exist.
+
+`GroupedDataset` exposes `columns`, `groupCount`, `rowCount`, `sizes`, and `keys` without
+computing any aggregation.
+
+#### `aggregate(spec)`
+
+Computes one output column per entry and returns a normal `Dataset`, so the result composes
+with queries, sorting, and preparation. Columns are the grouping columns followed by the
+spec's keys, in the order given.
+
+| Operation | Numeric only | Needs a column | Result for no present values |
+| --- | --- | --- | --- |
+| `count` | no | no — counts rows | `0` |
+| `sum` | yes | yes | `0` |
+| `mean` | yes | yes | `null` |
+| `median` | yes | yes | `null` |
+| `min` | no | yes | `null` |
+| `max` | no | yes | `null` |
+| `first` | no | yes | `null` |
+| `last` | no | yes | `null` |
+| `nunique` | no | yes | `0` |
+| `std` | yes | yes | `null` |
+| `variance` | yes | yes | `null` |
+
+`count` without a column counts rows in the group; with a column it counts present cells.
+
+`min`, `max`, `first`, `last`, `count`, and `nunique` work on text, booleans, and dates as
+well as numbers. `min` and `max` order dates chronologically and booleans `false` before
+`true`. The numeric-only operations throw `ValidationError` when the column's type is not
+numeric; `mixed` and `unknown` columns are allowed through, since they cannot be judged
+ahead of time.
+
+Missing cells inside a group are excluded from every aggregation, so `mean` of
+`[1, null, 3]` is `2`, not `1.33`.
+
+`std` and `variance` default to the **sample** formula, dividing by `n - 1`. Pass
+`ddof: 0` for the population formula. A group with a single row has no sample spread and
+reports `null`; with `ddof: 0` it reports `0`.
+
+`aggregate` validates the whole spec before computing anything, so a mistake in the last
+entry does not produce a partial result. Output names must not collide with grouping
+columns.
+
+#### Custom aggregators
+
+Two forms. A bare function receives the group's rows; bind `column` to receive only that
+column's present values.
+
+```ts
+data.groupBy("region").aggregate({
+  firstProduct: (rows) => rows[0]?.product,
+  spread: { column: "revenue", fn: (values) => Math.max(...values) - Math.min(...values) },
+});
+```
+
+Both receive frozen copies, so a callback cannot corrupt the source dataset. The second
+argument is an `AggregationContext` with `column` (the bound column, or `null`) and `rows`.
+
+#### `toDataset()` / `mapGroups(fn)`
+
+`toDataset()` returns the grouped rows with the grouping columns first, ordered by group.
+`mapGroups(fn)` applies a function to each group and concatenates the results; the returned
+rows may have any shape, and the result's columns are the union of their keys in
+first-appearance order.
+
+## Aggregation
+
+### Standalone helpers
+
+The same primitives are exported for use outside a grouping, operating on arrays of
+already-present values:
+
+```ts
+sum([1, 2, 3]);                      // 6
+mean([1, 2, 3]);                     // 2, or null when empty
+median([1, 2, 3]);                   // 2, or null when empty
+variance([1, 2, 3]);                 // sample variance, or null
+variance([1, 2, 3], { ddof: 0 });    // population variance
+std([1, 2, 3]);                      // sample standard deviation
+min([1, 2, 3]);                      // 1
+max([1, 2, 3]);                      // 3
+first([1, 2, 3]);                    // 1
+last([1, 2, 3]);                     // 3
+nunique([1, 1, 2]);                  // 2
+```
+
+`sum` uses Neumaier compensation, so `sum([1e16, 1, -1e16])` is `1` where naive addition
+gives `0`. `variance` is two-pass, computing deviations from the known mean; the one-pass
+`E[x²] - E[x]²` shortcut returns `0` for `[1000000001, 1000000002, 1000000003]` where the
+correct answer is `1`.
+
+### Types
+
+| Type | Shape |
+| --- | --- |
+| `AggregationOp` | the eleven operation names above |
+| `AggregationSpec` | `{ column?: string; op: AggregationOp; ddof?: number }` |
+| `CustomAggregation` | `{ column: string; fn: AggregationFn }` |
+| `AggregationFn` | `(values: readonly unknown[], context: AggregationContext) => unknown` |
+| `GroupAggregationFn` | `(rows: readonly Readonly<Row>[], context: AggregationContext) => unknown` |
+| `AggregationEntry` | `AggregationSpec \| CustomAggregation \| GroupAggregationFn` |
+| `AggregateSpec` | `Readonly<Record<string, AggregationEntry>>` |
+| `AggregationContext` | `{ column: string \| null; rows: readonly Readonly<Row>[] }` |
+| `DispersionOptions` | `{ ddof?: number }` |
+
 ## Types
 
 ### `DType`
