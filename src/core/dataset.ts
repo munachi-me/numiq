@@ -25,6 +25,38 @@ import {
 import { joinTables, type JoinOptions, type JoinReport } from "./join.js";
 import { concatRows, meltRows, pivotRows, type ConcatOptions, type MeltOptions, type PivotOptions } from "./reshape.js";
 import {
+  cumMean,
+  cumSum,
+  denseRank,
+  lag,
+  lead,
+  rank,
+  rankRows,
+  rollingMax,
+  rollingMean,
+  rollingMin,
+  rollingStd,
+  rollingSum,
+  rowNumber,
+  windowColumn,
+  type CumulativeOptions,
+  type OffsetOptions,
+  type RankedRow,
+  type RollingOptions,
+  type WindowColumnOptions,
+  type WindowOptions,
+} from "./window.js";
+import {
+  extractPeriod,
+  periodBuckets,
+  resample,
+  sortByTime,
+  type ResampleOptions,
+  type ResampleResult,
+  type SortByTimeOptions,
+  type TimeInterval,
+} from "./timeseries.js";
+import {
   addColumn,
   castColumns,
   dropColumns,
@@ -778,6 +810,129 @@ export class Dataset {
     const tables = [this, ...rest].map((dataset) => ({ rows: dataset.#rows, columns: dataset.#columns }));
     const result = concatRows(tables, options);
     return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * A dataset with a column of window values computed from ordered neighbours.
+   *
+   * `orderBy` is required: a window value only means something relative to a stated
+   * order, and passing it explicitly means sorting the dataset first cannot change the
+   * answer. Rows are grouped by `partitionBy` before ordering, so a window never crosses
+   * a partition boundary.
+   */
+  window(name: string, options: WindowColumnOptions): Dataset {
+    const result = windowColumn(this.#rows, this.#columns, name, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** 1-based position of each row within its partition, ties broken by input order. */
+  rowNumber(name: string, options: WindowOptions): Dataset {
+    const result = rowNumber(this.#rows, this.#columns, name, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** Rank with gaps: tied rows share a rank and the next rank skips the tie count. */
+  rank(name: string, options: WindowOptions): Dataset {
+    const result = rank(this.#rows, this.#columns, name, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** Rank without gaps: tied rows share a rank and the next rank is the next integer. */
+  denseRank(name: string, options: WindowOptions): Dataset {
+    const result = denseRank(this.#rows, this.#columns, name, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** Ranked positions in order, for callers that want the ordering itself. */
+  rankRows(options: WindowOptions): RankedRow[] {
+    return rankRows(this.#rows, this.#columns, options);
+  }
+
+  /** A column holding the value `offset` rows earlier in the partition. */
+  lag(name: string, column: string, options: OffsetOptions): Dataset {
+    const result = lag(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding the value `offset` rows later in the partition. */
+  lead(name: string, column: string, options: OffsetOptions): Dataset {
+    const result = lead(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding the running total of `column` in partition order. */
+  cumSum(name: string, column: string, options: CumulativeOptions): Dataset {
+    const result = cumSum(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding the running mean of `column` in partition order. */
+  cumMean(name: string, column: string, options: CumulativeOptions): Dataset {
+    const result = cumMean(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding a trailing sum over `options.window` rows. */
+  rollingSum(name: string, column: string, options: RollingOptions): Dataset {
+    const result = rollingSum(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding a trailing mean over `options.window` rows. */
+  rollingMean(name: string, column: string, options: RollingOptions): Dataset {
+    const result = rollingMean(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding a trailing minimum over `options.window` rows. */
+  rollingMin(name: string, column: string, options: RollingOptions): Dataset {
+    const result = rollingMin(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding a trailing maximum over `options.window` rows. */
+  rollingMax(name: string, column: string, options: RollingOptions): Dataset {
+    const result = rollingMax(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A column holding a trailing sample standard deviation over `options.window` rows. */
+  rollingStd(name: string, column: string, options: RollingOptions): Dataset {
+    const result = rollingStd(this.#rows, this.#columns, name, column, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A dataset sorted by a time column, oldest first by default. */
+  sortByTime(timeColumn: string, options: SortByTimeOptions = {}): Dataset {
+    const result = sortByTime(this.#rows, this.#columns, timeColumn, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** A dataset with a column holding each row's calendar bucket label. */
+  extractPeriod(name: string, timeColumn: string, interval: TimeInterval): Dataset {
+    const result = extractPeriod(this.#rows, this.#columns, name, timeColumn, interval);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** Bucket rows by a calendar interval and aggregate each bucket. */
+  resample(options: ResampleOptions): Dataset {
+    const result = resample(this.#rows, this.#columns, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** `resample()` plus how many rows were bucketed and dropped. */
+  resampleReport(options: ResampleOptions): { dataset: Dataset; bucketed: number; dropped: number } {
+    const result: ResampleResult = resample(this.#rows, this.#columns, options);
+    return {
+      dataset: this.#build(result.rows, result.columns),
+      bucketed: result.bucketed,
+      dropped: result.dropped,
+    };
+  }
+
+  /** Distinct bucket labels for a time column, ascending. */
+  periodBuckets(timeColumn: string, interval: TimeInterval): string[] {
+    return periodBuckets(this.#rows, this.#columns, timeColumn, interval);
   }
 
   /**

@@ -3,7 +3,7 @@
 A modular TypeScript engine for loading, normalizing, preparing, querying, and
 analyzing structured data.
 
-Numiq v0.9.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq v0.10.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter, sort,
 prepare, query, group, summarize, and render as a table. It also describes each column and
 measures how columns relate to each other: correlation, rank correlation, correlation
@@ -882,14 +882,94 @@ rows share a cell, `aggregate` (`"first"` by default, plus `"last"`, `"sum"`, `"
 takes the union of column names and fills gaps with `null`; `"strict"` rejects any
 difference, which catches a schema drift a union would hide.
 
-## Scope of v0.9.0
+## Window functions
+
+A window value depends on a row's position among its neighbours, so every window call
+requires an explicit `orderBy`. Passing the order in means sorting the dataset first cannot
+change the answer: the same `orderBy` always produces the same result.
+
+```ts
+const ranked = orders
+  .rank("rank", { partitionBy: "store", orderBy: { column: "units", direction: "desc" } })
+  .cumSum("running", "units", { partitionBy: "store", orderBy: "at" })
+  .rollingMean("avg3", "units", { partitionBy: "store", orderBy: "at", window: 3 });
+```
+
+`rowNumber` numbers rows within a partition and always gives distinct values. `rank` leaves
+a gap after a tie and `denseRank` does not, matching the SQL meaning of both.
+
+`lag` and `lead` read a neighbour's value at an explicit `offset`, falling back to `fill`
+(default `null`) where no such row exists. `cumSum` and `cumMean` accumulate in partition
+order. `rollingSum`, `rollingMean`, `rollingMin`, `rollingMax`, and `rollingStd` use a
+trailing window that ends at the current row.
+
+A window never crosses a partition boundary: `lag` on the first row of a partition returns
+`fill`, not the previous partition's last value.
+
+Missing ordering values sort last in both directions, matching `sort()`. Ties keep their
+input order, so results are stable and reproducible.
+
+A rolling window is trailing. By default a row with fewer than `window` predecessors emits
+`null` rather than an average of fewer rows than asked for; lower `minPeriods` to accept a
+short leading window. `rollingStd` uses the sample divisor `n - 1`, consistent with `std`,
+so a window holding one observation has no spread to report and emits `null`.
+
+Window results are appended to the existing columns and the input row order is preserved,
+even though the computation follows `orderBy`. Naming a column that already exists is an
+error rather than an overwrite.
+
+## Time series
+
+`sortByTime()` orders by a time column, oldest first by default, with missing times last in
+both directions.
+
+`extractPeriod()` labels each row with its calendar bucket:
+
+```ts
+const weekly = orders.extractPeriod("week", "at", "week");
+// week: "2026-11-02"
+```
+
+`resample()` groups rows into fixed calendar buckets and aggregates each one:
+
+```ts
+const daily = orders.resample({
+  every: "day",
+  timeColumn: "at",
+  aggregate: { units: "sum", orders: "count" },
+});
+// { period: "2026-11-02", units: 42, orders: 7 }
+```
+
+Intervals are `hour`, `day`, `week`, `month`, `quarter`, and `year`. Weeks start on Monday
+and quarters on the first day of months 1, 4, 7, and 10. Aggregations are `sum`, `mean`,
+`median`, `min`, `max`, `count`, `first`, and `last`.
+
+All calendar arithmetic is UTC. A `Date` is an instant, so bucketing in local time would
+move rows between buckets depending on where the code runs; UTC keeps a boundary meaning the
+same thing everywhere. Zone offsets in an input string are honoured, so
+`2026-11-16T10:00:00+02:00` buckets as `08:00Z`. Nothing is silently converted to local
+time.
+
+`resample()` emits one row per non-empty bucket in ascending order. It does not invent a row
+for an empty period: a resample summarises observations, and a zero row would assert
+something the input never said. Use `resampleReport()` when you also want the count of
+bucketed and dropped rows.
+
+A row whose time is present but unparseable always throws. A row whose time is missing is
+dropped by default and counted; pass `onMissingTime: "error"` to reject it instead.
+
+## Scope of v0.10.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
 the preparation engine (`drop`, `rename`, `dropMissing`, `fillMissing`, `replace`,
 `map`, `addColumn`, `addConditionalColumn`, `cast`, `dropDuplicates`, `sample`),
 joins (`inner`, `left`, `right`, `full`, with key mapping and collision suffixes),
-reshaping (`pivot`, `melt`, `concat`), structured queries
+reshaping (`pivot`, `melt`, `concat`), window functions (`rowNumber`, `rank`,
+`denseRank`, `lag`, `lead`, `cumSum`, `cumMean`, and the five `rolling*` helpers, with
+partitions and explicit ordering), time-series operations (`sortByTime`, `extractPeriod`,
+`resample`, `periodBuckets`), structured queries
 (`Dataset.query()` with typed conditions, boolean grouping, ordering, and projection),
 grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven operations,
 `ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()`),
@@ -900,9 +980,9 @@ recalculation, comparison, and format hints), insights (`Dataset.insights()` wit
 checks, configurable thresholds, and evidence on every observation), table rendering, the
 bundled sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not in v0.9.0: hypothesis tests and p-values, machine-learning models, window
-functions and time-series operations, and Excel import. The architecture reserves space for
-them (see `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
+Deliberately not in v0.10.0: hypothesis tests and p-values, machine-learning models,
+pipelines and schema validation, and Excel import. The architecture reserves space for them
+(see `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
 `Dataset` without changing existing behaviour.
 
 ## Development

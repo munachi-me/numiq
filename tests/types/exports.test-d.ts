@@ -8,6 +8,16 @@ import Numiq, {
   addConditionalColumn,
   joinTables,
   pivotRows,
+  rowNumber,
+  rank,
+  denseRank,
+  lag,
+  lead,
+  cumSum,
+  rollingStd,
+  resample,
+  sortByTime,
+  extractPeriod,
   createDataset,
   loadCSV,
   Dataset,
@@ -626,9 +636,37 @@ expectType<Dataset>(described.concat([described, described], { columns: "strict"
 // @ts-expect-error a pivot needs both a column source and a value source
 described.pivot({ columns: "a" });
 
+// Window and time-series signatures.
+expectType<Dataset>(described.rowNumber("n", { orderBy: "a" }));
+expectType<Dataset>(described.rank("r", { partitionBy: ["a"], orderBy: { column: "a", direction: "desc" } }));
+expectType<Dataset>(described.denseRank("d", { orderBy: "a" }));
+expectType<Dataset>(described.lag("p", "a", { orderBy: "a", offset: 2, fill: 0 }));
+expectType<Dataset>(described.lead("n", "a", { orderBy: "a" }));
+expectType<Dataset>(described.cumSum("c", "a", { orderBy: "a", ignoreMissing: true }));
+expectType<Dataset>(described.rollingMean("r", "a", { orderBy: "a", window: 3, minPeriods: 1 }));
+expectType<Dataset>(described.rollingStd("s", "a", { orderBy: "a", window: 3 }));
+expectType<Dataset>(described.sortByTime("a", { direction: "desc" }));
+expectType<Dataset>(described.extractPeriod("p", "a", "month"));
+expectType<Dataset>(described.resample({ every: "day", timeColumn: "a", aggregate: { a: "sum" } }));
+expectType<string[]>(described.periodBuckets("a", "year"));
+// @ts-expect-error an interval must be one of the documented names
+described.extractPeriod("p", "a", "fortnight");
+// @ts-expect-error a rolling window is required
+described.rollingSum("r", "a", { orderBy: "a" });
+
 // The default namespace must expose the same constructors as the named exports.
 expectType<typeof Metric>(Numiq.Metric);
 expectType<typeof analyze>(Numiq.analyze);
 expectType<typeof joinTables>(Numiq.joinTables);
 expectType<typeof pivotRows>(Numiq.pivotRows);
 expectType<typeof addConditionalColumn>(Numiq.addConditionalColumn);
+expectType<typeof rowNumber>(Numiq.rowNumber);
+expectType<typeof rank>(Numiq.rank);
+expectType<typeof denseRank>(Numiq.denseRank);
+expectType<typeof lag>(Numiq.lag);
+expectType<typeof lead>(Numiq.lead);
+expectType<typeof cumSum>(Numiq.cumSum);
+expectType<typeof rollingStd>(Numiq.rollingStd);
+expectType<typeof resample>(Numiq.resample);
+expectType<typeof sortByTime>(Numiq.sortByTime);
+expectType<typeof extractPeriod>(Numiq.extractPeriod);

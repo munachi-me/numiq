@@ -71,6 +71,50 @@ export { joinTables } from "./core/join.js";
 export type { JoinHow, JoinOptions, JoinReport, JoinResult } from "./core/join.js";
 export { concatRows, meltRows, pivotRows } from "./core/reshape.js";
 export type { ConcatOptions, MeltOptions, PivotAggregation, PivotOptions, PivotResult } from "./core/reshape.js";
+export {
+  cumMean,
+  cumSum,
+  denseRank,
+  lag,
+  lead,
+  rank,
+  rankRows,
+  rollingMax,
+  rollingMean,
+  rollingMin,
+  rollingStd,
+  rollingSum,
+  rowNumber,
+  windowColumn,
+} from "./core/window.js";
+export type {
+  CumulativeOptions,
+  OffsetOptions,
+  RankedRow,
+  RollingOptions,
+  WindowColumnOptions,
+  WindowDirection,
+  WindowFn,
+  WindowOptions,
+  WindowOrderKey,
+  WindowRowContext,
+} from "./core/window.js";
+export {
+  extractPeriod,
+  periodBuckets,
+  periodLabel,
+  periodStart,
+  resample,
+  sortByTime,
+  toTime,
+} from "./core/timeseries.js";
+export type {
+  ResampleAggregation,
+  ResampleOptions,
+  ResampleResult,
+  SortByTimeOptions,
+  TimeInterval,
+} from "./core/timeseries.js";
 export type {
   ConditionalColumnOptions,
   ConditionalColumnReport,
@@ -174,6 +218,31 @@ import {
 import { addConditionalColumn } from "./core/conditional.js";
 import { joinTables } from "./core/join.js";
 import { concatRows, meltRows, pivotRows } from "./core/reshape.js";
+import {
+  cumMean,
+  cumSum,
+  denseRank,
+  lag,
+  lead,
+  rank,
+  rankRows,
+  rollingMax,
+  rollingMean,
+  rollingMin,
+  rollingStd,
+  rollingSum,
+  rowNumber,
+  windowColumn,
+} from "./core/window.js";
+import {
+  extractPeriod,
+  periodBuckets,
+  periodLabel,
+  periodStart,
+  resample,
+  sortByTime,
+  toTime,
+} from "./core/timeseries.js";
 import { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
 import { analyze, resolveInsightOptions } from "./insights/insights.js";
 import { useSampleDataset } from "./core/sample.js";
@@ -242,6 +311,27 @@ const Numiq = {
   pivotRows,
   meltRows,
   concatRows,
+  windowColumn,
+  rowNumber,
+  rank,
+  denseRank,
+  rankRows,
+  lag,
+  lead,
+  cumSum,
+  cumMean,
+  rollingSum,
+  rollingMean,
+  rollingMin,
+  rollingMax,
+  rollingStd,
+  sortByTime,
+  extractPeriod,
+  resample,
+  periodBuckets,
+  periodLabel,
+  periodStart,
+  toTime,
   Metric,
   createMetric,
   isAggregationOp,

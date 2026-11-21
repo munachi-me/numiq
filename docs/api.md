@@ -702,6 +702,206 @@ argument is an `AggregationContext` with `column` (the bound column, or `null`) 
 rows may have any shape, and the result's columns are the union of their keys in
 first-appearance order.
 
+## Window functions
+
+Window methods compute a value per row from its neighbours. Each returns a new `Dataset`
+with the computed column appended; the input row order and every input column are kept.
+Naming a column that already exists throws `ValidationError`.
+
+Every window method requires `orderBy`. Without an explicit order a window value would
+depend on whatever order the dataset happened to be in, so the order is always stated:
+
+```ts
+data.cumSum("running", "units", { partitionBy: "store", orderBy: "at" });
+data.rank("r", { orderBy: { column: "units", direction: "desc" } });
+```
+
+`orderBy` is a column name, a `{ column, direction }` object, or an array of either.
+Composite keys are compared left to right. Missing values sort last in both directions,
+matching `sort()`, and ties keep their input order.
+
+`partitionBy` is a column name or an array of names. A window never reads across a
+partition boundary, and partitions are compared with `stableKey`, so `1` and `"1"` are
+different partitions.
+
+### Ranking
+
+#### `rowNumber(name, options)`
+
+1-based position within the partition. Every row gets a distinct number, so ties in the
+ordering are broken by input order.
+
+#### `rank(name, options)` / `denseRank(name, options)`
+
+Tied rows share a rank. `rank` leaves a gap after a tie (`1, 2, 2, 4`); `denseRank` does
+not (`1, 2, 2, 3`). Ties are judged on every ordering key.
+
+#### `rankRows(options)`
+
+Returns `RankedRow[]` — `{ index, rank }` for each row in ranked order — for callers who
+want the ordering itself rather than a column. `index` is the row's original zero-based
+position.
+
+### Offsets
+
+#### `lag(name, column, options)` / `lead(name, column, options)`
+
+Value of `column` from the row `offset` positions earlier (`lag`) or later (`lead`). Rows
+with no counterpart take `fill`, which defaults to `null`.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `offset` | `number` | `1` | Rows to step; must be a non-negative integer |
+| `fill` | `unknown` | `null` | Value where no such row exists |
+| `partitionBy` | `string \| string[]` | none | Partition columns |
+| `orderBy` | key or keys | required | Ordering |
+
+### Running values
+
+#### `cumSum(name, column, options)` / `cumMean(name, column, options)`
+
+Running total or running mean of `column` in partition order. A cell that is not a finite
+number counts as missing.
+
+With the default `ignoreMissing: false`, the first missing value makes that row and every
+later row in the partition `null`: a running total that skipped a value would misstate the
+sum. Set `ignoreMissing: true` to skip missing cells and continue the accumulation.
+
+### Moving values
+
+#### `rollingSum(name, column, options)` and the other `rolling*` methods
+
+`rollingSum`, `rollingMean`, `rollingMin`, `rollingMax`, and `rollingStd` compute over a
+trailing window that ends at the current row: with `window: 3`, the third row summarises
+rows 1–3.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `window` | `number` | required | Rows in the window, at least 1 |
+| `minPeriods` | `number` | `window` | Fewest present values needed to emit a number |
+| `partitionBy` | `string \| string[]` | none | Partition columns |
+| `orderBy` | key or keys | required | Ordering |
+
+A row with fewer than `minPeriods` present values emits `null`. The default
+`minPeriods: window` means a short leading window is reported as `null` rather than as an
+average of fewer rows than requested. `minPeriods` may not exceed `window`.
+
+`rollingStd` uses the sample divisor `n - 1`, consistent with `std`, so a window holding a
+single observation emits `null` rather than `0`.
+
+### `window(name, options)`
+
+The escape hatch for a window the named helpers do not cover.
+
+```ts
+data.window("gap", {
+  partitionBy: "store",
+  orderBy: "at",
+  fn: ({ row, rows, rowNumber }) => (rowNumber === 1 ? 0 : Number(row.units) - Number(rows[0]?.units)),
+});
+```
+
+The callback receives `row`, `rowNumber` (1-based within the partition), `index` (position
+in the whole input), `partition` (partition index in first-appearance order), and `rows`
+(that partition's rows in order).
+
+### Standalone helpers
+
+`windowColumn(rows, columns, name, options)` and the individual functions
+(`rowNumber`, `rank`, `denseRank`, `lag`, `lead`, `cumSum`, `cumMean`, `rollingSum`,
+`rollingMean`, `rollingMin`, `rollingMax`, `rollingStd`, `rankRows`) take
+`(rows, columns, ...)` first and return a `PreparedTable` of `{ rows, columns }`.
+
+## Time series
+
+All calendar arithmetic is UTC. A `Date` is an instant rather than a calendar date, so
+bucketing in local time would move rows between buckets depending on where the code runs.
+Zone offsets in an input string are honoured and nothing is silently converted to local
+time.
+
+Accepted time values are `Date` instances and ISO strings in the forms
+`YYYY-MM-DD` and `YYYY-MM-DDTHH:mm[:ss[.sss]][Z|±HH:mm]`. A value that is present but not
+recognised throws `ValidationError`; it never becomes `null`.
+
+### `sortByTime(timeColumn, options?)`
+
+Sorts by a time column, oldest first by default. `direction` may be `"asc"` or `"desc"`.
+Missing times sort last in both directions, and equal times keep their input order.
+
+### `extractPeriod(name, timeColumn, interval)`
+
+Appends a column holding each row's calendar bucket label. A missing time yields `null`,
+because the row belongs to no bucket and inventing one would place it somewhere the data
+does not support.
+
+### `resample(options)`
+
+Groups rows into fixed calendar buckets and aggregates each bucket.
+
+```ts
+data.resample({
+  every: "day",
+  timeColumn: "at",
+  aggregate: { units: "sum", orders: "count" },
+  label: "period",        // default
+  onMissingTime: "drop",  // default; "error" to reject instead
+});
+```
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `every` | `TimeInterval` | required | Bucket width |
+| `timeColumn` | `string` | required | Column to bucket by |
+| `aggregate` | `Record<string, ResampleAggregation>` | required | Output column per source column |
+| `label` | `string` | `"period"` | Bucket column name |
+| `onMissingTime` | `"drop" \| "error"` | `"drop"` | How to treat a missing time |
+
+The output holds one row per non-empty bucket in ascending time order, with columns
+`[label, ...aggregateKeys]`. Empty buckets produce no row: a resample summarises
+observations, and a zero row would assert something the input never said.
+
+A present but unparseable time always throws, even when `onMissingTime` is `"drop"`, since
+that is a data error rather than an absence.
+
+### `resampleReport(options)`
+
+`resample()` plus `{ bucketed, dropped }` counts.
+
+### `periodBuckets(timeColumn, interval)`
+
+Distinct bucket labels for a column, ascending. Useful for inspecting the shape of a series
+before resampling.
+
+### Intervals and labels
+
+| Interval | Bucket starts | Label |
+| --- | --- | --- |
+| `hour` | start of the UTC hour | `2026-11-16T14:00` |
+| `day` | UTC midnight | `2026-11-16` |
+| `week` | Monday, UTC midnight | `2026-11-16` |
+| `month` | first of the month | `2026-11` |
+| `quarter` | first of months 1, 4, 7, 10 | `2026-Q4` |
+| `year` | 1 January | `2026` |
+
+Weeks follow ISO-8601 and start on Monday. Day and week labels share a shape because a week
+label is the date its bucket begins.
+
+### Standalone helpers
+
+`toTime(value, context)` converts a cell to a `Date` or `null`. `periodStart(date,
+interval)` returns the UTC start of the bucket containing a date. `periodLabel(start,
+interval)` formats a bucket start as its label. `sortByTime`, `extractPeriod`, `resample`,
+and `periodBuckets` also exist as standalone functions taking `(rows, columns, ...)` first.
+
+### Types
+
+```ts
+type TimeInterval = "hour" | "day" | "week" | "month" | "quarter" | "year";
+type ResampleAggregation = "sum" | "mean" | "median" | "min" | "max" | "count" | "first" | "last";
+type WindowDirection = "asc" | "desc";
+type WindowOrderKey = string | { column: string; direction?: WindowDirection };
+```
+
 ### `describe()` / `describe(column, options?)`
 
 Profiles columns. Two overloads with two result shapes:

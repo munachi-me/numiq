@@ -38,6 +38,8 @@ src/
 │   ├── conditional.ts        addConditionalColumn, ordered rule evaluation
 │   ├── join.ts               hash join: inner, left, right, full
 │   ├── reshape.ts            pivot, melt, concat
+│   ├── window.ts             ranking, offsets, running and moving values
+│   ├── timeseries.ts         sortByTime, extractPeriod, resample, period bucketing
 │   └── sample.ts             the bundled sample dataset accessor
 ├── analytics/
 │   ├── stats.ts              quantile, percentile, quartiles, iqr, mode, extremes
@@ -152,21 +154,32 @@ alongside the layers already built.
   appearance rather than by sort, so the result does not depend on the value types, and
   `pivot()`/`melt()` round trip through the same plain `{ rows, columns }` shape every other
   primitive uses.
+- **Window functions** live in `src/core/window.ts`. Every entry point resolves one shared
+  ordering plan — partitions first, then the ordered row indices — so `rowNumber`, `rank`,
+  and the rolling helpers cannot disagree about what "previous" means. Ordering is a
+  required argument rather than an implicit read of the dataset's current row order, which
+  keeps a result reproducible: sorting first cannot change the answer.
+- **Time series** live in `src/core/timeseries.ts`. `periodStart` is the single place that
+  decides where a bucket begins, and `extractPeriod`, `resample`, and `periodBuckets` all
+  derive their labels from `periodLabel`, so a row's label always matches the bucket
+  `resample` would group it into. Calendar arithmetic is UTC because a `Date` is an
+  instant; bucketing in local time would move rows between buckets by host timezone.
 - **Numviz integration** (§12) is a boundary, not a dependency: a separate export subpath
   that converts a `Dataset` into whatever shape Numviz consumes. Numiq must not depend on
   a visualisation library.
 
 Each layer landed without changes to the import layer or the `Dataset` invariants, which is
-what the split was for. Window functions and the Numviz subpath attach the same way.
+what the split was for. The Numviz subpath attaches the same way.
 
 ## Testing strategy
 
 - `tests/unit/` — parsers, tokenizer, normalization, dataset, table, errors, public API,
   preparation, querying, grouping and aggregation, descriptive statistics, advanced
-  statistics, metrics, insights, conditional columns, joins, and reshaping.
+  statistics, metrics, insights, conditional columns, joins, reshaping, window functions,
+  and time series.
 - `tests/integration/` — loaders against a real HTTP server and a real temporary
   directory; the environment split in a separate process; and one suite per release
-  (`v020` … `v090`) that exercises that release's public API end to end.
+  (`v020` … `v0100`) that exercises that release's public API end to end.
 - `tests/types/` — a compile-time contract for the published declarations, including
   negative assertions that invalid usage fails to compile.
 - `scripts/test-package.mjs` — packs the tarball, installs it into a throwaway consumer,
