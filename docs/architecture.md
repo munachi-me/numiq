@@ -1,7 +1,7 @@
 # Architecture
 
-This document describes how Numiq v0.1.0 is organised, why it is organised that way, and
-where future capabilities attach.
+This document describes how Numiq v0.7.0 is organised, why it is organised that way, and
+where the remaining capabilities attach.
 
 ## Design principles
 
@@ -111,13 +111,14 @@ Two different things share the word "type" in Numiq, and the distinction is deli
 Keeping them apart means `data` always shows what the source contained, and conversion
 only happens when a caller asks for it.
 
-## Where future capabilities attach
+## Where the remaining capabilities attach
 
-The spec (§11) reserves room for preparation, transformation, querying, grouping,
-statistics, and metrics. They attach as follows.
+Preparation, querying, grouping, descriptive statistics, and advanced statistics have
+landed. The spec (§11) still reserves room for metrics, and it attaches as follows,
+alongside the layers already built.
 
-- **Preparation and transformation** become `Dataset` methods returning new datasets,
-  implemented in `src/core/prepare.ts`. They need no changes to the import layer.
+- **Preparation and transformation** are `Dataset` methods returning new datasets,
+  implemented in `src/core/prepare.ts`. They needed no changes to the import layer.
 - **Querying and filtering** live in `src/core/query.ts` and return a `Dataset` or plain
   values.
 - **Grouping and aggregation** introduce a `GroupedDataset` in `src/core/group.ts`, holding
@@ -133,19 +134,23 @@ statistics, and metrics. They attach as follows.
   that converts a `Dataset` into whatever shape Numviz consumes. Numiq must not depend on
   a visualisation library.
 
-Preparation, querying, grouping, and descriptive statistics have all landed without
-changes to the import layer or the `Dataset` invariants, which is what the split was for.
-Correlation, rank statistics, outlier detection, joins, and metrics attach the same way.
+Each layer landed without changes to the import layer or the `Dataset` invariants, which is
+what the split was for. Metrics, joins, and the Numviz subpath attach the same way.
 
 ## Testing strategy
 
-- `tests/unit/` — parsers, tokenizer, normalization, dataset, table, errors, public API.
+- `tests/unit/` — parsers, tokenizer, normalization, dataset, table, errors, public API,
+  preparation, querying, grouping and aggregation, descriptive statistics, and advanced
+  statistics.
 - `tests/integration/` — loaders against a real HTTP server and a real temporary
-  directory; the environment split in a separate process.
+  directory; the environment split in a separate process; and one suite per release
+  (`v020` … `v070`) that exercises that release's public API end to end.
 - `tests/types/` — a compile-time contract for the published declarations, including
   negative assertions that invalid usage fails to compile.
 - `scripts/test-package.mjs` — packs the tarball, installs it into a throwaway consumer,
   and exercises ESM import, CJS require, and the browser condition.
 
 No mocks are used. The HTTP tests run a real server on an ephemeral port, and the file
-tests use a real temporary directory.
+tests use a real temporary directory. The statistical formulas are checked against
+reference values computed with `numpy` and `scipy.stats`, recorded in the test file, so a
+failure means drift from the reference rather than a transcription error.

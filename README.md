@@ -1,11 +1,14 @@
 # Numiq
 
 A modular TypeScript engine for loading, normalizing, preparing, querying, and
-profiling structured data.
+analyzing structured data.
 
-Numiq v0.6.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
-normalizes the values, and gives you an immutable `Dataset` you can inspect, filter,
-sort, prepare, query, summarize, and render as a table.
+Numiq v0.7.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+normalizes the values, and gives you an immutable `Dataset` you can inspect, filter, sort,
+prepare, query, group, summarize, and render as a table. It also describes each column and
+measures how columns relate to each other: correlation, rank correlation, correlation
+matrices, z-scores, percentile rank, skewness, kurtosis, five-number summaries, and
+outlier detection.
 
 ```ts
 import { loadCSV } from "numiq";
