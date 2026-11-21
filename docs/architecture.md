@@ -30,7 +30,17 @@ src/
 ├── core/
 │   ├── dataset.ts            Dataset class, createDataset
 │   ├── schema.ts             type inference and column description
-│   └── types.ts              public types: Row, DType, TableOptions, ...
+│   ├── types.ts              public types: Row, DType, TableOptions, ...
+│   ├── prepare.ts            drop, rename, fillMissing, cast, sample, ...
+│   ├── query.ts              Dataset.query(), conditions, ordering, projection
+│   ├── group.ts              GroupedDataset, aggregate(), mapGroups()
+│   ├── aggregate.ts          sum, mean, variance, std, and the other primitives
+│   └── sample.ts             the bundled sample dataset accessor
+├── analytics/
+│   ├── stats.ts              quantile, percentile, quartiles, iqr, mode, extremes
+│   └── describe.ts           DatasetDescription, ColumnProfile, profileColumn
+├── data/
+│   └── sample-sales.ts       generated sample rows (see scripts/generate-sample.mjs)
 ├── io/
 │   ├── types.ts              loader and parser option types
 │   ├── loaders/
@@ -54,6 +64,7 @@ src/
 │   └── index.ts              NumiqError and subclasses
 └── utils/
     ├── values.ts             clone, freeze, stable keys, presence checks
+    ├── compare.ts            the shared ordering comparator used by sort and min/max
     └── temporal.ts           ISO date/time recognition and parsing
 ```
 
@@ -105,18 +116,23 @@ The spec (§11) reserves room for preparation, transformation, querying, groupin
 statistics, and metrics. They attach as follows.
 
 - **Preparation and transformation** become `Dataset` methods returning new datasets,
-  implemented in `src/core/transform/`. They need no changes to the import layer.
-- **Querying and filtering** similarly return a `Dataset` or plain values.
-- **Grouping and aggregation** introduce a `GroupedDataset` in `src/core/group/`, holding
-  keys and row indices, with aggregation methods that return a `Dataset`.
+  implemented in `src/core/prepare.ts`. They need no changes to the import layer.
+- **Querying and filtering** live in `src/core/query.ts` and return a `Dataset` or plain
+  values.
+- **Grouping and aggregation** introduce a `GroupedDataset` in `src/core/group.ts`, holding
+  keys and row indices, with aggregation methods that return a `Dataset`. The aggregation
+  primitives themselves sit in `src/core/aggregate.ts`, shared with the statistics layer.
 - **Statistics and metrics** live in `src/analytics/` as pure functions over column
-  values, so they are testable without a `Dataset`.
+  values, so they are testable without a `Dataset`. Descriptive statistics arrived in
+  v0.6.0 this way: `src/analytics/stats.ts` holds the arithmetic and `describe.ts` adds the
+  profiling layer, neither of which knows about `Dataset` internals.
 - **Numviz integration** (§12) is a boundary, not a dependency: a separate export subpath
   that converts a `Dataset` into whatever shape Numviz consumes. Numiq must not depend on
   a visualisation library.
 
-Nothing in v0.1.0 needs to change to make these possible. That is the point of the
-immutable-dataset and parse/load split.
+Preparation, querying, grouping, and descriptive statistics have all landed without
+changes to the import layer or the `Dataset` invariants, which is what the split was for.
+Correlation, rank statistics, outlier detection, joins, and metrics attach the same way.
 
 ## Testing strategy
 

@@ -31,6 +31,8 @@ import {
 import type { DropMissingOptions, FillStrategy, ReplaceRule, SampleOptions } from "./prepare.js";
 import { Query, detectCellShape } from "./query.js";
 import { GroupedDataset } from "./group.js";
+import { DatasetDescription, profileColumn, validateDescribeOptions } from "../analytics/describe.js";
+import type { ColumnProfile, DescribeOptions } from "../analytics/describe.js";
 import { resolveNormalization } from "../io/normalization/policy.js";
 import { normalizeCell } from "../io/normalization/values.js";
 
@@ -206,6 +208,51 @@ export class Dataset {
   unique(name: string): number {
     this.#assertColumn(name);
     return countUnique(this.#columnValues(name));
+  }
+
+  /**
+   * Descriptive statistics, for one column or for every column.
+   *
+   * `describe()` profiles the whole dataset and returns a `DatasetDescription`;
+   * `describe(column)` profiles that column and returns its `ColumnProfile`. The overloads
+   * return different types on purpose: a single-column answer is the profile itself, not a
+   * one-row wrapper to unwrap.
+   *
+   * Statistics that do not apply to a column's type are `null` rather than `0`. Only
+   * numeric columns get arithmetic, because a sum of categories has no meaning.
+   *
+   * ```ts
+   * data.describe().table();          // one row per column
+   * data.describe("revenue").mean;    // a single profile
+   * data.describe().get("revenue");   // the same profile, by name
+   * ```
+   *
+   * The source dataset is never modified; profiles hold copies of any non-primitive values.
+   */
+  describe(): DatasetDescription<Dataset>;
+  describe(options: DescribeOptions): DatasetDescription<Dataset>;
+  describe(column: string, options?: DescribeOptions): ColumnProfile;
+  describe(
+    columnOrOptions?: string | DescribeOptions,
+    options: DescribeOptions = {},
+  ): DatasetDescription<Dataset> | ColumnProfile {
+    // An options object in the first position means "every column"; a string names one.
+    if (typeof columnOrOptions === "string") {
+      if (columnOrOptions.length === 0) {
+        throw new ValidationError("describe() needs a non-empty column name.");
+      }
+      this.#assertColumn(columnOrOptions);
+      return profileColumn(columnOrOptions, this.#columnValues(columnOrOptions), this.rowCount, options);
+    }
+
+    const settings = columnOrOptions ?? options;
+    const { ddof } = validateDescribeOptions(settings);
+    const profiles = this.#columns.map((name) =>
+      profileColumn(name, this.#columnValues(name), this.rowCount, settings),
+    );
+    return new DatasetDescription<Dataset>(this.rowCount, this.columnCount, profiles, ddof, (rows, columns) =>
+      this.#build(rows, columns),
+    );
   }
 
   // ---------------------------------------------------------------- transformations

@@ -1,11 +1,11 @@
 # Numiq
 
 A modular TypeScript engine for loading, normalizing, preparing, querying, and
-inspecting structured data.
+profiling structured data.
 
-Numiq v0.4.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq v0.6.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter,
-sort, prepare, query, and render as a table.
+sort, prepare, query, summarize, and render as a table.
 
 ```ts
 import { loadCSV } from "numiq";
@@ -463,7 +463,68 @@ their own group with a `null` key rather than being dropped, and missing cells i
 are excluded from every aggregation. `std` and `variance` default to the sample formula;
 pass `ddof: 0` for the population formula.
 
-## Scope of v0.5.0
+## Descriptive statistics
+
+`describe()` profiles columns. With no argument it profiles every column and returns a
+description you can print as a table; with a column name it returns that column's profile
+directly, so there is no one-row wrapper to unwrap.
+
+```ts
+sales.describe().table();         // one row per column
+sales.describe({ ddof: 0 });      // every column, population formula
+sales.describe("revenue").mean;   // a single profile
+sales.describe().get("revenue");  // the same profile, by name
+```
+
+```
+┌─────┬──────────┬─────────┬───────┬─────────┬────────┬──────────┬──────────┬────────┬──────────────────┬──────────────────┬────────────┐
+│ idx │ column   │ type    │ count │ missing │ unique │ sum      │ mean     │ median │ min              │ max              │ std        │
+├─────┼──────────┼─────────┼───────┼─────────┼────────┼──────────┼──────────┼────────┼──────────────────┼──────────────────┼────────────┤
+│ 0   │ order_id │ string  │ 50    │ 0       │ 50     │ NULL     │ NULL     │ NULL   │ ORD-1001         │ ORD-1050         │ NULL       │
+│ …   │ …        │ …       │ …     │ …       │ …      │ …        │ …        │ …      │ …                │ …                │ …          │
+│ 5   │ quantity │ integer │ 50    │ 0       │ 7      │ 197      │ 3.94     │ 4      │ 1                │ 7                │ 2.044505   │
+│ 6   │ revenue  │ number  │ 50    │ 0       │ 50     │ 31122.69 │ 622.4538 │ 346.07 │ 29.5             │ 2720.94          │ 664.003407 │
+└─────┴──────────┴─────────┴───────┴─────────┴────────┴──────────┴──────────┴────────┴──────────────────┴──────────────────┴────────────┘
+```
+
+Each profile carries `count`, `missing`, `total`, `unique`, `sum`, `mean`, `median`, `mode`,
+`min`, `max`, `range`, `variance`, `std`, `q1`, `q3`, `iqr`, and any requested `percentiles`.
+
+Statistics that do not apply to a column's type are `null`, never `0`. Only numeric columns
+get arithmetic, because a sum of categories has no meaning:
+
+| Statistic | numeric | boolean | temporal | text | mixed |
+| --- | --- | --- | --- | --- | --- |
+| count, missing, unique, mode, min, max | yes | yes | yes | yes | yes |
+| sum, mean, median, quartiles, iqr, variance, std, range | yes | `null` | `null` | `null` | `null` |
+
+`variance` and `std` default to the sample formula (`ddof: 1`); pass `ddof: 0` for the
+population formula. Every profile records the `ddof` it used, so a result is never
+ambiguous about which formula produced it. Percentiles are interpolated with the same
+method as `numpy.percentile` and R's `quantile(type = 7)`.
+
+```ts
+const profile = sales.describe("revenue", { ddof: 0, percentiles: [10, 90] });
+profile.std;                  // 657.3298, the population standard deviation
+profile.percentiles.p90;      // 1631.1600000000003
+```
+
+The description is an analytical result, not a `Dataset`. Call `toDataset()` when you need
+tabular output with every statistic — including any requested percentiles, which become
+columns named after their keys — for example to feed a chart:
+
+```ts
+sales.describe({ percentiles: [90] }).toDataset().select(["name", "kind", "mean", "p90"]);
+```
+
+Percentiles are interpolated in floating point, so a value like `1631.1600000000003` is
+expected rather than a sign of a bug. `table()` rounds for display; the numbers above are
+the full-precision values on `profiles`.
+
+The standalone statistics are exported too, for use outside a dataset:
+`quantile`, `percentile`, `quartiles`, `iqr`, `mode`, `range`, and `extremes`.
+
+## Scope of v0.6.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
@@ -471,14 +532,14 @@ the preparation engine (`drop`, `rename`, `dropMissing`, `fillMissing`, `replace
 `map`, `addColumn`, `cast`, `dropDuplicates`, `sample`), structured queries
 (`Dataset.query()` with typed conditions, boolean grouping, ordering, and projection),
 grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven operations,
-`ddof` control, and custom callbacks), table rendering, the bundled sample dataset, the
-error taxonomy, and the environment split.
+`ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()` for one
+column or all of them, with quartiles, percentiles, IQR, and type-aware nulls), table
+rendering, the bundled sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not in v0.5.0: `describe()` and the wider descriptive-statistics API,
-correlation and rank statistics, outlier detection, joins, metrics, and Excel import.
-The architecture reserves space for them (see `docs/architecture.md`). `Dataset` is
-immutable, so every transformation returns a new `Dataset` without changing existing
-behaviour.
+Deliberately not in v0.6.0: correlation and rank statistics, outlier detection, joins,
+metrics, and Excel import. The architecture reserves space for them (see
+`docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
+`Dataset` without changing existing behaviour.
 
 ## Development
 

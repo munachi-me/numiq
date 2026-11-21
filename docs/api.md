@@ -539,6 +539,99 @@ argument is an `AggregationContext` with `column` (the bound column, or `null`) 
 rows may have any shape, and the result's columns are the union of their keys in
 first-appearance order.
 
+### `describe()` / `describe(column, options?)`
+
+Profiles columns. Two overloads with two result shapes:
+
+```ts
+data.describe();                              // DatasetDescription
+data.describe({ ddof: 0 });                   // DatasetDescription, every column
+data.describe("revenue");                     // ColumnProfile
+data.describe("revenue", { ddof: 0 });        // ColumnProfile
+data.describe("revenue", { percentiles: [90] }); // ColumnProfile
+```
+
+`describe()` and `describe(options)` return a `DatasetDescription` with `rowCount`, `columnCount`, `profiles`,
+`columns`, `get(column)`, `table(options?)`, `toDataset()`, and `toJSON()`.
+`describe(column)` returns the `ColumnProfile` for that column directly.
+
+The description is an analytical result, not a `Dataset`. `toDataset()` is the way to get
+tabular output with every statistic; it keeps the source dataset's name and metadata.
+
+`describe(column)` throws `ColumnNotFoundError` for an unknown column and `ValidationError`
+for an empty name. Options are validated eagerly: a negative `ddof` or a percentile outside
+`[0, 100]` throws `RangeError` rather than silently producing a wrong number.
+
+#### `ColumnProfile`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | `string` | column name |
+| `type` | `DType` | inferred from present values |
+| `kind` | `ColumnKind` | `numeric`, `boolean`, `temporal`, `categorical`, `mixed`, `empty` |
+| `count` | `number` | present values |
+| `missing` | `number` | `null`/`undefined` values |
+| `total` | `number` | `count + missing` |
+| `unique` | `number` | distinct present values |
+| `sum` | `number \| null` | numeric only |
+| `mean` | `number \| null` | numeric only |
+| `median` | `number \| null` | numeric only |
+| `mode` | `unknown` | any type; ties break by first appearance |
+| `min` / `max` | `unknown` | any type, ordered by `Dataset.sort`'s comparator |
+| `range` | `number \| null` | numeric only (`max - min`) |
+| `variance` | `number \| null` | numeric only; honours `ddof` |
+| `std` | `number \| null` | numeric only; square root of `variance` |
+| `q1` / `q3` | `number \| null` | numeric only |
+| `iqr` | `number \| null` | numeric only (`q3 - q1`) |
+| `percentiles` | `Readonly<Record<string, number \| null>>` | keys are `p<value>` |
+| `ddof` | `number` | the degrees of freedom actually used |
+
+Statistics that do not apply to a column's type are `null`, never `0`. A sum of categories
+has no meaning, and reporting `0` would look like a real measurement. Numeric columns are the
+only kind where arithmetic produces a number with a unit.
+
+`variance` and `std` default to the sample formula (`ddof: 1`). Pass `ddof: 0` for the
+population formula. Every profile records the `ddof` used, so a result is never ambiguous.
+A single value has no sample spread: `variance` and `std` are `null`, while `q1`, `q3`, and
+`range` are the value itself and `iqr` is `0`.
+
+#### `DatasetDescription`
+
+`table(options?)` renders a readable subset — `column`, `type`, `count`, `missing`,
+`unique`, `sum`, `mean`, `median`, `min`, `max`, `std` — with numbers rounded for display
+only. Full precision stays on `profiles`. `toDataset()` carries every statistic.
+
+```ts
+data.describe().table();
+data.describe().get("revenue").iqr;
+data.describe().toDataset().select(["name", "kind", "mean", "q1", "q3"]);
+```
+
+### Descriptive statistics helpers
+
+Quantiles, percentiles, and distribution statistics are exported for use outside a dataset.
+They operate on arrays of already-present values and return `null` when there is nothing to
+measure:
+
+```ts
+quantile([1, 2, 3, 4], 0.5);      // 2.5
+percentile([2, 4, 4, 4, 5, 5, 7, 9], 90); // 7.6
+quartiles([2, 4, 4, 4, 5, 5, 7, 9]); // { q1: 4, q2: 4.5, q3: 5.5 }
+iqr([2, 4, 4, 4, 5, 5, 7, 9]);    // 1.5
+mode([1, 2, 2, 3]);               // 2
+range([1, 5, 3]);                 // 4
+extremes([3, 1, 4]);              // { min: 1, max: 4 }
+```
+
+Quantiles use linear interpolation between order statistics — the Hyndman–Fan type 7
+definition, the same default as `numpy.percentile` and R's `quantile(type = 7)`. The
+interpolation is computed as `(n - 1) * p / 100` in one expression, so `percentile(xs, 10)`
+reads `3.4` rather than `3.4000000000000004`. `quantile` rejects `q` outside `[0, 1]` and
+`percentile` rejects `p` outside `[0, 100]`, both with `RangeError`.
+
+`mode` and `extremes` work on any comparable value: text, booleans, and dates included.
+`range` is numeric only, because a spread of dates or text has no single unit.
+
 ## Aggregation
 
 ### Standalone helpers
@@ -578,6 +671,11 @@ correct answer is `1`.
 | `AggregateSpec` | `Readonly<Record<string, AggregationEntry>>` |
 | `AggregationContext` | `{ column: string \| null; rows: readonly Readonly<Row>[] }` |
 | `DispersionOptions` | `{ ddof?: number }` |
+| `ColumnProfile` | the per-column statistics object returned by `describe(column)` |
+| `ColumnKind` | `numeric` \| `boolean` \| `temporal` \| `categorical` \| `mixed` \| `empty` |
+| `DescribeOptions` | `{ ddof?: number; percentiles?: readonly number[] }` |
+| `Quartiles` | `{ q1: number; q2: number; q3: number }` |
+| `Extremes` | `{ min: unknown; max: unknown }` |
 
 ## Types
 

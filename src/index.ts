@@ -10,6 +10,10 @@ export { Query } from "./core/query.js";
 export { GroupedDataset } from "./core/group.js";
 export type { GroupSource } from "./core/group.js";
 export { sum, mean, median, variance, std, min, max, first, last, nunique } from "./core/aggregate.js";
+export { DatasetDescription, profileColumn, columnKind, validateDescribeOptions } from "./analytics/describe.js";
+export type { ColumnKind, ColumnProfile, DescribeOptions, DescriptionBuilder } from "./analytics/describe.js";
+export { quantile, percentile, quartiles, iqr, mode, range, extremes } from "./analytics/stats.js";
+export type { Quartiles, Extremes } from "./analytics/stats.js";
 export type {
   AggregateSpec,
   AggregationContext,
@@ -83,6 +87,8 @@ import { Dataset, createDataset } from "./core/dataset.js";
 import { Query } from "./core/query.js";
 import { GroupedDataset } from "./core/group.js";
 import { first, last, max, mean, median, min, nunique, std, sum, variance } from "./core/aggregate.js";
+import { DatasetDescription, columnKind, profileColumn, validateDescribeOptions } from "./analytics/describe.js";
+import { extremes, iqr, mode, percentile, quantile, quartiles, range } from "./analytics/stats.js";
 import { useSampleDataset } from "./core/sample.js";
 import { renderTable } from "./display/table.js";
 import { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
@@ -121,6 +127,17 @@ const Numiq = {
   first,
   last,
   nunique,
+  DatasetDescription,
+  profileColumn,
+  columnKind,
+  validateDescribeOptions,
+  quantile,
+  percentile,
+  quartiles,
+  iqr,
+  mode,
+  range,
+  extremes,
   useSampleDataset,
   renderTable,
   loadCSV,
