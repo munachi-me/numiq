@@ -632,6 +632,176 @@ reads `3.4` rather than `3.4000000000000004`. `quantile` rejects `q` outside `[0
 `mode` and `extremes` work on any comparable value: text, booleans, and dates included.
 `range` is numeric only, because a spread of dates or text has no single unit.
 
+## Advanced statistics
+
+### Dataset methods
+
+| Method | Returns |
+| --- | --- |
+| `covariance(left, right, options?)` | `number \| null` |
+| `correlation(left, right)` | `CorrelationResult` |
+| `rankCorrelation(left, right)` | `CorrelationResult` |
+| `correlationMatrix(columns?, method?)` | `CorrelationMatrix` |
+| `zScores(column, options?)` | `ZScoreResult` |
+| `percentileRank(column, value)` | `number \| null` |
+| `skewness(column)` | `number \| null` |
+| `kurtosis(column)` | `number \| null` |
+| `fiveNumberSummary(column)` | `FiveNumberSummary` |
+| `outliers(column, options?)` | `OutlierResult` |
+| `withZScores(column, name?, options?)` | `Dataset` |
+
+```ts
+data.covariance("x", "y");                  // sample covariance
+data.covariance("x", "y", { ddof: 0 });     // population covariance
+data.correlation("x", "y");                 // { r, n, reason }
+data.correlationMatrix();                   // every numeric column
+data.correlationMatrix(["x", "y"], "spearman");
+data.zScores("x");                          // { values, mean, std, reason }
+data.withZScores("x");                      // adds "x_z"
+```
+
+Every method throws `ColumnNotFoundError` for an unknown column and `ValidationError` when
+a named column is not numeric. Numeric means the `number` **or** `integer` dtype; both are
+treated alike through `columnKind()`.
+
+`withZScores` adds a column and returns a new `Dataset`. It throws `ValidationError` if the
+target name already exists, matching `addColumn`. The source dataset is unchanged.
+
+#### `CorrelationResult`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `r` | `number \| null` | coefficient in `[-1, 1]`, clamped against float overshoot |
+| `n` | `number` | complete pairs used |
+| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why `r` is `null` |
+
+There is no `pValue` and no significance flag. A test would need distributional
+assumptions that a bare coefficient does not carry, so the result reports the number and
+the evidence behind it and stops there.
+
+#### `CorrelationMatrix`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `columns` | `readonly string[]` | in the order supplied |
+| `matrix` | `readonly (readonly (number \| null)[])[]` | square and symmetric |
+| `cells` | `readonly CorrelationCell[]` | each off-diagonal cell once, with `n` and `reason` |
+| `method` | `"pearson" \| "spearman"` | which coefficient was computed |
+| `get(x, y)` | `(x, y) => CorrelationCell` | lookup in either direction |
+
+The diagonal is `1` for every column, including a constant one, because that is the
+identity a correlation matrix is defined to have. Off-diagonal cells involving a constant
+column are `null` with `reason: "zero-variance"`.
+
+Duplicate column names throw `ValidationError`. `get()` throws `ColumnNotFoundError` for an
+unknown name.
+
+#### `ZScoreResult`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `values` | `(number \| null)[]` | aligned to the input rows; `null` where missing |
+| `mean` | `number \| null` | centring value |
+| `std` | `number \| null` | scaling value |
+| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why every score is `null` |
+
+Output stays aligned with the input rather than dropping missing rows, so it can be added
+back as a column with `addColumn`. A constant column yields all `null` scores with
+`reason: "zero-variance"` — dividing by zero would produce `Infinity`, which is not a
+z-score.
+
+#### `FiveNumberSummary`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `min` / `max` | `number \| null` | observed bounds |
+| `q1` / `median` / `q3` | `number \| null` | type 7 interpolation, same as `quartiles()` |
+| `mean` | `number \| null` | included so skew is visible next to the median |
+| `count` | `number` | present numeric values |
+
+#### `OutlierResult`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `method` | `"iqr" \| "zscore"` | test applied |
+| `threshold` | `number` | fence multiplier, or z threshold |
+| `outliers` | `Outlier[]` | each with `index`, `value`, `zScore`, `side` |
+| `fences` | `{ lower, upper } \| null` | present for `iqr` |
+| `considered` | `number` | values the test could be applied to |
+| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why nothing could be computed |
+
+`index` refers to the position in the column, including missing cells, so it maps back to
+the source row. A zero IQR yields `reason: "zero-variance"` instead of flagging every
+non-modal value.
+
+### Standalone functions
+
+```ts
+covariance(x, y);                                  // sample covariance
+covariance(x, y, { ddof: 0 });                     // population covariance
+pearsonCorrelation(x, y);                          // { r, n, reason }
+spearmanCorrelation(x, y);                         // { r, n, reason }
+correlationMatrix({ columns: [{ name: "a", values: [1, 2] }] });
+zScores(xs);                                       // { values, mean, std, reason }
+standardize(xs);                                   // (number | null)[]
+normalize(xs);                                     // (number | null)[], [0, 1]
+normalize(xs, { min: -1, max: 1 });
+normalize(xs, { method: "maxabs" });               // divides by max |x|
+percentileRank(xs, 2);                             // 75 for [1, 2, 2, 3]
+skewness(xs);                                      // adjusted Fisher-Pearson
+kurtosis(xs);                                      // excess, bias-corrected
+fiveNumberSummary(xs);
+detectOutliers(xs, { method: "zscore", threshold: 3 });
+```
+
+All of these take arrays of possibly-missing values and ignore `null`/`undefined`/non-finite
+entries, so no caller has to pre-filter.
+
+#### Formulas
+
+| Statistic | Formula |
+| --- | --- |
+| covariance | `Σ(x - x̄)(y - ȳ) / (n - ddof)` |
+| Pearson | `Σ(x - x̄)(y - ȳ) / √(Σ(x - x̄)² · Σ(y - ȳ)²)` |
+| Spearman | Pearson applied to average ranks |
+| z-score | `(x - x̄) / s` |
+| percentile rank | `100 · count(≤ x) / n` |
+| skewness (G1) | `n/((n-1)(n-2)) · Σ((x - x̄)/s)³` |
+| kurtosis (G2) | `n(n+1)/((n-1)(n-2)(n-3)) · Σ((x - x̄)/s)⁴ − 3(n-1)²/((n-2)(n-3))` |
+
+These are the bias-corrected forms `scipy.stats` reports with `bias=False` and `pandas`
+reports by default. Kurtosis is excess: a normal distribution is `0`.
+
+#### Minimum sample sizes
+
+| Statistic | Minimum | Below it |
+| --- | --- | --- |
+| covariance, Pearson | 2 pairs | `null`, `insufficient-data` |
+| Spearman | 2 pairs | `null`, `insufficient-data` |
+| z-score | 2 values (ddof 1) | all `null` |
+| skewness | 3 values | `null` |
+| kurtosis | 4 values | `null` |
+
+Each floor is the point at which the formula's denominator stops being zero, not an
+arbitrary round number.
+
+#### Missing-value policy
+
+Pairwise. `covariance`, `pearsonCorrelation`, and `spearmanCorrelation` use only rows where
+both values are present and report that `n`. Nothing is imputed. In a correlation matrix
+over data with scattered gaps, different cells can therefore rest on different row sets;
+`cells` exposes each `n` so this is auditable.
+
+#### Assumptions and limitations
+
+- Pearson measures *linear* association. `r = 0` means no linear trend, not independence.
+- Spearman measures *monotonic* association and is robust to outliers, but not to ties that
+  destroy ordering; average ranks mitigate this without eliminating it.
+- `normalize` and `standardize` are both sensitive to a single extreme value.
+- Outlier tests identify unusual values, not errors. Removing them without inspection can
+  bias every subsequent statistic.
+- No p-values, no confidence intervals, no hypothesis tests in this release.
+
 ## Aggregation
 
 ### Standalone helpers

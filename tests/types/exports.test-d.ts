@@ -24,6 +24,30 @@ import Numiq, {
   type DescribeOptions,
   type Quartiles,
   type Extremes,
+  type AdvancedOptions,
+  type CorrelationResult,
+  type CorrelationMatrix,
+  type CorrelationCell,
+  type FiveNumberSummary,
+  type OutlierResult,
+  type Outlier,
+  type OutlierOptions,
+  type OutlierMethod,
+  type ZScoreResult,
+  type NormalizeOptions,
+  type NormalizationMethod,
+  covariance,
+  pearsonCorrelation,
+  spearmanCorrelation,
+  correlationMatrix,
+  zScores,
+  standardize,
+  normalize,
+  percentileRank,
+  skewness,
+  kurtosis,
+  fiveNumberSummary,
+  detectOutliers,
   quantile,
   percentile,
   quartiles,
@@ -434,6 +458,40 @@ expectType<unknown>(mode([1, 1, 2]));
 expectType<number | null>(range([1, 2, 3]));
 expectType<Extremes | null>(extremes([1, 2, 3]));
 
+// Advanced statistics.
+expectType<number | null>(covariance([1, 2], [3, 4]));
+expectType<CorrelationResult>(pearsonCorrelation([1, 2], [3, 4]));
+expectType<CorrelationResult>(spearmanCorrelation([1, 2], [3, 4]));
+expectType<CorrelationMatrix>(correlationMatrix({ columns: [{ name: "a", values: [1] }] }));
+expectType<CorrelationCell>(correlationMatrix({ columns: [{ name: "a", values: [1] }] }).get("a", "a"));
+expectType<ZScoreResult>(zScores([1, 2, 3]));
+expectType<(number | null)[]>(standardize([1, 2, 3]));
+expectType<(number | null)[]>(normalize([1, 2, 3]));
+expectType<number | null>(percentileRank([1, 2], 1));
+expectType<number | null>(skewness([1, 2, 3]));
+expectType<number | null>(kurtosis([1, 2, 3, 4]));
+expectType<FiveNumberSummary>(fiveNumberSummary([1, 2, 3]));
+expectType<OutlierResult>(detectOutliers([1, 2, 3]));
+expectType<Outlier["side"]>("low");
+expectType<OutlierMethod>("iqr");
+expectType<NormalizationMethod>("minmax");
+expectType<AdvancedOptions>({ ddof: 0 });
+expectType<OutlierOptions>({ method: "zscore", threshold: 2 });
+expectType<NormalizeOptions>({ method: "maxabs" });
+
+// Dataset methods.
+expectType<number | null>(described.covariance("a", "a"));
+expectType<CorrelationResult>(described.correlation("a", "a"));
+expectType<CorrelationResult>(described.rankCorrelation("a", "a"));
+expectType<CorrelationMatrix>(described.correlationMatrix());
+expectType<ZScoreResult>(described.zScores("a"));
+expectType<Dataset>(described.withZScores("a"));
+expectType<number | null>(described.skewness("a"));
+expectType<number | null>(described.kurtosis("a"));
+expectType<FiveNumberSummary>(described.fiveNumberSummary("a"));
+expectType<OutlierResult>(described.outliers("a"));
+expectType<number | null>(described.percentileRank("a", 1));
+
 // @ts-expect-error a profile is not a Dataset; the distinction is deliberate
 void described.describe("a").rowCount;
 // @ts-expect-error quantile takes numbers
@@ -442,3 +500,9 @@ quantile(["1"], 0.5);
 described.describe("a", { ddof: "1" });
 // @ts-expect-error ColumnKind is a closed union
 expectType<ColumnKind>("ordinal");
+// @ts-expect-error OutlierMethod is a closed union
+expectType<OutlierMethod>("mad");
+// @ts-expect-error correlationMatrix needs column objects, not bare arrays
+correlationMatrix({ columns: [["a", [1, 2]]] });
+// @ts-expect-error the correlation result carries no significance claim
+void pearsonCorrelation([1, 2], [3, 4]).pValue;

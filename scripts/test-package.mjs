@@ -172,6 +172,35 @@ try {
          standaloneIqr: Numiq.iqr([2, 4, 4, 4, 5, 5, 7, 9]),
          standaloneMode: Numiq.mode([1, 2, 2, 3]),
          DescribeIdentity: Numiq.DatasetDescription !== undefined,
+         advanced: {
+           pearson: sample.correlation("quantity", "revenue"),
+           spearman: sample.rankCorrelation("quantity", "revenue"),
+           matrixColumns: sample.correlationMatrix().columns,
+           matrixDiagonal: sample.correlationMatrix().matrix.map((row, i) => row[i]),
+           matrixSymmetric: (() => {
+             const m = sample.correlationMatrix();
+             return m.matrix.every((row, i) => row.every((v, j) => v === m.matrix[j][i]));
+           })(),
+           skewness: sample.skewness("revenue"),
+           kurtosis: sample.kurtosis("revenue"),
+           five: sample.fiveNumberSummary("revenue"),
+           outlierCount: sample.outliers("revenue").outliers.length,
+           outlierFence: sample.outliers("revenue").fences,
+           zReason: sample.zScores("revenue").reason,
+           zFirst: sample.zScores("revenue").values[0],
+           zColumn: sample.withZScores("revenue").columns.includes("revenue_z"),
+           pctRank: sample.percentileRank("revenue", 2000),
+           constantZ: (() => {
+             const flat = sample.addColumn("flat", () => 1);
+             return flat.withZScores("flat").data[0]?.flat_z;
+           })(),
+           standaloneCov: Numiq.covariance([1, 2, 3], [2, 4, 6]),
+           standalonePearson: Numiq.pearsonCorrelation([1, 2, 3], [2, 4, 6]).r,
+           standaloneNormalize: Numiq.normalize([1, 2, 3]),
+           standaloneStandardize: Numiq.standardize([1, 2, 3]),
+           standaloneSkew: Numiq.skewness([1, 2, 3, 4, 100]),
+           AdvancedIdentity: Numiq.correlationMatrix !== undefined && Numiq.detectOutliers !== undefined,
+         },
          loadCSV: typeof loadCSV,
          table: data.table().includes("1 rows × 2 columns"),
        }));`,
@@ -329,6 +358,35 @@ try {
   check("query excludes missing cells from !=", esmResult.notN === 0, String(esmResult.notN));
   check("query can include missing cells via isNull", esmResult.notNOrNull === 1, String(esmResult.notNOrNull));
   check("exposes Query on the default namespace", esmResult.QueryIdentity === true);
+
+  console.log("\nadvanced statistics");
+  const adv = esmResult.advanced;
+  check("correlates through the packed package", Math.abs(adv.pearson.r - 0.43724861958188593) < 1e-12, String(adv.pearson.r));
+  check("reports the pair count", adv.pearson.n === 50, String(adv.pearson.n));
+  check("carries a null reason when computed", adv.pearson.reason === null);
+  check("rank correlation differs from Pearson", Math.abs(adv.spearman.r - 0.5244511749947358) < 1e-12, String(adv.spearman.r));
+  check(
+    "builds a matrix over numeric columns",
+    JSON.stringify(adv.matrixColumns) === '["quantity","revenue"]',
+    JSON.stringify(adv.matrixColumns),
+  );
+  check("matrix diagonal is 1", JSON.stringify(adv.matrixDiagonal) === "[1,1]", JSON.stringify(adv.matrixDiagonal));
+  check("matrix is symmetric", adv.matrixSymmetric === true);
+  check("reports skewness", Math.abs(adv.skewness - 1.7133020612357541) < 1e-12, String(adv.skewness));
+  check("reports excess kurtosis", Math.abs(adv.kurtosis - 2.3952120604810103) < 1e-12, String(adv.kurtosis));
+  check("summarises five numbers", adv.five.count === 50 && adv.five.min === 29.5 && adv.five.max === 2720.94);
+  check("finds IQR outliers", adv.outlierCount === 4, String(adv.outlierCount));
+  check("reports the outlier fence", Math.abs(adv.outlierFence.upper - 1903.9875) < 1e-9, String(adv.outlierFence.upper));
+  check("computes z-scores", adv.zReason === null && Math.abs(adv.zFirst + 0.8651368264727416) < 1e-12, String(adv.zFirst));
+  check("adds a z-score column", adv.zColumn === true);
+  check("computes percentile rank", adv.pctRank === 94, String(adv.pctRank));
+  check("nulls z-scores for a constant column", adv.constantZ === null, String(adv.constantZ));
+  check("exports standalone covariance", Math.abs(adv.standaloneCov - 2) < 1e-12, String(adv.standaloneCov));
+  check("exports standalone Pearson", Math.abs(adv.standalonePearson - 1) < 1e-12, String(adv.standalonePearson));
+  check("exports normalize", JSON.stringify(adv.standaloneNormalize) === "[0,0.5,1]", JSON.stringify(adv.standaloneNormalize));
+  check("exports standardize", JSON.stringify(adv.standaloneStandardize) === "[-1,0,1]", JSON.stringify(adv.standaloneStandardize));
+  check("exports skewness", adv.standaloneSkew > 1, String(adv.standaloneSkew));
+  check("exposes advanced helpers on the default namespace", adv.AdvancedIdentity === true);
 
   console.log("\ncjs require");
   const cjs = execFileSync(

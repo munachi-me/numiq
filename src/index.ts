@@ -14,6 +14,35 @@ export { DatasetDescription, profileColumn, columnKind, validateDescribeOptions 
 export type { ColumnKind, ColumnProfile, DescribeOptions, DescriptionBuilder } from "./analytics/describe.js";
 export { quantile, percentile, quartiles, iqr, mode, range, extremes } from "./analytics/stats.js";
 export type { Quartiles, Extremes } from "./analytics/stats.js";
+export {
+  correlationMatrix,
+  covariance,
+  detectOutliers,
+  fiveNumberSummary,
+  kurtosis,
+  normalize,
+  pearsonCorrelation,
+  percentileRank,
+  skewness,
+  spearmanCorrelation,
+  standardize,
+  zScores,
+} from "./analytics/advanced.js";
+export type {
+  AdvancedOptions,
+  CorrelationCell,
+  CorrelationInput,
+  CorrelationMatrix,
+  CorrelationResult,
+  FiveNumberSummary,
+  NormalizationMethod,
+  NormalizeOptions,
+  Outlier,
+  OutlierMethod,
+  OutlierOptions,
+  OutlierResult,
+  ZScoreResult,
+} from "./analytics/advanced.js";
 export type {
   AggregateSpec,
   AggregationContext,
@@ -89,6 +118,20 @@ import { GroupedDataset } from "./core/group.js";
 import { first, last, max, mean, median, min, nunique, std, sum, variance } from "./core/aggregate.js";
 import { DatasetDescription, columnKind, profileColumn, validateDescribeOptions } from "./analytics/describe.js";
 import { extremes, iqr, mode, percentile, quantile, quartiles, range } from "./analytics/stats.js";
+import {
+  correlationMatrix,
+  covariance,
+  detectOutliers,
+  fiveNumberSummary,
+  kurtosis,
+  normalize,
+  pearsonCorrelation,
+  percentileRank,
+  skewness,
+  spearmanCorrelation,
+  standardize,
+  zScores,
+} from "./analytics/advanced.js";
 import { useSampleDataset } from "./core/sample.js";
 import { renderTable } from "./display/table.js";
 import { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
@@ -138,6 +181,18 @@ const Numiq = {
   mode,
   range,
   extremes,
+  correlationMatrix,
+  covariance,
+  detectOutliers,
+  fiveNumberSummary,
+  kurtosis,
+  normalize,
+  pearsonCorrelation,
+  percentileRank,
+  skewness,
+  spearmanCorrelation,
+  standardize,
+  zScores,
   useSampleDataset,
   renderTable,
   loadCSV,

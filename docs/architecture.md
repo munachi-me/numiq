@@ -38,7 +38,8 @@ src/
 │   └── sample.ts             the bundled sample dataset accessor
 ├── analytics/
 │   ├── stats.ts              quantile, percentile, quartiles, iqr, mode, extremes
-│   └── describe.ts           DatasetDescription, ColumnProfile, profileColumn
+│   ├── describe.ts           DatasetDescription, ColumnProfile, profileColumn
+│   └── advanced.ts           covariance, correlations, z-scores, outliers, shape
 ├── data/
 │   └── sample-sales.ts       generated sample rows (see scripts/generate-sample.mjs)
 ├── io/
@@ -125,7 +126,9 @@ statistics, and metrics. They attach as follows.
 - **Statistics and metrics** live in `src/analytics/` as pure functions over column
   values, so they are testable without a `Dataset`. Descriptive statistics arrived in
   v0.6.0 this way: `src/analytics/stats.ts` holds the arithmetic and `describe.ts` adds the
-  profiling layer, neither of which knows about `Dataset` internals.
+  profiling layer, neither of which knows about `Dataset` internals. v0.7.0 extends the same
+  pattern with `advanced.ts` for two-column statistics and distribution shape; `Dataset`
+  methods are thin wrappers that extract column values and delegate.
 - **Numviz integration** (§12) is a boundary, not a dependency: a separate export subpath
   that converts a `Dataset` into whatever shape Numviz consumes. Numiq must not depend on
   a visualisation library.
