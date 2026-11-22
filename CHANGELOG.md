@@ -8,6 +8,16 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [1.0.1] - 2026-11-20
+
+### Fixed
+
+- `npm publish --dry-run` failed in `prepublishOnly`. `npm publish` exports
+  `npm_config_dry_run`, the package test inherited it, and its nested `npm pack` produced
+  an empty tarball that `npm install` then rejected as corrupted. The release path could
+  not be rehearsed, which is the one time a rehearsal matters most. The package test now
+  strips the variable from the environment of its child processes.
+
 ## [1.0.0] - 2026-11-20
 
 First stable release. The API that grew through `0.1.0`–`0.12.0` is now frozen and follows
