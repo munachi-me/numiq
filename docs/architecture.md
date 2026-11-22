@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how Numiq v0.9.0 is organised, why it is organised that way, and
+This document describes how Numiq is organised, why it is organised that way, and
 where the remaining capabilities attach.
 
 ## Design principles

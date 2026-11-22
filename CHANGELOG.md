@@ -6,7 +6,24 @@ All notable changes to Numiq are recorded here. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- npm **trusted publishing** via GitHub Actions OIDC. `.github/workflows/publish.yml`
+  publishes on a `v*` tag with no npm token in the repository or in Actions secrets, and
+  attaches provenance automatically. GitHub Packages continues to use the ephemeral
+  `GITHUB_TOKEN`.
+- `publishConfig.access: "public"`. Scoped packages default to restricted, so without this
+  a release would have been published privately.
+- README badges for the published version, CI status, and license.
+- README "Releasing" section, the `@munachi-me/numiq/core` subpath, and a complete script
+  table covering every `package.json` script.
+
+### Changed
+
+- The publish workflow checks that the OIDC token is available before doing any work, so a
+  missing `id-token: write` fails in seconds rather than after the full verify run.
+- `docs/compatibility.md` and `docs/architecture.md` no longer claim an older version, and
+  the Node support table now records 24.x as the release-workflow version.
 
 ## [1.0.2] - 2026-11-20
 

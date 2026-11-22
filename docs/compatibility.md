@@ -1,6 +1,6 @@
 # Compatibility
 
-Numiq is at `1.0.0`. From here the public API is stable: it follows semantic versioning,
+Numiq is at `1.0.x`. From here the public API is stable: it follows semantic versioning,
 and a breaking change requires a major release with a documented migration path.
 
 ## Semantic versioning policy
@@ -9,16 +9,16 @@ The public API is every value exported from the package entry points (`@munachi-
 `@munachi-me/numiq/core`) plus every public member of the exported classes and interfaces. Anything not
 exported is internal and may change in a minor release.
 
-| Change | Release |
-| --- | --- |
-| Remove or rename an export | major |
-| Change a signature, return type, or default | major |
-| Change behaviour that existing code depends on | major |
-| Narrow an accepted input | major |
-| Add an export, method, or option | minor |
-| Fix behaviour to match documentation | patch |
-| Internal refactor, performance work | patch |
-| Documentation only | patch |
+| Change                                         | Release |
+| ---------------------------------------------- | ------- |
+| Remove or rename an export                     | major   |
+| Change a signature, return type, or default    | major   |
+| Change behaviour that existing code depends on | major   |
+| Narrow an accepted input                       | major   |
+| Add an export, method, or option               | minor   |
+| Fix behaviour to match documentation           | patch   |
+| Internal refactor, performance work            | patch   |
+| Documentation only                             | patch   |
 
 Rules we hold to:
 
@@ -32,12 +32,13 @@ Rules we hold to:
 
 ## Node.js support
 
-| Version | Status |
-| --- | --- |
-| 18.x | supported (minimum, `engines.node: ">=18"`) |
-| 20.x | supported (CI) |
-| 22.x | supported (CI) |
-| 23+ | expected to work, not tested |
+| Version  | Status                                                                 |
+| -------- | ---------------------------------------------------------------------- |
+| 18.x     | supported (minimum, `engines.node: ">=18"`)                            |
+| 20.x     | supported (CI)                                                         |
+| 22.x     | supported (CI)                                                         |
+| 24.x     | used by the release workflow; expected to work, not in the test matrix |
+| 23+, 25+ | expected to work, not tested                                           |
 
 Node 18 is the floor because the local-file loader uses `node:fs/promises` `realpath` and
 the package ships ESM with a CommonJS build. Both module systems are tested on every
@@ -45,12 +46,12 @@ supported version.
 
 ## Browser and bundler support
 
-| Environment | Status |
-| --- | --- |
-| Chrome / Edge (current) | supported |
-| Firefox (current) | supported |
-| Safari 16+ | supported |
-| Vite, Rollup, webpack 5, esbuild | supported |
+| Environment                       | Status                           |
+| --------------------------------- | -------------------------------- |
+| Chrome / Edge (current)           | supported                        |
+| Firefox (current)                 | supported                        |
+| Safari 16+                        | supported                        |
+| Vite, Rollup, webpack 5, esbuild  | supported                        |
 | Node-style `require` in a bundler | supported via the CommonJS build |
 
 The browser entry (`@munachi-me/numiq`) is pure JavaScript with **no runtime dependencies** and no
@@ -62,12 +63,12 @@ condition prevents.
 
 ## Module formats
 
-| Consumer | Import | Resolves to |
-| --- | --- | --- |
-| ESM in Node | `import Numiq from "@munachi-me/numiq"` | `dist/esm/node.js` |
-| CommonJS in Node | `const Numiq = require("@munachi-me/numiq")` | `dist/cjs/node.js` |
-| Bundler / browser | `import Numiq from "@munachi-me/numiq"` | `dist/esm/index.js` |
-| Core only | `import { Dataset } from "@munachi-me/numiq/core"` | no filesystem or network |
+| Consumer          | Import                                             | Resolves to              |
+| ----------------- | -------------------------------------------------- | ------------------------ |
+| ESM in Node       | `import Numiq from "@munachi-me/numiq"`            | `dist/esm/node.js`       |
+| CommonJS in Node  | `const Numiq = require("@munachi-me/numiq")`       | `dist/cjs/node.js`       |
+| Bundler / browser | `import Numiq from "@munachi-me/numiq"`            | `dist/esm/index.js`      |
+| Core only         | `import { Dataset } from "@munachi-me/numiq/core"` | no filesystem or network |
 
 Types are generated for every entry point, so both module systems get accurate declarations.
 
