@@ -127,11 +127,34 @@ ephemeral `GITHUB_TOKEN`.
 Trusted publishing needs npm CLI 11.5.1+ and Node 22.14+, so the workflow installs
 `npm@11` explicitly rather than trusting the runner image. It also omits `registry-url`
 on `setup-node`: that input writes an `.npmrc` with `_authToken=${NODE_AUTH_TOKEN}`, which
-is empty in this workflow and can shadow the OIDC exchange.
+is empty in this workflow and can shadow the OIDC exchange. A preflight step checks
+`ACTIONS_ID_TOKEN_REQUEST_URL` so a permissions mistake fails in seconds, not after the
+full verify run.
+
+`publishConfig.access` is `public` because scoped packages default to _restricted_. Without
+it both CI and a local `npm publish` would publish a private package. `provenance` is
+deliberately not in `publishConfig`: that would apply to local publishes too, where
+provenance signing fails outside an OIDC environment. CI gets provenance automatically.
+
+### Publishing locally
+
+Local publishing still works and needs no config change. It requires a maintainer's own
+npm login with 2FA:
+
+```bash
+npm login          # interactive, 2FA
+npm publish        # uses publishConfig.access: public
+```
+
+Trusted publishing is additive, not exclusive: it removes the need for a token _in CI_.
+It does not block an authorised human from publishing locally. Whichever path runs second
+will be rejected by the registry as an already-published version, so pick one per release.
+
+### One-time maintainer setup for OIDC
 
 The trusted-publisher link on npm must be created interactively by a maintainer with 2FA.
 Granular tokens that bypass 2FA are rejected with E403 for this action, so it cannot be
-scripted. Configure once:
+scripted or done by an agent. Configure once:
 
 ```bash
 npm trust github @munachi-me/numiq --file publish.yml --repo munachi-me/numiq --allow-publish

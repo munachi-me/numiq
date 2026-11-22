@@ -41,6 +41,15 @@ jobs:
       - name: Use an npm that supports trusted publishing
         run: npm install -g npm@11
 
+      # Fails in seconds rather than after the full verify run when the job is
+      # missing `id-token: write` or runs on an unsupported runner.
+      - name: Preflight - OIDC token is available
+        run: |
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::OIDC unavailable. Needs 'permissions: id-token: write' and a GitHub-hosted runner."
+            exit 1
+          fi
+
       - run: npm ci
 
       - name: Tag must match package.json
@@ -65,11 +74,17 @@ jobs:
 
       # No token: npm exchanges the OIDC token for short-lived credentials and
       # attaches provenance automatically on GitHub-hosted runners.
-      - run: npm publish ${{ inputs.dry_run && '--dry-run' || '' }}
+      # DRY_RUN goes through env, not inline interpolation: the `inputs` context
+      # is only defined for workflow_dispatch, so on a tag push it is undefined.
+      - name: Publish to npm
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: npm publish ${DRY_RUN}
 
       - name: Publish to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
         run: |
           npmrc="$(mktemp)"
           chmod 600 "$npmrc"
@@ -77,5 +92,5 @@ jobs:
             echo "@munachi-me:registry=https://npm.pkg.github.com"
             echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
           } > "$npmrc"
-          npm publish --userconfig "$npmrc" ${{ inputs.dry_run && '--dry-run' || '' }}
+          npm publish --userconfig "$npmrc" ${DRY_RUN}
           rm -f "$npmrc"
