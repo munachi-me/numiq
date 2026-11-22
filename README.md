@@ -16,7 +16,7 @@ window functions, series can be grouped into calendar buckets, and a whole workf
 declared as a reusable pipeline with schema validation and lineage.
 
 ```ts
-import { loadCSV } from "numiq";
+import { loadCSV } from "@munachi-me/numiq";
 
 const data = await loadCSV("sales.csv"); // reads ./dataset/sales.csv
 
@@ -44,7 +44,7 @@ data
 ## Installation
 
 ```bash
-npm install numiq
+npm install @munachi-me/numiq
 ```
 
 Node.js 18 or later. Works in browsers and bundlers; see [Environments](#environments).
@@ -68,7 +68,7 @@ my-project/
 ```
 
 ```ts
-import { loadCSV, loadJSON, loadTSV } from "numiq";
+import { loadCSV, loadJSON, loadTSV } from "@munachi-me/numiq";
 
 const sales = await loadCSV("sales.csv");
 const customers = await loadJSON("customers.json");
@@ -90,7 +90,7 @@ const sales = await loadCSV("sales.csv", { datasetDir: "/path/to/project" });
 ### Load the bundled sample
 
 ```ts
-import { useSampleDataset } from "numiq";
+import { useSampleDataset } from "@munachi-me/numiq";
 
 const sample = await useSampleDataset();
 
@@ -104,7 +104,7 @@ without creating a `dataset/` folder and is identical on every call.
 ### Load from a URL
 
 ```ts
-import { loadURL } from "numiq";
+import { loadURL } from "@munachi-me/numiq";
 
 const data = await loadURL("https://example.com/sales.csv");
 ```
@@ -112,7 +112,7 @@ const data = await loadURL("https://example.com/sales.csv");
 ### Load from a browser `File` or `Blob`
 
 ```ts
-import { loadCSV } from "numiq";
+import { loadCSV } from "@munachi-me/numiq";
 
 const data = await loadCSV(fileInput.files[0]);
 ```
@@ -120,7 +120,7 @@ const data = await loadCSV(fileInput.files[0]);
 ### Parse text you already have
 
 ```ts
-import { parseDelimited, parseJSON } from "numiq";
+import { parseDelimited, parseJSON } from "@munachi-me/numiq";
 
 const a = parseDelimited("a,b\n1,2\n", { format: "csv" });
 const b = parseJSON('[{"a":1}]');
@@ -132,7 +132,7 @@ because they perform I/O.
 ### Build a dataset directly
 
 ```ts
-import { createDataset } from "numiq";
+import { createDataset } from "@munachi-me/numiq";
 
 // From records
 createDataset([
@@ -427,7 +427,7 @@ All errors extend `NumiqError` and carry a stable `code`.
 | `ColumnNotFoundError` | `COLUMN_NOT_FOUND`  | A column does not exist; carries `column` and `available` |
 
 ```ts
-import { NumiqError, ColumnNotFoundError } from "numiq";
+import { NumiqError, ColumnNotFoundError } from "@munachi-me/numiq";
 
 try {
   data.column("revenue");
@@ -455,7 +455,7 @@ Local filenames are resolved against the `dataset/` folder in the current workin
 directory and are confined to it: absolute paths, `..`, path separators, and symlinks
 that resolve outside the folder are all refused.
 
-CommonJS consumers can `require("numiq")`; the `require` condition resolves to a
+CommonJS consumers can `require("@munachi-me/numiq")`; the `require` condition resolves to a
 CommonJS build.
 
 Supported Node versions (18, 20, 22), the browser and bundler matrix, and the

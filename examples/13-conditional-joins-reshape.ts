@@ -5,7 +5,7 @@
  * ordered rules, bring in columns from a related table, and change the shape without
  * changing the data.
  */
-import { createDataset, useSampleDataset } from "numiq";
+import { createDataset, useSampleDataset } from "@munachi-me/numiq";
 
 const sales = await useSampleDataset();
 console.log(`Sample: ${sales.rowCount} rows x ${sales.columnCount} columns`);

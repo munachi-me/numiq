@@ -5,7 +5,7 @@
  * intervals. Every window call states its order explicitly, so the result never depends on
  * the order the dataset happens to be in.
  */
-import { createDataset } from "numiq";
+import { createDataset } from "@munachi-me/numiq";
 
 const orders = createDataset(
   [

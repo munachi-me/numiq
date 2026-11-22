@@ -3,7 +3,7 @@
  *
  * Run with: npx tsx examples/07-preparation.ts
  */
-import { createDataset } from "numiq";
+import { createDataset } from "@munachi-me/numiq";
 
 const orders = createDataset([
   { order_id: 1, qty: 2, unit_price: 10, region: "N", internal_note: "rush" },

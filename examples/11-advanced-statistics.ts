@@ -5,7 +5,7 @@
  * is a real answer and deserves to be distinguishable from "zero". Missing values are
  * handled pairwise, and nothing here claims statistical significance.
  */
-import { useSampleDataset } from "numiq";
+import { useSampleDataset } from "@munachi-me/numiq";
 
 const sales = await useSampleDataset();
 

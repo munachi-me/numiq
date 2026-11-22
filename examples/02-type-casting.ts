@@ -3,7 +3,7 @@
  *
  * Run with: npx tsx examples/02-type-casting.ts
  */
-import { loadCSV } from "numiq";
+import { loadCSV } from "@munachi-me/numiq";
 
 const sales = await loadCSV("sales.csv", {
   schema: {

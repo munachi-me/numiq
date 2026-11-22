@@ -8,6 +8,27 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [1.0.2] - 2026-11-20
+
+### Changed
+
+- The package is published as `@munachi-me/numiq`. npm refused the unscoped name `numiq`
+  with `403 Package name too similar to existing packages umi,dumi`, a typosquatting
+  guard that only runs at publish time. The API is unchanged; only the install command
+  and import specifiers differ.
+
+  ```diff
+  -npm install numiq
+  +npm install @munachi-me/numiq
+
+  -import { loadCSV } from "numiq";
+  +import { loadCSV } from "@munachi-me/numiq";
+  ```
+
+- `scripts/test-package.mjs` reads the package name from `package.json` and computes the
+  installed path from it. Scoped packages nest under `node_modules/@scope/name`, so the
+  previous hardcoded paths would have silently checked nothing.
+
 ## [1.0.1] - 2026-11-20
 
 ### Fixed

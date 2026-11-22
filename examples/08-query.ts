@@ -4,7 +4,7 @@
  * Every condition is a typed value handed to a method, so there is no query text to
  * evaluate and nothing from the data can become code.
  */
-import { createDataset, loadCSV } from "numiq";
+import { createDataset, loadCSV } from "@munachi-me/numiq";
 
 const sales = await loadCSV("sales.csv");
 

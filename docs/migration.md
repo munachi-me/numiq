@@ -43,8 +43,8 @@ filesystem loader:
 
 ```ts
 const remote = await loadCSV("https://example.com/sales.csv"); // URL
-const parsed = await loadCSV(buffer);                          // in-memory
-const picked = await loadCSV(file);                            // Blob / File
+const parsed = await loadCSV(buffer); // in-memory
+const picked = await loadCSV(file); // Blob / File
 ```
 
 This is a security boundary, not a style preference: it stops a dataset name from reading
@@ -58,8 +58,8 @@ anything. If you read `importReport` after a transform, keep the original:
 
 ```ts
 const source = await loadCSV("sales.csv");
-const report = source.importReport;   // the import's report
-const top = source.head(10);          // top.importReport === null
+const report = source.importReport; // the import's report
+const top = source.head(10); // top.importReport === null
 ```
 
 ### Rows and metadata are frozen
@@ -71,7 +71,10 @@ source dataset; that now throws in strict mode instead of corrupting data.
 Before:
 
 ```ts
-data.filter((row) => { row.total = row.price * row.qty; return true; }); // mutated the source
+data.filter((row) => {
+  row.total = row.price * row.qty;
+  return true;
+}); // mutated the source
 ```
 
 After — derive a column instead of mutating a row:

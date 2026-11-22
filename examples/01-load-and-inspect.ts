@@ -3,7 +3,7 @@
  *
  * Run with: npx tsx examples/01-load-and-inspect.ts
  */
-import { loadCSV } from "numiq";
+import { loadCSV } from "@munachi-me/numiq";
 
 const sales = await loadCSV("sales.csv");
 
