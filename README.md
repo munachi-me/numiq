@@ -1,9 +1,13 @@
 # Numiq
 
+[![npm](https://img.shields.io/npm/v/@munachi-me/numiq.svg)](https://www.npmjs.com/package/@munachi-me/numiq)
+[![CI](https://github.com/munachi-me/numiq/actions/workflows/ci.yml/badge.svg)](https://github.com/munachi-me/numiq/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/@munachi-me/numiq.svg)](LICENSE)
+
 A modular TypeScript engine for loading, normalizing, preparing, querying, and
 analyzing structured data.
 
-Numiq v0.11.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter, sort,
 prepare, query, group, summarize, and render as a table. It also describes each column and
 measures how columns relate to each other: correlation, rank correlation, correlation
@@ -457,6 +461,13 @@ that resolve outside the folder are all refused.
 
 CommonJS consumers can `require("@munachi-me/numiq")`; the `require` condition resolves to a
 CommonJS build.
+
+The `@munachi-me/numiq/core` subpath resolves to the browser-safe entry
+(`dist/esm/index.js`, or `dist/cjs/index.js` under `require`) regardless of the `node`
+condition. It exports the same API, but has no local file reader installed, so passing a
+local filename to `loadCSV`, `loadJSON`, or `loadTSV` raises an `EnvironmentError`
+explaining that the Node.js build is required. Use it when a bundler must not see
+`node:fs` at all.
 
 Supported Node versions (18, 20, 22), the browser and bundler matrix, and the
 semantic-versioning policy are documented in [`docs/compatibility.md`](docs/compatibility.md).
@@ -1073,7 +1084,7 @@ description.nonDeterministic; // which steps those are
 A function has no portable text form, so callback steps are reported honestly as
 non-reproducible rather than serialised. Nothing in Numiq `eval`s a string.
 
-## Scope of v0.11.0
+## Scope
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
@@ -1098,7 +1109,7 @@ recalculation, comparison, and format hints), insights (`Dataset.insights()` wit
 checks, configurable thresholds, and evidence on every observation), table rendering, the
 bundled sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not in v0.11.0: hypothesis tests and p-values, machine-learning models, and
+Deliberately not implemented: hypothesis tests and p-values, machine-learning models, and
 Excel import. The architecture reserves space for them
 (see `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
 `Dataset` without changing existing behaviour.
@@ -1110,20 +1121,47 @@ npm install
 npm run verify
 ```
 
-`verify` runs the typecheck, the test suite, the build, the type-contract tests, and the
-package checks.
+`verify` runs the typecheck, the example typecheck, lint, formatting, the cycle check, the
+test suite, the build, the no-runtime-deps check, the type-contract tests, and the package
+checks. It is also the `prepublishOnly` hook, so a release cannot skip it.
 
-| Script                 | Purpose                                         |
-| ---------------------- | ----------------------------------------------- |
-| `npm run build`        | Compile ESM and CJS builds with declarations    |
-| `npm test`             | Run the test suite                              |
-| `npm run typecheck`    | Type-check the source                           |
-| `npm run test:types`   | Check the published type contract               |
-| `npm run test:package` | Pack and verify the artifact in a real consumer |
-| `npm run verify`       | Everything above, in order                      |
+| Script                          | Purpose                                         |
+| ------------------------------- | ----------------------------------------------- |
+| `npm run build`                 | Compile ESM and CJS builds with declarations    |
+| `npm test`                      | Run the test suite                              |
+| `npm run test:watch`            | Run the test suite in watch mode                |
+| `npm run typecheck`             | Type-check the source                           |
+| `npm run typecheck:examples`    | Type-check the runnable examples                |
+| `npm run typecheck:benchmarks`  | Type-check the benchmark suite                  |
+| `npm run lint`                  | Lint `src` and `tests`                          |
+| `npm run format`                | Apply Prettier                                  |
+| `npm run format:check`          | Verify formatting without writing               |
+| `npm run check:cycles`          | Fail on import cycles                           |
+| `npm run check:no-runtime-deps` | Fail if a runtime dependency appears            |
+| `npm run generate:sample`       | Regenerate the bundled sample dataset           |
+| `npm run test:types`            | Check the published type contract               |
+| `npm run test:package`          | Pack and verify the artifact in a real consumer |
+| `npm run examples`              | Run every example against the built package     |
+| `npm run bench`                 | Time the hot paths                              |
+| `npm run bench:json`            | Time the hot paths and write `latest.json`      |
+| `npm run verify`                | Everything above, in order                      |
 
 See `docs/` for the architecture and API reference, and `examples/` for runnable
 programs.
+
+## Releasing
+
+Releases follow: feature branch → PR → squash merge → annotated tag → GitHub release, with
+`npm run verify` green on merged `main` before tagging.
+
+Publishing runs in CI from `.github/workflows/publish.yml` on a `v*` tag, authenticating to
+npm with **OIDC trusted publishing** — there is no npm token in the repository or in
+Actions secrets. Provenance is attached automatically. The workflow refuses to publish
+unless the tag matches `package.json` and the tagged commit is an ancestor of `main`.
+
+A maintainer must authorise the trusted publisher once on npmjs.com; see
+[`AGENTS.md`](AGENTS.md). Local `npm publish` also still works for an authorised maintainer
+with 2FA, and honours `publishConfig.access: public`.
 
 ## License
 
