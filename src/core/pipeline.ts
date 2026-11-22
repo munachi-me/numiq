@@ -123,6 +123,8 @@ export interface PipelineDescription {
   reproducible: boolean;
   /** Steps whose behaviour depends on something outside the definition. */
   nonDeterministic: readonly string[];
+  /** `true` once `build()` has sealed the definition. */
+  built: boolean;
 }
 
 /** Options for a pipeline. */
@@ -208,6 +210,7 @@ export class Pipeline {
   readonly #steps: StepRecord[] = [];
   readonly #name: string;
   #lastLineage: readonly LineageEntry[] = [];
+  #sealed = false;
 
   constructor(options: PipelineOptions = {}) {
     this.#name = options.name ?? "Pipeline";
@@ -254,6 +257,15 @@ export class Pipeline {
     return name;
   }
 
+  #assertNotSealed(): void {
+    if (this.#sealed) {
+      throw new ValidationError(
+        "This pipeline is sealed: build() was called, so no further steps may be added. " +
+          "Create a new pipeline to change the definition.",
+      );
+    }
+  }
+
   #assertHasLoad(): void {
     if (this.#steps.length === 0) {
       throw new ValidationError("A pipeline must start with a load step.");
@@ -267,6 +279,7 @@ export class Pipeline {
    * a pipeline without a load step cannot run.
    */
   load(loader: LoadStep, options: { name?: string } = {}): this {
+    this.#assertNotSealed();
     if (this.#steps.length > 0) {
       throw new ValidationError("A load step must be the first step in a pipeline.");
     }
@@ -285,6 +298,7 @@ export class Pipeline {
 
   /** Add a transformation step. Returns the replacement dataset. */
   transform(transformer: TransformStep, options: { name?: string } = {}): this {
+    this.#assertNotSealed();
     if (typeof transformer !== "function") {
       throw new ValidationError("transform expects a function receiving a dataset.");
     }
@@ -308,6 +322,7 @@ export class Pipeline {
    * that has already been defined.
    */
   validate(schema: ValidationSchema | ValidateStep, options: { name?: string } = {}): this {
+    this.#assertNotSealed();
     const isSchema = typeof schema === "object" && schema !== null && !Array.isArray(schema);
     if (!isSchema && typeof schema !== "function") {
       throw new ValidationError("validate expects a schema object or a function returning one.");
@@ -327,6 +342,7 @@ export class Pipeline {
 
   /** Add a step that observes the dataset without changing it. */
   tap(observer: TapStep, options: { name?: string } = {}): this {
+    this.#assertNotSealed();
     if (typeof observer !== "function") {
       throw new ValidationError("tap expects a function receiving a dataset.");
     }
@@ -339,6 +355,32 @@ export class Pipeline {
       run: (input, context) => observer(input as Dataset, context),
     });
     return this;
+  }
+
+  /**
+   * Finalize the definition and return the executable pipeline.
+   *
+   * Building validates the definition and seals it, so a pipeline that has been built
+   * cannot gain another step. That is the point: the object you run is the object you
+   * reviewed, and a definition cannot change between inspection and execution.
+   *
+   * Calling `build()` more than once is allowed and changes nothing.
+   *
+   * `run()` does not require `build()`; an unbuilt pipeline still runs, so the two styles
+   * are interchangeable. Use `build()` when you want to freeze the definition at a known
+   * point, for example at module load.
+   */
+  build(): this {
+    if (this.#steps.length === 0) {
+      throw new ValidationError("A pipeline must have at least one step before it can be built.");
+    }
+    this.#sealed = true;
+    return this;
+  }
+
+  /** True once `build()` has been called. */
+  get built(): boolean {
+    return this.#sealed;
   }
 
   /**
@@ -502,7 +544,13 @@ export class Pipeline {
 
     const nonDeterministic = this.#steps.filter((step) => step.custom).map((step) => step.name);
 
-    return { name: this.#name, steps, reproducible: nonDeterministic.length === 0, nonDeterministic };
+    return {
+      name: this.#name,
+      steps,
+      reproducible: nonDeterministic.length === 0,
+      nonDeterministic,
+      built: this.#sealed,
+    };
   }
 }
 

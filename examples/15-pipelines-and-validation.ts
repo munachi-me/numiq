@@ -49,7 +49,8 @@ const workflow = pipeline({ name: "sales" })
   .transform((data) => data.filter((row) => (row.revenue as number) > 0), { name: "drop-zero" })
   .transform((data) => data.dropDuplicates(["order_id"]), { name: "dedupe" })
   .validate(schema, { name: "schema" })
-  .tap((data) => console.log(`  [tap] ${data.rowCount} rows after validation`), { name: "log" });
+  .tap((data) => console.log(`  [tap] ${data.rowCount} rows after validation`), { name: "log" })
+  .build();
 
 // describe() runs nothing, so the definition can be reviewed before it executes.
 const description = workflow.describe();

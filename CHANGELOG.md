@@ -8,6 +8,22 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.11.1] - 2026-11-20
+
+Adds `Pipeline.build()`, which the v0.11.0 documentation example used but the release did
+not provide.
+
+### Added
+
+- `Pipeline.build()` finalizes the definition and returns the same pipeline, sealed so no
+  further step can be added. Building an empty pipeline throws; calling `build()` twice is
+  allowed and changes nothing.
+- `Pipeline.built` and `PipelineDescription.built` report whether the definition has been
+  sealed, without running anything.
+
+`run()` does not require `build()`. Both styles produce the same result, so no existing
+code changes behaviour.
+
 ## [0.11.0] - 2026-11-20
 
 Pipelines, schema validation, and data lineage: reusable workflows that can be inspected
