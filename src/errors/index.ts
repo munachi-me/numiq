@@ -1,6 +1,6 @@
 /** Stable, machine-readable failure categories. */
 export type NumiqErrorCode =
-  "VALIDATION_ERROR" | "IMPORT_ERROR" | "FORMAT_ERROR" | "ENVIRONMENT_ERROR" | "COLUMN_NOT_FOUND";
+  "VALIDATION_ERROR" | "IMPORT_ERROR" | "FORMAT_ERROR" | "ENVIRONMENT_ERROR" | "COLUMN_NOT_FOUND" | "PIPELINE_ERROR";
 
 /** Base class for every error Numiq throws. */
 export class NumiqError extends Error {

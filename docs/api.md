@@ -1210,6 +1210,189 @@ correct answer is `1`.
 | `Quartiles` | `{ q1: number; q2: number; q3: number }` |
 | `Extremes` | `{ min: unknown; max: unknown }` |
 
+## Schema validation
+
+Validation answers "does this data match what I said it would be", per cell, with a report
+that names the column and row. It reads the dataset and never modifies or copies it.
+
+### `Dataset.validate(schema, options?)`
+
+Returns a `ValidationReport`. Nothing throws for bad data: a caller usually wants every
+problem at once, and the report carries them all.
+
+```ts
+const report = sales.validate({
+  order_id: { type: "string", nullable: false, pattern: "[A-Z]-\\d+" },
+  revenue: { type: "number", min: 0 },
+  region: { type: "string", allowed: ["north", "south"] },
+});
+
+if (!report.valid) {
+  for (const issue of report.issues) {
+    console.log(issue.code, issue.column, issue.row, issue.message);
+  }
+}
+```
+
+### `Dataset.validateOrThrow(schema, options?)`
+
+Returns the dataset when it passes and throws a `ValidationError` naming the first issue
+and the total count when it does not. Use it when a failure should stop the caller.
+
+### `validateRows(rows, columns, schema, options?)`
+
+The standalone form, for callers holding rows rather than a `Dataset`.
+
+### `inferSchema(rows, columns)`
+
+Returns a schema derived from the data: the inferred type per column plus whether that
+column has a missing value. A column whose values disagree is left untyped rather than
+given a type that would reject half of it. Use the result as a starting point and tighten
+it by hand.
+
+### Rules
+
+| Rule | Applies to | Meaning |
+| --- | --- | --- |
+| `type` | any | Expected per-value type. One of `string`, `number`, `integer`, `boolean`, `date`, `datetime`, `time`. |
+| `nullable` | any | `false` rejects missing values. Defaults to allowing them. |
+| `min` / `max` | numbers, dates | Inclusive bounds. A date bound may be a `Date` or an ISO string. |
+| `allowed` | any | Closed set of permitted values. |
+| `pattern` | strings | Regular expression the **whole** value must match. |
+| `minLength` / `maxLength` | strings | Inclusive length bounds, counted in UTF-16 code units. |
+| `validate` | any | `(value, row, index) => boolean \| string`. `false` rejects; a string rejects with that message. |
+
+A column listed with no rules is still checked for presence.
+
+### Issue codes
+
+| Code | Meaning |
+| --- | --- |
+| `MISSING_COLUMN` | The schema names a column the dataset does not have. Reported once, not per row. |
+| `NULL_NOT_ALLOWED` | A missing value in a column with `nullable: false`. |
+| `TYPE_MISMATCH` | The value is not the declared type. Remaining rules for that cell are skipped. |
+| `NOT_ORDERABLE` | The value passed its type but cannot be compared to a bound. |
+| `BELOW_MINIMUM` / `ABOVE_MAXIMUM` | The value is outside `min` / `max`. |
+| `NOT_ALLOWED` | The value is not in `allowed`. |
+| `PATTERN_MISMATCH` | The string does not match `pattern`. |
+| `PATTERN_NOT_APPLICABLE` / `LENGTH_NOT_APPLICABLE` | A string rule was applied to a non-string value. |
+| `TOO_SHORT` / `TOO_LONG` | The string is outside `minLength` / `maxLength`. |
+| `CUSTOM_VALIDATOR_FAILED` | `validate` returned `false` or a message. |
+| `CUSTOM_VALIDATOR_THREW` | `validate` threw; the error is reported rather than escaping. |
+
+### `ValidationReport`
+
+| Field | Meaning |
+| --- | --- |
+| `valid` | True when there were no issues. |
+| `rowCount` / `columnCount` | Rows examined and columns named by the schema. |
+| `checked` | Cells examined, including missing ones. |
+| `issues` | The issues, capped by `maxIssues`. |
+| `issueCount` | Total issues, which may exceed `issues.length`. |
+| `truncated` | True when `issues` was capped. |
+| `invalidRows` | Rows with at least one issue. |
+| `byCode` | Issue counts keyed by code. |
+
+`maxIssues` defaults to 100, so a badly broken dataset cannot build an unbounded list.
+`columnsOnly: true` skips every check except column presence.
+
+### Behaviour worth knowing
+
+- A `date` or `datetime` column may hold a `Date` or an ISO string depending on how the
+  value arrived. Both are accepted, so validation does not depend on the import path.
+- `allowed` compares by value **and** type: `1` does not satisfy `allowed: ["1"]`.
+- `pattern` is anchored, so `"[a-z]+"` rejects `"abc1"`. Wrap it in `.*` for a substring match.
+- A malformed schema throws: an unknown type, an invalid regular expression, or `min`
+  greater than `max` is a programming error, not a data problem.
+- Normalization runs when a dataset is created, so `"36"` may already be `36` by the time
+  validation sees it. Use `normalization: { inferTypes: false }` to keep raw strings.
+
+## Pipelines and lineage
+
+A pipeline is a definition, not an execution. Building one runs nothing; `run()` executes
+it. That split makes a workflow reusable, inspectable before it runs, and describable
+without side effects.
+
+### `pipeline(options?)` / `new Pipeline(options?)`
+
+```ts
+const workflow = pipeline({ name: "sales" })
+  .load(async () => loadCSV("sales.csv"), { name: "load-sales" })
+  .transform((data) => data.filter((row) => row.revenue > 0), { name: "positive" })
+  .validate(schema, { name: "schema" })
+  .tap((data) => console.log(data.rowCount), { name: "log" });
+
+const result = await workflow.run();
+```
+
+### Steps
+
+| Method | Receives | Returns |
+| --- | --- | --- |
+| `load(fn, options?)` | `{ index, name, total }` | A `Dataset`, an array of rows, or a column-oriented object. Must be first and only one may exist. |
+| `transform(fn, options?)` | `(data, context)` | A `Dataset` or an array of rows. |
+| `validate(schemaOrFn, options?)` | `(data, context)` when a function | A schema. The step fails the run when the data does not pass. |
+| `tap(fn, options?)` | `(data, context)` | Ignored. The dataset passes through unchanged. |
+
+Every step takes an optional `{ name }`. Names must be non-empty and unique, and both are
+checked when the step is added rather than when the pipeline runs.
+
+A `validate` step given a schema object is pure data, so `describe()` can report it. Given
+a function, it is a callback like any other. A stored schema is cloned, so mutating the
+original afterwards cannot change the pipeline.
+
+### `run(options?)`
+
+Always asynchronous, even when every step is synchronous, so adding an async step later
+does not change the calling code. Synchronous and asynchronous steps may be mixed freely.
+
+By default a failure is recorded and returned with `ok: false`, because a caller often
+wants the report. With `{ throwOnError: true }` it throws a `PipelineError` instead.
+
+### `PipelineResult`
+
+| Field | Meaning |
+| --- | --- |
+| `dataset` | The result, or `null` when a step failed. |
+| `ok` | True when every step completed. |
+| `steps` | Per-step reports, including the failing step. |
+| `lineage` | One entry per completed step. |
+| `failedStep` / `failedIndex` | Which step failed, when one did. |
+| `durationMs` | Total wall-clock duration. |
+| `executed` / `total` | Steps attempted and steps defined. |
+
+### `StepReport`
+
+`index`, `name`, `kind`, `timing` (`"sync"` or `"async"`, observed rather than assumed),
+`durationMs`, `rows`, `columns`, `custom`, and either `validation` for a validate step or
+`error: { name, message, code? }` for the step that failed.
+
+### Lineage
+
+Each `LineageEntry` records the step's `name`, `kind`, the `columns` and `rows` after it,
+and the columns it `addedColumns` / `removedColumns` relative to the step before. Lineage
+is available on the result and on `pipeline.lineage` after a successful run. It lives in
+the report, never in the row values, so it cannot change the shape of the data.
+
+### `describe()`
+
+Renders the definition as data without running it, and states which steps hold callbacks:
+
+```ts
+const description = workflow.describe();
+description.reproducible;      // false when any step holds a function
+description.nonDeterministic;  // names of those steps
+```
+
+A function has no portable text form. Rather than inventing one — which would mean `eval`,
+and this package will not do that — callback steps are reported honestly as
+non-reproducible. A pipeline made only of data steps reports `reproducible: true`.
+
+### `PipelineError`
+
+Extends `NumiqError` with `code: "PIPELINE_ERROR"` and adds `step`, `stepIndex`,
+`stepKind`, and `original` (the underlying error, also set as `cause`).
+
 ## Types
 
 ### `DType`
@@ -1348,3 +1531,4 @@ Returns the resolved thresholds, rejecting out-of-range values with `RangeError`
 | `FormatError` | `FORMAT_ERROR` | — |
 | `EnvironmentError` | `ENVIRONMENT_ERROR` | — |
 | `ColumnNotFoundError` | `COLUMN_NOT_FOUND` | `column`, `available` |
+| `PipelineError` | `PIPELINE_ERROR` | `step`, `stepIndex`, `stepKind`, `original` |

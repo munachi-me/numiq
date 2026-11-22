@@ -56,6 +56,7 @@ import {
   type SortByTimeOptions,
   type TimeInterval,
 } from "./timeseries.js";
+import { validateRows, type ValidateOptions, type ValidationReport, type ValidationSchema } from "./validation.js";
 import {
   addColumn,
   castColumns,
@@ -933,6 +934,36 @@ export class Dataset {
   /** Distinct bucket labels for a time column, ascending. */
   periodBuckets(timeColumn: string, interval: TimeInterval): string[] {
     return periodBuckets(this.#rows, this.#columns, timeColumn, interval);
+  }
+
+  /**
+   * Check this dataset against a schema and return a report.
+   *
+   * Returns a report rather than throwing, because a caller usually wants every problem at
+   * once. Use `validateOrThrow()` when a failure should stop the caller immediately.
+   *
+   * The dataset is not modified and no copy of the rows is taken: validation only reads.
+   */
+  validate(schema: ValidationSchema, options: ValidateOptions = {}): ValidationReport {
+    return validateRows(this.#rows, this.#columns, schema, options);
+  }
+
+  /**
+   * Check this dataset against a schema, throwing when it does not pass.
+   *
+   * The thrown `ValidationError` names the first issue and the total count, so the message
+   * is useful without unpacking the report. Use `validate()` to inspect every issue.
+   */
+  validateOrThrow(schema: ValidationSchema, options: ValidateOptions = {}): Dataset {
+    const report = validateRows(this.#rows, this.#columns, schema, options);
+    if (!report.valid) {
+      const first = report.issues[0];
+      const detail = first === undefined ? "" : ` First issue: ${first.message}`;
+      throw new ValidationError(
+        `Dataset failed validation: ${report.issueCount} issue(s) across ${report.invalidRows} row(s).${detail}`,
+      );
+    }
+    return this;
   }
 
   /**

@@ -40,6 +40,8 @@ src/
 │   ├── reshape.ts            pivot, melt, concat
 │   ├── window.ts             ranking, offsets, running and moving values
 │   ├── timeseries.ts         sortByTime, extractPeriod, resample, period bucketing
+│   ├── validation.ts         schema rules, per-cell checks, validation reports
+│   ├── pipeline.ts           Pipeline, pipeline(), step execution and lineage
 │   └── sample.ts             the bundled sample dataset accessor
 ├── analytics/
 │   ├── stats.ts              quantile, percentile, quartiles, iqr, mode, extremes
@@ -164,6 +166,26 @@ alongside the layers already built.
   derive their labels from `periodLabel`, so a row's label always matches the bucket
   `resample` would group it into. Calendar arithmetic is UTC because a `Date` is an
   instant; bucketing in local time would move rows between buckets by host timezone.
+- **Schema validation** lives in `src/core/validation.ts` and is the one layer that reads a
+  dataset without producing a new one: it takes rows and columns, returns a report, and
+  copies nothing. It imports `inferColumnType` from `schema.ts` only so `inferSchema()`
+  agrees with the dtype the rest of the package reports. Two decisions are worth naming.
+  Temporal checks accept either a `Date` or an ISO string, because a `date` column holds
+  whichever form the data arrived as and rejecting one would make validation depend on the
+  import path. And `allowed` uses strict value-and-type equality rather than the shared
+  `compareValues` comparator, which orders by text as a fallback and would call `1` equal
+  to `"1"` — correct for sorting, wrong for an allow-list.
+- **Pipelines** live in `src/core/pipeline.ts` and sit above `Dataset` rather than inside
+  it: a step is a function the caller supplies, so the module never needs to know what a
+  step does. Two properties follow from treating a pipeline as a definition rather than an
+  execution. Building one runs nothing, which is what makes `describe()` possible and makes
+  a pipeline safe to construct at module load. And steps are awaited uniformly, so a
+  synchronous step and an asynchronous one are the same to the caller; the report records
+  which actually happened rather than assuming. Lineage is computed from the columns before
+  and after each step and returned in the report, never written into row values, so it
+  cannot change the shape of the data. A step holding a callback is reported as
+  non-reproducible rather than serialised: there is no honest text form for a function, and
+  the alternative would be `eval`.
 - **Numviz integration** (§12) is a boundary, not a dependency: a separate export subpath
   that converts a `Dataset` into whatever shape Numviz consumes. Numiq must not depend on
   a visualisation library.
@@ -176,7 +198,7 @@ what the split was for. The Numviz subpath attaches the same way.
 - `tests/unit/` — parsers, tokenizer, normalization, dataset, table, errors, public API,
   preparation, querying, grouping and aggregation, descriptive statistics, advanced
   statistics, metrics, insights, conditional columns, joins, reshaping, window functions,
-  and time series.
+  time series, schema validation, and pipelines.
 - `tests/integration/` — loaders against a real HTTP server and a real temporary
   directory; the environment split in a separate process; and one suite per release
   (`v020` … `v0100`) that exercises that release's public API end to end.
