@@ -8,6 +8,73 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.11.0] - 2026-11-20
+
+Pipelines, schema validation, and data lineage: reusable workflows that can be inspected
+before they run, and a validation report that points at the offending cell rather than at
+the dataset as a whole.
+
+### Added
+
+- `pipeline(options?)` and the `Pipeline` class. A pipeline is a definition: building one
+  runs nothing, and `run()` executes it. That split is what makes a workflow reusable and
+  inspectable, and what lets the same object be described without side effects.
+- Step kinds: `load` (produces the first dataset), `transform` (replaces it), `validate`
+  (checks a schema), and `tap` (observes without replacing). Steps are named, and
+  duplicate or empty names are rejected at definition time.
+- `Dataset.validate(schema, options?)` returns a `ValidationReport`;
+  `Dataset.validateOrThrow(...)` throws a `ValidationError` naming the first issue.
+  Validation reads the dataset and never copies or modifies its rows.
+- Schema rules per column: `type`, `nullable`, `min`, `max`, `allowed`, `pattern`,
+  `minLength`, `maxLength`, and a custom `validate` callback. A column listed with no
+  rules is still checked for presence.
+- `validateRows(rows, columns, schema, options?)` and `inferSchema(rows, columns)` for
+  callers working outside a `Dataset`.
+- `PipelineError` with `step`, `stepIndex`, `stepKind`, and `original`, thrown from
+  `run({ throwOnError: true })`. By default a failure is reported with `ok: false` instead.
+- Structured execution reports: per-step timing, row and column counts, duration, and the
+  error or validation report for the failing step.
+- Lineage: one entry per step with the columns and row count after it, plus the columns
+  that step added or removed. Lineage lives in the report and on `pipeline.lineage`, never
+  in the row values.
+- `Pipeline.describe()` renders the definition as data and states which steps hold
+  callbacks, so it is clear what could be stored and replayed and what cannot.
+
+### Behaviour
+
+- Steps may be synchronous or asynchronous, and the two can be mixed in one pipeline. The
+  report records the timing actually observed, so an async step that rejects is still
+  labelled `async`.
+- `run()` is always asynchronous, even when every step is synchronous, so adding an async
+  step later does not change the calling code.
+- A transform may return a `Dataset` or an array of rows. Anything else fails with a
+  message naming the step and what it returned.
+- Type checks for temporal columns accept both a `Date` and an ISO string, because a
+  `date` column holds whichever the data arrived as. Rejecting one would make validation
+  depend on the import path rather than on the data.
+- `allowed` compares by value and type, so `1` never satisfies `allowed: ["1"]`. The
+  general-purpose comparator treats those as equal, which would be wrong for an allow-list.
+- `pattern` is anchored, so `pattern: "\\d+"` means the whole value rather than a substring
+  of it.
+- A custom validator that throws is reported as an issue with code
+  `CUSTOM_VALIDATOR_THREW` rather than letting the exception escape mid-report.
+- A malformed schema throws: an unknown type, an invalid regular expression, or
+  `min` greater than `max` is a programming error, not a data problem, and reporting it as
+  a per-row issue would hide it among the rows.
+- Validation reports cap their issue list (`maxIssues`, default 100) and set `truncated`,
+  so a badly broken dataset cannot exhaust memory by building an unbounded list.
+- Pipeline definitions never execute serialised JavaScript: steps are functions supplied by
+  the caller. Nothing is `eval`-ed, and callback steps are reported as non-reproducible
+  rather than pretended to be serialisable.
+- A stored schema is cloned at definition time, so mutating the original afterwards cannot
+  change a pipeline that already exists.
+
+### Compatibility
+
+No new dependencies, and `src/index.ts` remains free of Node built-ins. Excel/XLS/XLSX
+importing stays excluded, per the standing constraint. The version bump reflects new
+public API only; no existing behaviour changed.
+
 ## [0.10.0] - 2026-11-20
 
 Window functions and time-series operations: values that depend on a row's position among

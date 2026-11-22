@@ -43,6 +43,23 @@ import Numiq, {
   type CorrelationMatrix,
   type CorrelationCell,
   Metric,
+  pipeline,
+  Pipeline,
+  PipelineError,
+  validateRows,
+  inferSchema,
+  type ValidationSchema,
+  type ValidationReport,
+  type ValidationIssue,
+  type ColumnRules,
+  type ValidateOptions,
+  type PipelineResult,
+  type PipelineDescription,
+  type StepReport,
+  type LineageEntry,
+  type StepKind,
+  type StepTiming,
+  type RunOptions,
   createMetric,
   isAggregationOp,
   analyze,
@@ -670,3 +687,60 @@ expectType<typeof rollingStd>(Numiq.rollingStd);
 expectType<typeof resample>(Numiq.resample);
 expectType<typeof sortByTime>(Numiq.sortByTime);
 expectType<typeof extractPeriod>(Numiq.extractPeriod);
+
+// ---------------------------------------------------------------- v0.11.0
+
+const validationSchema: ValidationSchema = {
+  a: { type: "number", nullable: false, min: 0, max: 10, allowed: [1, 2, 3] },
+  b: { type: "string", pattern: "[a-z]+", minLength: 1, maxLength: 5 },
+  c: { validate: (value, row, index) => index >= 0 && row !== null && value !== undefined },
+};
+expectType<ValidationReport>(described.validate(validationSchema));
+expectType<Dataset>(described.validateOrThrow(validationSchema));
+expectType<ValidationReport>(described.validate(validationSchema, { maxIssues: 5, columnsOnly: true }));
+expectType<ValidationReport>(validateRows(described.data, described.columns, validationSchema));
+expectType<Record<string, ColumnRules>>(inferSchema(described.data, described.columns));
+expectType<ValidationIssue | undefined>(described.validate(validationSchema).issues[0]);
+expectType<ValidateOptions>({ maxIssues: 1 });
+
+// @ts-expect-error "float" is not a supported column type
+described.validate({ a: { type: "float" } });
+
+const built = pipeline({ name: "demo" })
+  .load(() => createDataset([{ a: 1 }]), { name: "load" })
+  .transform((data) => data.limit(1), { name: "trim" })
+  .transform(async (data) => data, { name: "async-trim" })
+  .validate(validationSchema, { name: "check" })
+  .tap((data) => void data.rowCount, { name: "log" });
+
+expectType<Pipeline>(built);
+expectType<string>(built.name);
+expectType<number>(built.length);
+expectType<readonly string[]>(built.stepNames);
+expectType<readonly LineageEntry[]>(built.lineage);
+expectType<PipelineDescription>(built.describe());
+expectType<Promise<PipelineResult>>(built.run());
+expectType<Promise<PipelineResult>>(built.run({ throwOnError: true } as RunOptions));
+
+const runResult: PipelineResult = await built.run();
+expectType<Dataset | null>(runResult.dataset);
+expectType<boolean>(runResult.ok);
+expectType<readonly StepReport[]>(runResult.steps);
+expectType<readonly LineageEntry[]>(runResult.lineage);
+expectType<string | undefined>(runResult.failedStep);
+expectType<number | undefined>(runResult.failedIndex);
+expectType<StepKind>(runResult.steps[0]!.kind);
+expectType<StepTiming>(runResult.steps[0]!.timing);
+expectType<ValidationReport | undefined>(runResult.steps[0]!.validation);
+expectType<PipelineError>(new PipelineError("x", { step: "s", stepIndex: 0, stepKind: "load" }));
+
+// A transform must return a dataset-shaped value, not an arbitrary type.
+// @ts-expect-error the step context has no `columns` field
+built.transform((data, context) => context.columns);
+
+// The default namespace must expose the new API too.
+expectType<typeof pipeline>(Numiq.pipeline);
+expectType<typeof Pipeline>(Numiq.Pipeline);
+expectType<typeof PipelineError>(Numiq.PipelineError);
+expectType<typeof validateRows>(Numiq.validateRows);
+expectType<typeof inferSchema>(Numiq.inferSchema);

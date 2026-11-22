@@ -3,7 +3,7 @@
 A modular TypeScript engine for loading, normalizing, preparing, querying, and
 analyzing structured data.
 
-Numiq v0.10.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
+Numiq v0.11.0 reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter, sort,
 prepare, query, group, summarize, and render as a table. It also describes each column and
 measures how columns relate to each other: correlation, rank correlation, correlation
@@ -11,7 +11,9 @@ matrices, z-scores, percentile rank, skewness, kurtosis, five-number summaries, 
 outlier detection. Beyond describing what is there, it defines reusable metrics that keep
 their own definition, and reports observations that carry their evidence. Columns can be
 derived from ordered conditional rules, related datasets can be joined, and tables can be
-pivoted, melted, and stacked.
+pivoted, melted, and stacked. Values that depend on a row's neighbours are available as
+window functions, series can be grouped into calendar buckets, and a whole workflow can be
+declared as a reusable pipeline with schema validation and lineage.
 
 ```ts
 import { loadCSV } from "numiq";
@@ -959,7 +961,85 @@ bucketed and dropped rows.
 A row whose time is present but unparseable always throws. A row whose time is missing is
 dropped by default and counted; pass `onMissingTime: "error"` to reject it instead.
 
-## Scope of v0.10.0
+## Schema validation
+
+`validate()` checks a dataset against a schema and returns a report. Nothing throws for bad
+data: a caller usually wants every problem at once, and the report names the column, the
+row, and the value for each one.
+
+```ts
+const report = sales.validate({
+  order_id: { type: "string", nullable: false, pattern: "[A-Z]-\\d+" },
+  revenue: { type: "number", min: 0 },
+  region: { type: "string", allowed: ["north", "south"] },
+});
+
+report.valid;      // false
+report.issueCount; // 3
+report.issues[0];  // { code: "PATTERN_MISMATCH", column: "order_id", row: 5, ... }
+```
+
+Rules are `type`, `nullable`, `min`, `max`, `allowed`, `pattern`, `minLength`, `maxLength`,
+and a custom `validate(value, row, index)` callback. A column listed with no rules is still
+checked for presence. `validateOrThrow()` returns the dataset when it passes and throws when
+it does not.
+
+A `date` or `datetime` column accepts either a `Date` or an ISO string, because the column
+holds whichever form the value arrived as. `allowed` compares by value and type, so `1` does
+not satisfy `allowed: ["1"]`. `pattern` is anchored to the whole value.
+
+`inferSchema()` derives a schema from data as a starting point:
+
+```ts
+inferSchema(sales.data, sales.columns);
+// { order_id: { type: "string", nullable: false }, ... }
+```
+
+## Pipelines and lineage
+
+A pipeline is a definition, not an execution. Building one runs nothing; `run()` executes
+it. That split makes a workflow reusable and lets you inspect it before it touches data.
+
+```ts
+const workflow = pipeline({ name: "sales" })
+  .load(() => loadCSV("sales.csv"), { name: "load" })
+  .transform((data) => data.filter((row) => row.revenue > 0), { name: "positive" })
+  .validate(schema, { name: "schema" });
+
+const result = await workflow.run();
+
+result.ok;                  // true
+result.dataset?.rowCount;   // 3
+result.steps;               // per-step timing, rows, columns, duration
+result.lineage;             // columns and row count after each step
+```
+
+Steps are `load`, `transform`, `validate`, and `tap`. A step may be synchronous or
+asynchronous, and the two mix freely: `run()` is always asynchronous, so adding an async
+step later does not change the calling code. The report records the timing actually
+observed, not what was expected.
+
+By default a failing step is recorded and returned with `ok: false`, along with the name and
+index of the step and the steps that succeeded before it. Pass `{ throwOnError: true }` to
+throw a `PipelineError` naming the step instead.
+
+Lineage records what each step did to the table — the columns and row count after it, plus
+the columns it added or removed. It lives in the report, never in the row values, so it
+cannot change the shape of the data.
+
+`describe()` renders the definition as data without running it:
+
+```ts
+const description = workflow.describe();
+description.steps;             // name, kind, and schema per step
+description.reproducible;      // false when a step holds a callback
+description.nonDeterministic;  // which steps those are
+```
+
+A function has no portable text form, so callback steps are reported honestly as
+non-reproducible rather than serialised. Nothing in Numiq `eval`s a string.
+
+## Scope of v0.11.0
 
 Implemented: import (CSV, TSV, JSON, URL, local `dataset/` files), normalization, type
 casting, the `Dataset` abstraction, inspection, `filter`/`sort`/`select`/`limit`,
@@ -969,7 +1049,11 @@ joins (`inner`, `left`, `right`, `full`, with key mapping and collision suffixes
 reshaping (`pivot`, `melt`, `concat`), window functions (`rowNumber`, `rank`,
 `denseRank`, `lag`, `lead`, `cumSum`, `cumMean`, and the five `rolling*` helpers, with
 partitions and explicit ordering), time-series operations (`sortByTime`, `extractPeriod`,
-`resample`, `periodBuckets`), structured queries
+`resample`, `periodBuckets`), pipelines (`pipeline()` with `load`, `transform`, `validate`,
+and `tap` steps, synchronous or asynchronous, with per-step reports and lineage), schema
+validation (`Dataset.validate()`, `validateOrThrow()`, `validateRows()`, and
+`inferSchema()`, with typed, ranged, enumerated, pattern, length, and custom checks),
+structured queries
 (`Dataset.query()` with typed conditions, boolean grouping, ordering, and projection),
 grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven operations,
 `ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()`),
@@ -980,8 +1064,8 @@ recalculation, comparison, and format hints), insights (`Dataset.insights()` wit
 checks, configurable thresholds, and evidence on every observation), table rendering, the
 bundled sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not in v0.10.0: hypothesis tests and p-values, machine-learning models,
-pipelines and schema validation, and Excel import. The architecture reserves space for them
+Deliberately not in v0.11.0: hypothesis tests and p-values, machine-learning models, and
+Excel import. The architecture reserves space for them
 (see `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
 `Dataset` without changing existing behaviour.
 

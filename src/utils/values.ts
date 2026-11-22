@@ -48,6 +48,21 @@ export function isPresent(value: unknown): boolean {
   return value !== null && value !== undefined;
 }
 
+/**
+ * True when `value` is thenable.
+ *
+ * Pipeline steps may be synchronous or asynchronous, and the difference decides how a
+ * step's result is consumed. Checking for a `then` method rather than `instanceof Promise`
+ * keeps async steps working across realms and with any promise library.
+ */
+export function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
 /** Count occurrences of each distinct present value. */
 export function countBy<T>(values: readonly T[], key: (value: T) => string): Map<string, number> {
   const counts = new Map<string, number>();

@@ -23,6 +23,7 @@ npx tsx examples/01-load-and-inspect.ts
 | `12-metrics-and-insights.ts` | Metrics that keep their definition, and insights that carry their evidence |
 | `13-conditional-joins-reshape.ts` | Conditional columns from ordered rules, joins, and pivot/melt/concat |
 | `14-windows-and-time-series.ts` | Ranking, offsets, running and moving values, and calendar resampling |
+| `15-pipelines-and-validation.ts` | Reusable pipelines, schema validation reports, and lineage |
 
 The examples read from the project-root `dataset/` folder by filename, so run them from
 the repository root. They import `numiq` by package name; to run them before publishing,

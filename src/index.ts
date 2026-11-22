@@ -115,6 +115,30 @@ export type {
   SortByTimeOptions,
   TimeInterval,
 } from "./core/timeseries.js";
+export { inferSchema, validateRows } from "./core/validation.js";
+export type {
+  ColumnRules,
+  ValidateOptions,
+  ValidationIssue,
+  ValidationReport,
+  ValidationSchema,
+} from "./core/validation.js";
+export { Pipeline, PipelineError, pipeline } from "./core/pipeline.js";
+export type {
+  LineageEntry,
+  LoadStep,
+  PipelineDescription,
+  PipelineOptions,
+  PipelineResult,
+  RunOptions,
+  StepContext,
+  StepKind,
+  StepReport,
+  StepTiming,
+  TapStep,
+  TransformStep,
+  ValidateStep,
+} from "./core/pipeline.js";
 export type {
   ConditionalColumnOptions,
   ConditionalColumnReport,
@@ -243,6 +267,8 @@ import {
   sortByTime,
   toTime,
 } from "./core/timeseries.js";
+import { inferSchema, validateRows } from "./core/validation.js";
+import { Pipeline, PipelineError, pipeline } from "./core/pipeline.js";
 import { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
 import { analyze, resolveInsightOptions } from "./insights/insights.js";
 import { useSampleDataset } from "./core/sample.js";
@@ -332,6 +358,11 @@ const Numiq = {
   periodLabel,
   periodStart,
   toTime,
+  validateRows,
+  inferSchema,
+  pipeline,
+  Pipeline,
+  PipelineError,
   Metric,
   createMetric,
   isAggregationOp,
