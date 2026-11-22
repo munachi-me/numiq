@@ -1004,7 +1004,8 @@ it. That split makes a workflow reusable and lets you inspect it before it touch
 const workflow = pipeline({ name: "sales" })
   .load(() => loadCSV("sales.csv"), { name: "load" })
   .transform((data) => data.filter((row) => row.revenue > 0), { name: "positive" })
-  .validate(schema, { name: "schema" });
+  .validate(schema, { name: "schema" })
+  .build();
 
 const result = await workflow.run();
 
@@ -1018,6 +1019,10 @@ Steps are `load`, `transform`, `validate`, and `tap`. A step may be synchronous 
 asynchronous, and the two mix freely: `run()` is always asynchronous, so adding an async
 step later does not change the calling code. The report records the timing actually
 observed, not what was expected.
+
+`build()` finalizes the definition and returns the same pipeline, sealed: adding another
+step afterwards throws. The point is that the object you run is the object you reviewed.
+`run()` does not require it, so both styles work and produce the same result.
 
 By default a failing step is recorded and returned with `ok: false`, along with the name and
 index of the step and the steps that succeeded before it. Pass `{ throwOnError: true }` to

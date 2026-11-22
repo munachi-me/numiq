@@ -498,3 +498,100 @@ describe("Pipeline class", () => {
     expect(seen).toBe(3);
   });
 });
+
+describe("build()", () => {
+  it("returns the same pipeline instance", () => {
+    const p = pipeline().load(() => createDataset(rows()));
+    expect(p.build()).toBe(p);
+  });
+
+  it("seals the definition against further steps", () => {
+    const p = pipeline()
+      .load(() => createDataset(rows()))
+      .build();
+    expect(() => p.transform((data) => data)).toThrow(ValidationError);
+    expect(() => p.load(() => createDataset(rows()))).toThrow(ValidationError);
+    expect(() => p.validate({ id: { type: "integer" } })).toThrow(ValidationError);
+    expect(() => p.tap(() => {})).toThrow(ValidationError);
+  });
+
+  it("names the reason when a sealed pipeline is extended", () => {
+    const p = pipeline()
+      .load(() => createDataset(rows()))
+      .build();
+    expect(() => p.transform((data) => data)).toThrow(/sealed/);
+  });
+
+  it("reports built state", () => {
+    const p = pipeline().load(() => createDataset(rows()));
+    expect(p.built).toBe(false);
+    p.build();
+    expect(p.built).toBe(true);
+  });
+
+  it("is idempotent", async () => {
+    const p = pipeline().load(() => createDataset(rows()));
+    p.build();
+    expect(() => p.build()).not.toThrow();
+    const result = await p.run();
+    expect(result.ok).toBe(true);
+    expect(result.dataset?.rowCount).toBe(3);
+  });
+
+  it("refuses to build an empty pipeline", () => {
+    expect(() => pipeline().build()).toThrow(ValidationError);
+    expect(() => pipeline().build()).toThrow(/at least one step/);
+  });
+
+  it("leaves an unbuilt pipeline runnable", async () => {
+    const result = await pipeline()
+      .load(() => createDataset(rows()))
+      .run();
+    expect(result.ok).toBe(true);
+  });
+
+  it("produces the same result whether built or not", async () => {
+    const make = () =>
+      pipeline()
+        .load(() => createDataset(rows()))
+        .transform((data) => data.filter((row) => row.revenue > 0));
+
+    const built = make().build();
+    const unbuilt = make();
+    const a = await built.run();
+    const b = await unbuilt.run();
+    expect(a.dataset?.data).toEqual(b.dataset?.data);
+    expect(a.steps.map((s) => s.name)).toEqual(b.steps.map((s) => s.name));
+  });
+
+  it("still runs the exact steps that were reviewed before building", async () => {
+    const p = pipeline()
+      .load(() => createDataset(rows()))
+      .transform((data) => data.limit(2), { name: "limit" })
+      .build();
+    const result = await p.run();
+    expect(result.dataset?.rowCount).toBe(2);
+    expect(result.steps.map((s) => s.name)).toEqual(["load-1", "limit"]);
+  });
+
+  it("is reported by describe()", () => {
+    const p = pipeline().load(() => createDataset(rows()));
+    expect(p.describe().built).toBe(false);
+    p.build();
+    expect(p.describe().built).toBe(true);
+  });
+
+  it("supports the canonical spec workflow", async () => {
+    const p = pipeline()
+      .load(() => createDataset(rows()))
+      .transform((data) => data.filter((row) => row.revenue > 0))
+      .transform((data) => data.dropDuplicates(["id"]))
+      .validate({ revenue: { type: "integer" } })
+      .build();
+
+    const result = await p.run();
+    expect(result.ok).toBe(true);
+    expect(result.dataset?.rowCount).toBe(2);
+    expect(result.lineage.map((entry) => entry.name)).toEqual(["load-1", "transform-2", "transform-3", "validate-4"]);
+  });
+});

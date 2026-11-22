@@ -719,6 +719,9 @@ expectType<number>(built.length);
 expectType<readonly string[]>(built.stepNames);
 expectType<readonly LineageEntry[]>(built.lineage);
 expectType<PipelineDescription>(built.describe());
+expectType<boolean>(built.built);
+expectType<Pipeline>(built.build());
+expectType<boolean>(built.describe().built);
 expectType<Promise<PipelineResult>>(built.run());
 expectType<Promise<PipelineResult>>(built.run({ throwOnError: true } as RunOptions));
 

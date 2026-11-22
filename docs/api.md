@@ -1320,7 +1320,8 @@ const workflow = pipeline({ name: "sales" })
   .load(async () => loadCSV("sales.csv"), { name: "load-sales" })
   .transform((data) => data.filter((row) => row.revenue > 0), { name: "positive" })
   .validate(schema, { name: "schema" })
-  .tap((data) => console.log(data.rowCount), { name: "log" });
+  .tap((data) => console.log(data.rowCount), { name: "log" })
+  .build();
 
 const result = await workflow.run();
 ```
@@ -1340,6 +1341,28 @@ checked when the step is added rather than when the pipeline runs.
 A `validate` step given a schema object is pure data, so `describe()` can report it. Given
 a function, it is a callback like any other. A stored schema is cloned, so mutating the
 original afterwards cannot change the pipeline.
+
+### `build()`
+
+Finalizes the definition and returns the same pipeline. A built pipeline is sealed: adding
+another step throws, because the object you run should be the object you reviewed. Calling
+`build()` twice is allowed and changes nothing, and building an empty pipeline throws.
+
+`run()` does not require `build()`. Both styles work, and they produce the same result; use
+`build()` when you want the definition frozen at a known point, such as module load.
+
+```ts
+const workflow = pipeline()
+  .load(() => loadCSV("sales.csv"))
+  .transform((data) => data.filter((row) => row.revenue > 0))
+  .validate(schema)
+  .build();
+
+const result = await workflow.run();
+```
+
+`built` reports whether `build()` has been called, and `describe().built` reports the same
+thing without running the pipeline.
 
 ### `run(options?)`
 
