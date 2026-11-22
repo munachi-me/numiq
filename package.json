@@ -1,6 +1,6 @@
 {
   "name": "numiq",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "A modular JavaScript data analysis engine: load, normalize, inspect, and table structured data.",
   "keywords": [
     "data",
@@ -85,7 +85,10 @@
     "generate:sample": "node scripts/generate-sample.mjs",
     "typecheck:examples": "tsc -p tsconfig.examples.json",
     "check:no-runtime-deps": "node scripts/check-no-runtime-deps.mjs",
-    "examples": "for f in examples/*.ts; do echo \"-- $f\"; npx tsx \"$f\" || exit 1; done"
+    "examples": "for f in examples/*.ts; do echo \"-- $f\"; npx tsx \"$f\" || exit 1; done",
+    "bench": "npx tsx benchmarks/run.ts",
+    "bench:json": "mkdir -p benchmarks/results && npx tsx benchmarks/run.ts --json benchmarks/results/latest.json",
+    "typecheck:benchmarks": "tsc -p tsconfig.benchmarks.json"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

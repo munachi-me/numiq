@@ -260,20 +260,35 @@ export function joinTables(
     }
   };
 
+  // Resolve each left column's right-hand key partner once, not once per output row.
+  // `leftKeys.indexOf` inside the emit loop was a linear scan of the key list for every
+  // column of every emitted row, which dominates a large join.
+  const rightPartnerOf = new Map<string, string>();
+  for (let position = 0; position < leftKeys.length; position += 1) {
+    rightPartnerOf.set(leftKeys[position] as string, rightKeys[position] as string);
+  }
+  const leftWidth = leftNames.length;
+  const rightWidth = rightNames.length;
+  const leftSource = leftColumns;
+  const rightSource = included;
+
   const emit = (left: Row | null, right: Row | null): void => {
     const row: Row = {};
-    leftNames.forEach((name, position) => {
-      const column = leftColumns[position] as string;
+    for (let position = 0; position < leftWidth; position += 1) {
+      const column = leftSource[position] as string;
       // The right key column is not carried into the output because it equals its left
       // partner. When the left side is absent (right and full joins) the key would
       // otherwise be lost, so it is sourced from the right row instead.
-      const partner = leftKeys.indexOf(column);
-      const fromRight = right !== null && partner !== -1 ? right[rightKeys[partner] as string] : null;
-      row[name] = cloneValue(left === null ? fromRight : left[column]);
-    });
-    rightNames.forEach((name, position) => {
-      row[name] = cloneValue(right === null ? null : right[included[position] as string]);
-    });
+      const partner = rightPartnerOf.get(column);
+      if (left !== null) row[leftNames[position] as string] = cloneValue(left[column]);
+      else
+        row[leftNames[position] as string] = cloneValue(
+          partner === undefined || right === null ? null : right[partner],
+        );
+    }
+    for (let position = 0; position < rightWidth; position += 1) {
+      row[rightNames[position] as string] = cloneValue(right === null ? null : right[rightSource[position] as string]);
+    }
     out.push(row);
     guard();
   };

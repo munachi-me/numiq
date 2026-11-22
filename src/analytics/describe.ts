@@ -28,9 +28,17 @@ import type { DType, Row, TableOptions } from "../core/types.js";
 import { ColumnNotFoundError } from "../errors/index.js";
 import { renderTable } from "../display/table.js";
 import { cloneValue, isPresent } from "../utils/values.js";
-import { countUnique, inferColumnType } from "../core/schema.js";
-import { mean, median, std, sum, variance } from "../core/aggregate.js";
-import { extremes, iqr, mode, percentile, quartiles, range } from "./stats.js";
+import { inferColumnType } from "../core/schema.js";
+import { mean, std, sum, variance } from "../core/aggregate.js";
+import {
+  extremes,
+  frequencies,
+  medianOfSorted,
+  percentileOfSorted,
+  quartilesOfSorted,
+  range,
+  sortedColumn,
+} from "./stats.js";
 
 /** Broad column category, which decides what statistics are meaningful. */
 export type ColumnKind = "numeric" | "boolean" | "temporal" | "categorical" | "mixed" | "empty";
@@ -168,12 +176,18 @@ export function profileColumn(
     ? present.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
     : [];
 
+  // One sort and one frequency pass serve every statistic below. Sorting dominates the
+  // cost of profiling a numeric column, and each statistic that sorted on its own used to
+  // re-sort the same values: quartiles, the interquartile range, the median, and every
+  // extra percentile. The answers are identical, because they all read the same order.
+  const sorted = numeric && numbers.length > 0 ? sortedColumn(numbers) : null;
+  const counts = frequencies(present);
   const bounds = extremes(present);
-  const parts = numeric ? quartiles(numbers) : null;
+  const parts = sorted === null ? null : quartilesOfSorted(sorted);
 
   const computed: Record<string, number | null> = {};
   for (const p of percentiles) {
-    computed[`p${p}`] = numeric ? percentile(numbers, p) : null;
+    computed[`p${p}`] = sorted === null ? null : percentileOfSorted(sorted, p);
   }
 
   return {
@@ -183,11 +197,11 @@ export function profileColumn(
     count: present.length,
     missing: Math.max(0, total - present.length),
     total,
-    unique: countUnique(present),
+    unique: counts.unique,
     sum: numeric ? sum(numbers) : null,
     mean: numeric ? mean(numbers) : null,
-    median: numeric ? median(numbers) : null,
-    mode: mode(present),
+    median: sorted === null ? null : medianOfSorted(sorted),
+    mode: counts.mode,
     min: bounds === null ? null : cloneValue(bounds.min),
     max: bounds === null ? null : cloneValue(bounds.max),
     range: numeric ? range(numbers) : null,
@@ -195,7 +209,7 @@ export function profileColumn(
     std: numeric ? std(numbers, { ddof }) : null,
     q1: parts === null ? null : parts.q1,
     q3: parts === null ? null : parts.q3,
-    iqr: numeric ? iqr(numbers) : null,
+    iqr: parts === null ? null : parts.q3 - parts.q1,
     percentiles: computed,
     ddof,
   };

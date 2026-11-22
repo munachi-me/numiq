@@ -8,6 +8,51 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [0.12.0] - 2026-11-20
+
+Performance, measured before it was changed.
+
+This release starts with a benchmark suite, because a change that is not measured is a
+guess. `npm run bench` times the hot paths on 1,000, 25,000 and 100,000 rows, and
+`benchmarks/results/` records the runs from before and after so the comparison is
+reproducible rather than asserted. Only two operations moved beyond run-to-run noise;
+everything else was measured and deliberately left alone.
+
+### Added
+
+- A benchmark suite under `benchmarks/`, run with `npm run bench`, `npm run bench:json`,
+  or `npm run bench -- --filter <text>`. It times dataset construction, `data`, `schema`,
+  `info()`, `filter`, `sort`, `select`, `groupBy().aggregate()`, `describe()`, `toTable()`,
+  joins, CSV parsing, and a multi-step pipeline. Each case warms up first, reports the
+  median of nine samples with the minimum and 95th percentile, and generates its rows from
+  a seeded PRNG so runs are comparable.
+- `benchmarks/README.md` documents the method, the recorded results, and the known
+  performance limits.
+- `npm run typecheck:benchmarks`, and a `tsconfig.benchmarks.json` so the benchmark sources
+  are type-checked with the same strict settings as `src/`.
+
+### Changed
+
+- `describe()` is about 4x faster on numeric columns (1312ms → 326ms at 100,000 rows).
+  Profiling a column used to sort it seven times — once each for the quartiles, the
+  interquartile range, the median, and every requested percentile — and hashed it twice to
+  answer both `unique` and `mode`. It now sorts once and hashes once, sharing both across
+  every statistic. Results are unchanged; the profile is pinned against each standalone
+  statistic function in the tests.
+- `sort()` is about 20% faster at 100,000 rows (157ms → 125ms). The comparator read
+  `row[column]` twice per comparison, roughly `n log n` times; it now reads each key once
+  and compares values. Tie order still follows source order, via the language's stable
+  sort.
+- The join output loop resolves each column's right-hand key partner once instead of
+  scanning the key list per column per row.
+
+### Notes
+
+- No public API was added, removed, or changed. The new statistics helpers stay internal:
+  they exist to serve `describe()`, and exporting them would widen the stable surface for
+  no caller benefit.
+- There are still no runtime dependencies.
+
 ## [0.11.1] - 2026-11-20
 
 Adds `Pipeline.build()`, which the v0.11.0 documentation example used but the release did

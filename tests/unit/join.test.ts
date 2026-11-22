@@ -279,3 +279,37 @@ describe("join: immutability", () => {
     expect(result.columns).toEqual(["customer", "name"]);
   });
 });
+
+describe("join: key-column mapping", () => {
+  // The emit loop resolves each left column's right-hand partner from a precomputed map.
+  // These cover the cases where the two sides use different key names, which is where a
+  // wrong mapping would show up as a missing or misplaced value.
+  it("sources the left key from the right row for unmatched left rows", () => {
+    const left = createDataset([{ id: 1, tag: "a" }]);
+    const right = createDataset([{ key: 2, note: "b" }]);
+    const result = left.join(right, { leftOn: "id", rightOn: "key", how: "left" });
+    expect(result.data).toEqual([{ id: 1, tag: "a", key: null, note: null }]);
+  });
+
+  it("fills the left key from the right side on a right join", () => {
+    const left = createDataset([{ id: 1, tag: "a" }]);
+    const right = createDataset([{ key: 2, note: "b" }]);
+    const result = left.join(right, { leftOn: "id", rightOn: "key", how: "right" });
+    expect(result.data).toEqual([{ id: 2, tag: null, key: 2, note: "b" }]);
+  });
+
+  it("maps composite keys to the correct partners", () => {
+    const left = createDataset([{ a: 1, b: "x", value: 10 }]);
+    const right = createDataset([{ p: 1, q: "x", extra: "hit" }]);
+    const result = left.join(right, { leftOn: ["a", "b"], rightOn: ["p", "q"] });
+    expect(result.data).toEqual([{ a: 1, b: "x", value: 10, p: 1, q: "x", extra: "hit" }]);
+  });
+
+  it("does not confuse a non-key column that shares a name with a right key", () => {
+    const left = createDataset([{ id: 1, note: "left" }]);
+    const right = createDataset([{ id: 1, note: "right" }]);
+    const result = left.join(right, { on: "id" });
+    expect(result.columns).toEqual(["id", "note_left", "note_right"]);
+    expect(result.data).toEqual([{ id: 1, note_left: "left", note_right: "right" }]);
+  });
+});
