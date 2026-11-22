@@ -8,6 +8,49 @@ All notable changes to Numiq are recorded here. The format follows
 
 Nothing yet.
 
+## [1.0.0] - 2026-11-20
+
+First stable release. The API that grew through `0.1.0`–`0.12.0` is now frozen and follows
+semantic versioning: a breaking change requires a major release with a migration note.
+
+This release adds no features. It audits what exists, documents it, proves the security
+boundary with tests, and puts verification in CI.
+
+### Added
+
+- `docs/compatibility.md`: the semantic-versioning policy, the Node.js support matrix
+  (18/20/22), and the browser and bundler support matrix.
+- `docs/migration.md`: the migration guide from pre-1.0 releases, covering the two
+  breaking changes made during the series.
+- `.github/workflows/ci.yml`: runs `npm run verify` and a clean consumer install on
+  Node 18, 20, and 22. The repository previously had no CI at all.
+- Tests for the local-file security boundary, which was implemented but not covered:
+  absolute paths, Windows drive paths, nested paths, null bytes, and — the case that only
+  `realpath` containment catches — a symlink inside `dataset/` pointing outside it. A
+  companion test pins that a symlink staying inside `dataset/` still reads.
+- API documentation for seven exports that were public but undocumented: `joinTables`,
+  `pivotRows`, `meltRows`, `concatRows`, `profileColumn`, `validateDescribeOptions`, and
+  `DEFAULT_NORMALIZATION`. Every one of the 93 runtime exports is now documented.
+
+### Changed
+
+- `docs/api.md` gains a "Building blocks" section for the functions that do the work
+  behind the corresponding `Dataset` methods.
+
+### Security
+
+- The local-file sandbox was reviewed. It rejects absolute paths, `..`, path separators on
+  both platforms, null bytes, and symlinks resolving outside `dataset/`, and it checks
+  containment on `realpath` results so a link cannot escape while appearing to comply.
+  Behaviour is unchanged; the review found no defect, and the guarantees are now pinned by
+  tests rather than assumed.
+
+### Notes
+
+- No public export was removed, renamed, or changed. No behaviour changed. Upgrading from
+  `0.12.0` requires no code change.
+- Still zero runtime dependencies, enforced in `verify`.
+
 ## [0.12.0] - 2026-11-20
 
 Performance, measured before it was changed.

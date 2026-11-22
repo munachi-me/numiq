@@ -458,6 +458,11 @@ that resolve outside the folder are all refused.
 CommonJS consumers can `require("numiq")`; the `require` condition resolves to a
 CommonJS build.
 
+Supported Node versions (18, 20, 22), the browser and bundler matrix, and the
+semantic-versioning policy are documented in [`docs/compatibility.md`](docs/compatibility.md).
+Upgrading from a pre-1.0 release: [`docs/migration.md`](docs/migration.md). Every export is
+documented in [`docs/api.md`](docs/api.md).
+
 ## Performance
 
 `npm run bench` times the hot paths on 1,000, 25,000 and 100,000 rows. The suite, the
