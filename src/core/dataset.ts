@@ -574,22 +574,25 @@ export class Dataset {
       throw new ValidationError(`sort direction must be "asc" or "desc", received "${String(direction)}".`);
     }
     const factor = direction === "asc" ? 1 : -1;
-    const indexed = this.#rows.map((row, index) => ({ row, index }));
-    indexed.sort((left, right) => {
-      const leftValue = left.row[column];
-      const rightValue = right.row[column];
+    // Read each key once and carry it into the comparator. A comparator that indexes
+    // `row[column]` runs about n log n times, so the lookup — not the comparison — was
+    // the cost. Ties keep source order because `Array.prototype.sort` is stable.
+    const keyed = new Array<{ row: Row; value: unknown; missing: boolean }>(this.#rows.length);
+    for (let index = 0; index < this.#rows.length; index += 1) {
+      const row = this.#rows[index] as Row;
+      const value = row[column];
+      keyed[index] = { row, value, missing: !isPresent(value) };
+    }
+    keyed.sort((left, right) => {
       // Missing values sort last in both directions, so they are compared before the
       // direction factor is applied; only present values reverse.
-      const leftMissing = !isPresent(leftValue);
-      const rightMissing = !isPresent(rightValue);
-      if (leftMissing || rightMissing) {
-        if (leftMissing && rightMissing) return left.index - right.index;
-        return leftMissing ? 1 : -1;
+      if (left.missing || right.missing) {
+        if (left.missing && right.missing) return 0;
+        return left.missing ? 1 : -1;
       }
-      const comparison = compareValues(leftValue, rightValue);
-      return comparison !== 0 ? comparison * factor : left.index - right.index;
+      return compareValues(left.value, right.value) * factor;
     });
-    return this.#derive(indexed.map((entry) => entry.row));
+    return this.#derive(keyed.map((entry) => entry.row));
   }
 
   /** A dataset with `columns`, in the requested order. */

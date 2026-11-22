@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { extremes, iqr, mode, percentile, quantile, quartiles, range } from "../../src/analytics/stats.js";
+import {
+  extremes,
+  frequencies,
+  iqr,
+  medianOfSorted,
+  mode,
+  percentile,
+  percentileOfSorted,
+  quantile,
+  quartiles,
+  quartilesOfSorted,
+  range,
+  sortedColumn,
+} from "../../src/analytics/stats.js";
 
 /** Reference sample used across the quantile tests. */
 const SAMPLE = [2, 4, 4, 4, 5, 5, 7, 9];
@@ -153,5 +166,76 @@ describe("extremes", () => {
 
   it("returns null for no values", () => {
     expect(extremes([])).toBeNull();
+  });
+});
+
+describe("sorted-input variants", () => {
+  it("sortedColumn returns an ascending copy without mutating the input", () => {
+    const input = [5, 1, 4, 2, 3];
+    const sorted = sortedColumn(input);
+    expect(sorted).toEqual([1, 2, 3, 4, 5]);
+    expect(input).toEqual([5, 1, 4, 2, 3]);
+  });
+
+  it("percentileOfSorted agrees with percentile", () => {
+    const sorted = sortedColumn(SAMPLE);
+    for (const p of [0, 10, 25, 50, 75, 90, 100]) {
+      expect(percentileOfSorted(sorted, p)).toBe(percentile(SAMPLE, p));
+    }
+  });
+
+  it("medianOfSorted agrees with the even/odd rules", () => {
+    expect(medianOfSorted([1, 2, 3])).toBe(2);
+    expect(medianOfSorted([1, 2, 3, 4])).toBe(2.5);
+    expect(medianOfSorted([])).toBeNull();
+    expect(medianOfSorted([7])).toBe(7);
+  });
+
+  it("quartilesOfSorted agrees with quartiles", () => {
+    expect(quartilesOfSorted(sortedColumn(SAMPLE))).toEqual(quartiles(SAMPLE));
+    expect(quartilesOfSorted([])).toBeNull();
+  });
+
+  it("percentileOfSorted rejects an out-of-range percentile", () => {
+    expect(() => percentileOfSorted([1, 2, 3], 101)).toThrow(RangeError);
+    expect(() => percentileOfSorted([1, 2, 3], Number.NaN)).toThrow(RangeError);
+  });
+
+  it("quartiles and iqr still sort their own input once", () => {
+    // Guards the refactor: these used to sort once per quartile, three times over.
+    const input = [...SAMPLE];
+    expect(quartiles(input)).toEqual({ q1: 4, q2: 4.5, q3: 5.5 });
+    expect(iqr(input)).toBe(1.5);
+    expect(input).toEqual(SAMPLE);
+  });
+});
+
+describe("frequencies", () => {
+  it("counts distinct present values and reports the mode", () => {
+    expect(frequencies([1, 1, 2, 3])).toEqual({ unique: 3, mode: 1 });
+    expect(frequencies(["a", "b", "b"])).toEqual({ unique: 2, mode: "b" });
+  });
+
+  it("agrees with mode() on numeric, string, and mixed columns", () => {
+    const cases: unknown[][] = [[1, 2, 2, 3], ["x", "y", "y"], [1, "1", "1"], [true, true, false], []];
+    for (const values of cases) {
+      expect(frequencies(values).mode).toEqual(mode(values));
+    }
+  });
+
+  it("keeps numbers and numeric strings distinct", () => {
+    // The general path type-tags keys, so `1` must not collapse into `"1"`.
+    expect(frequencies([1, "1"]).unique).toBe(2);
+  });
+
+  it("treats NaN as one distinct value, matching mode()", () => {
+    expect(frequencies([Number.NaN, Number.NaN]).unique).toBe(1);
+  });
+
+  it("does not alias a returned Date", () => {
+    const date = new Date("2024-01-01T00:00:00.000Z");
+    const result = frequencies([date, date]);
+    expect(result.mode).toBeInstanceOf(Date);
+    expect(result.mode).not.toBe(date);
   });
 });

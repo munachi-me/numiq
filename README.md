@@ -20,9 +20,9 @@ import { loadCSV } from "numiq";
 
 const data = await loadCSV("sales.csv"); // reads ./dataset/sales.csv
 
-data.shape;        // [2, 2]
-data.columns;      // ["product", "amount"]
-data.table();      // a box-drawing table
+data.shape; // [2, 2]
+data.columns; // ["product", "amount"]
+data.table(); // a box-drawing table
 
 data
   .fillMissing({ amount: 0 })
@@ -94,7 +94,7 @@ import { useSampleDataset } from "numiq";
 
 const sample = await useSampleDataset();
 
-sample.shape;   // [50, 7]
+sample.shape; // [50, 7]
 sample.table();
 ```
 
@@ -135,7 +135,10 @@ because they perform I/O.
 import { createDataset } from "numiq";
 
 // From records
-createDataset([{ name: "Ada", age: 36 }, { name: "Lin", age: 41 }]);
+createDataset([
+  { name: "Ada", age: 36 },
+  { name: "Lin", age: 41 },
+]);
 
 // From parallel arrays
 createDataset({ name: ["Ada", "Lin"], age: [36, 41] });
@@ -149,41 +152,41 @@ createDataset([{ a: 1, b: 2 }], { columns: ["b", "a"] });
 A `Dataset` is immutable. Every read returns a defensive copy, so mutating what you
 receive can never corrupt the dataset.
 
-| Member | Type | Description |
-| --- | --- | --- |
-| `columns` | `readonly string[]` | Column names, in order |
-| `shape` | `readonly [number, number]` | `[rows, columns]` |
-| `data` | `readonly Row[]` | Rows as records (a copy) |
-| `rowCount` | `number` | Number of rows |
-| `columnCount` | `number` | Number of columns |
-| `length` | `number` | Alias of `rowCount` |
-| `empty` | `boolean` | No rows or no columns |
-| `dtypes` | `Record<string, DType>` | Inferred type per column |
-| `schema` | `Record<string, ColumnSchema>` | Type and nullability per column |
-| `importReport` | `ImportReport \| null` | Loader metadata, `null` for hand-built data |
+| Member         | Type                           | Description                                 |
+| -------------- | ------------------------------ | ------------------------------------------- |
+| `columns`      | `readonly string[]`            | Column names, in order                      |
+| `shape`        | `readonly [number, number]`    | `[rows, columns]`                           |
+| `data`         | `readonly Row[]`               | Rows as records (a copy)                    |
+| `rowCount`     | `number`                       | Number of rows                              |
+| `columnCount`  | `number`                       | Number of columns                           |
+| `length`       | `number`                       | Alias of `rowCount`                         |
+| `empty`        | `boolean`                      | No rows or no columns                       |
+| `dtypes`       | `Record<string, DType>`        | Inferred type per column                    |
+| `schema`       | `Record<string, ColumnSchema>` | Type and nullability per column             |
+| `importReport` | `ImportReport \| null`         | Loader metadata, `null` for hand-built data |
 
 Inspection methods:
 
-| Method | Description |
-| --- | --- |
-| `table(options?)` | Render a table |
-| `toTable(options?)` | Alias of `table` |
-| `display(options?)` | Print the table and return the dataset |
-| `head(n?)` | First `n` rows (default 5) |
-| `tail(n?)` | Last `n` rows (default 5) |
-| `info()` | Shape, types, and missing-value summary |
-| `column(name)` | Type, values, missing count, and cardinality |
-| `distinct(name)` | Distinct present values, in first-seen order |
-| `unique(name)` | Number of distinct present values |
+| Method              | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `table(options?)`   | Render a table                               |
+| `toTable(options?)` | Alias of `table`                             |
+| `display(options?)` | Print the table and return the dataset       |
+| `head(n?)`          | First `n` rows (default 5)                   |
+| `tail(n?)`          | Last `n` rows (default 5)                    |
+| `info()`            | Shape, types, and missing-value summary      |
+| `column(name)`      | Type, values, missing count, and cardinality |
+| `distinct(name)`    | Distinct present values, in first-seen order |
+| `unique(name)`      | Number of distinct present values            |
 
 Transformation methods return a new `Dataset`, so they chain:
 
-| Method | Description |
-| --- | --- |
-| `filter(predicate)` | Rows where `predicate(row, index)` is true |
+| Method                     | Description                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `filter(predicate)`        | Rows where `predicate(row, index)` is true                |
 | `sort(column, direction?)` | Sorted copy; `direction` is `"asc"` (default) or `"desc"` |
-| `select(columns)` | Only the named columns, in the requested order |
-| `limit(count)` | At most `count` rows from the start |
+| `select(columns)`          | Only the named columns, in the requested order            |
+| `limit(count)`             | At most `count` rows from the start                       |
 
 ```ts
 const top = data
@@ -201,22 +204,22 @@ text, and equal values keep their original order. Derived datasets report
 Preparation methods clean and reshape data. They return a new `Dataset`, chain with the
 transformations above, and never modify the source:
 
-| Method | Description |
-| --- | --- |
-| `drop(columns)` | Remove columns, keeping the rest in order |
-| `rename(mapping)` | Rename columns in place, preserving position and values |
-| `dropMissing(options?)` | Drop rows with missing cells (`how: "any"` by default) |
-| `fillMissing(strategyOrMapping)` | Fill gaps with `"mean"`, `"median"`, `"mode"`, a constant, or a callback |
-| `replace(rules)` | Replace values per column, by value, predicate, or callback |
-| `map(column, callback)` | Transform one column from `(value, row, index)` |
-| `addColumn(name, callbackOrValues)` | Append a computed column or a value list |
-| `addConditionalColumn(name, rules, options?)` | Append a column from ordered rules, first match wins |
-| `join(other, options)` | Join another dataset (`inner`, `left`, `right`, `full`) |
-| `pivot(options)` / `melt(options?)` | Reshape between wide and long |
-| `concat(others, options?)` | Stack rows, with `"union"` or `"strict"` columns |
-| `cast(schema)` | Convert columns to explicit types |
-| `dropDuplicates(columns?)` | Keep the first row of each distinct combination |
-| `sample(count, options?)` | Draw rows; deterministic when `seed` is given |
+| Method                                        | Description                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `drop(columns)`                               | Remove columns, keeping the rest in order                                |
+| `rename(mapping)`                             | Rename columns in place, preserving position and values                  |
+| `dropMissing(options?)`                       | Drop rows with missing cells (`how: "any"` by default)                   |
+| `fillMissing(strategyOrMapping)`              | Fill gaps with `"mean"`, `"median"`, `"mode"`, a constant, or a callback |
+| `replace(rules)`                              | Replace values per column, by value, predicate, or callback              |
+| `map(column, callback)`                       | Transform one column from `(value, row, index)`                          |
+| `addColumn(name, callbackOrValues)`           | Append a computed column or a value list                                 |
+| `addConditionalColumn(name, rules, options?)` | Append a column from ordered rules, first match wins                     |
+| `join(other, options)`                        | Join another dataset (`inner`, `left`, `right`, `full`)                  |
+| `pivot(options)` / `melt(options?)`           | Reshape between wide and long                                            |
+| `concat(others, options?)`                    | Stack rows, with `"union"` or `"strict"` columns                         |
+| `cast(schema)`                                | Convert columns to explicit types                                        |
+| `dropDuplicates(columns?)`                    | Keep the first row of each distinct combination                          |
+| `sample(count, options?)`                     | Draw rows; deterministic when `seed` is given                            |
 
 ```ts
 const prepared = data
@@ -250,13 +253,13 @@ const result = data
   .execute();
 ```
 
-| Operator | Meaning |
-| --- | --- |
-| `=`, `!=`, `>`, `>=`, `<`, `<=` | Comparison, by value and type |
-| `in`, `notIn` | Membership in a non-empty array |
-| `between` | Inclusive range, given as `[low, high]` |
-| `contains`, `startsWith`, `endsWith` | Substring tests on text |
-| `isNull`, `isNotNull` | Missing-value tests |
+| Operator                             | Meaning                                 |
+| ------------------------------------ | --------------------------------------- |
+| `=`, `!=`, `>`, `>=`, `<`, `<=`      | Comparison, by value and type           |
+| `in`, `notIn`                        | Membership in a non-empty array         |
+| `between`                            | Inclusive range, given as `[low, high]` |
+| `contains`, `startsWith`, `endsWith` | Substring tests on text                 |
+| `isNull`, `isNotNull`                | Missing-value tests                     |
 
 `and` binds tighter than `or`, so `.where("a", "=", 1).or("b", "=", 2).and("c", "=", 3)`
 means `a OR (b AND c)`. Use `andGroup` / `orGroup` to parenthesise, and `toString()` to see
@@ -290,13 +293,13 @@ Showing 2 of 2 rows.
 
 Rendering is bounded by default so a large dataset cannot flood your terminal:
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `maxRows` | `1000` | Rows rendered; `Infinity` renders all |
-| `maxColumns` | `20` | Columns rendered before truncation |
-| `maxCellWidth` | `28` | Characters per cell before truncation |
-| `showIndex` | `true` | Render the `idx` row-label column |
-| `showShape` | `true` | Render the trailing shape line |
+| Option         | Default | Meaning                               |
+| -------------- | ------- | ------------------------------------- |
+| `maxRows`      | `1000`  | Rows rendered; `Infinity` renders all |
+| `maxColumns`   | `20`    | Columns rendered before truncation    |
+| `maxCellWidth` | `28`    | Characters per cell before truncation |
+| `showIndex`    | `true`  | Render the `idx` row-label column     |
+| `showShape`    | `true`  | Render the trailing shape line        |
 
 Only the visible rows are formatted, so `table()` on a million-row dataset costs the
 same as on a thousand-row one.
@@ -305,16 +308,16 @@ same as on a thousand-row one.
 
 ### Delimited files (`loadCSV`, `loadTSV`, `parseDelimited`)
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `delimiter` | detected | Single-character field separator |
-| `header` | `true` | Treat the first row as column names |
-| `columns` | — | Names to use when `header` is `false` |
-| `skipRows` | `0` | Rows to discard before the header |
-| `schema` | — | Explicit per-column types |
-| `onInvalid` | `"error"` | `"error"` or `"null"` for failed casts |
-| `onRaggedRow` | `"error"` | `"error"` or `"pad"` for wrong-width rows |
-| `normalization` | — | Cell policy overrides |
+| Option          | Default   | Meaning                                   |
+| --------------- | --------- | ----------------------------------------- |
+| `delimiter`     | detected  | Single-character field separator          |
+| `header`        | `true`    | Treat the first row as column names       |
+| `columns`       | —         | Names to use when `header` is `false`     |
+| `skipRows`      | `0`       | Rows to discard before the header         |
+| `schema`        | —         | Explicit per-column types                 |
+| `onInvalid`     | `"error"` | `"error"` or `"null"` for failed casts    |
+| `onRaggedRow`   | `"error"` | `"error"` or `"pad"` for wrong-width rows |
+| `normalization` | —         | Cell policy overrides                     |
 
 Delimiters are detected from several sampled lines, not just the first, so a preamble
 line cannot mislead detection. Quoted fields follow RFC 4180: doubled quotes escape a
@@ -368,11 +371,11 @@ date-like strings into `Date` objects. What you see in `data` is what the file c
 
 Cell normalization is conservative by default, because aggressive coercion destroys data.
 
-| Behaviour | Default |
-| --- | --- |
-| Trim surrounding whitespace | Off |
-| Empty string becomes `null` | On |
-| Infer numbers and booleans | On |
+| Behaviour                                 | Default |
+| ----------------------------------------- | ------- |
+| Trim surrounding whitespace               | Off     |
+| Empty string becomes `null`               | On      |
+| Infer numbers and booleans                | On      |
 | `NA`, `N/A`, `null`, `NULL` become `null` | **Off** |
 
 The last row matters. `NA` is Namibia's country code and `null` is a surname. Treating
@@ -397,12 +400,12 @@ Every loader returns a frozen report describing the import:
 ```ts
 const report = data.importReport;
 
-report.format;          // "csv"
-report.rowsRead;        // 2
-report.rowsImported;    // 2
+report.format; // "csv"
+report.rowsRead; // 2
+report.rowsImported; // 2
 report.missingByColumn; // { product: 0, amount: 0 }
-report.warnings;        // [{ code: "unsafe-integer", message: "...", row: 4, column: "id" }]
-report.normalization;   // the policy that was applied
+report.warnings; // [{ code: "unsafe-integer", message: "...", row: 4, column: "id" }]
+report.normalization; // the policy that was applied
 ```
 
 Warnings are recorded, never thrown, for recoverable problems: ragged rows that were
@@ -415,13 +418,13 @@ describe the source import rather than the rows they hold.
 
 All errors extend `NumiqError` and carry a stable `code`.
 
-| Class | Code | Raised when |
-| --- | --- | --- |
-| `ValidationError` | `VALIDATION_ERROR` | Bad arguments, unsupported input, malformed rows |
-| `ImportError` | `IMPORT_ERROR` | A source could not be read; carries `status` and `source` |
-| `FormatError` | `FORMAT_ERROR` | Format is undetectable, unsupported, or malformed |
-| `EnvironmentError` | `ENVIRONMENT_ERROR` | An API is unavailable here, e.g. filesystem in a browser |
-| `ColumnNotFoundError` | `COLUMN_NOT_FOUND` | A column does not exist; carries `column` and `available` |
+| Class                 | Code                | Raised when                                               |
+| --------------------- | ------------------- | --------------------------------------------------------- |
+| `ValidationError`     | `VALIDATION_ERROR`  | Bad arguments, unsupported input, malformed rows          |
+| `ImportError`         | `IMPORT_ERROR`      | A source could not be read; carries `status` and `source` |
+| `FormatError`         | `FORMAT_ERROR`      | Format is undetectable, unsupported, or malformed         |
+| `EnvironmentError`    | `ENVIRONMENT_ERROR` | An API is unavailable here, e.g. filesystem in a browser  |
+| `ColumnNotFoundError` | `COLUMN_NOT_FOUND`  | A column does not exist; carries `column` and `available` |
 
 ```ts
 import { NumiqError, ColumnNotFoundError } from "numiq";
@@ -439,10 +442,10 @@ try {
 
 Numiq ships two entry points from one source tree.
 
-| Condition | Entry | Local files | URLs | Blobs |
-| --- | --- | --- | --- | --- |
-| `node` | `dist/esm/node.js` | Yes | Yes | Yes |
-| `browser` / default | `dist/esm/index.js` | No | Yes | Yes |
+| Condition           | Entry               | Local files | URLs | Blobs |
+| ------------------- | ------------------- | ----------- | ---- | ----- |
+| `node`              | `dist/esm/node.js`  | Yes         | Yes  | Yes   |
+| `browser` / default | `dist/esm/index.js` | No          | Yes  | Yes   |
 
 The default entry contains no Node.js built-ins, so it bundles for the browser without
 polyfills. Calling `loadCSV("./data.csv")` there fails with an `EnvironmentError` that
@@ -454,6 +457,24 @@ that resolve outside the folder are all refused.
 
 CommonJS consumers can `require("numiq")`; the `require` condition resolves to a
 CommonJS build.
+
+## Performance
+
+`npm run bench` times the hot paths on 1,000, 25,000 and 100,000 rows. The suite, the
+recorded results, and the reasoning behind each change are in
+[`benchmarks/README.md`](benchmarks/README.md).
+
+Rough numbers at 100,000 rows on Node 24: `filter` 16ms, `groupBy().aggregate()` 40ms,
+`sort` 125ms, `describe()` 326ms, a 100,000 × 200 join 120ms. Reading `data` costs a deep
+copy — 32ms at that size — so read it once rather than inside a loop.
+
+Two properties are worth knowing before you reach for a large dataset:
+
+- **Every transform copies.** `filter`, `sort`, and `select` each build a new dataset, so
+  a chain of _k_ steps touches the data _k_ times. That is what makes datasets immutable
+  and safe to share.
+- **`describe()` costs roughly 3.3ms per 100,000 rows per column.** Use
+  `describe("column")` when you only need one.
 
 ## Grouping and aggregation
 
@@ -482,10 +503,10 @@ description you can print as a table; with a column name it returns that column'
 directly, so there is no one-row wrapper to unwrap.
 
 ```ts
-sales.describe().table();         // one row per column
-sales.describe({ ddof: 0 });      // every column, population formula
-sales.describe("revenue").mean;   // a single profile
-sales.describe().get("revenue");  // the same profile, by name
+sales.describe().table(); // one row per column
+sales.describe({ ddof: 0 }); // every column, population formula
+sales.describe("revenue").mean; // a single profile
+sales.describe().get("revenue"); // the same profile, by name
 ```
 
 ```
@@ -505,10 +526,10 @@ Each profile carries `count`, `missing`, `total`, `unique`, `sum`, `mean`, `medi
 Statistics that do not apply to a column's type are `null`, never `0`. Only numeric columns
 get arithmetic, because a sum of categories has no meaning:
 
-| Statistic | numeric | boolean | temporal | text | mixed |
-| --- | --- | --- | --- | --- | --- |
-| count, missing, unique, mode, min, max | yes | yes | yes | yes | yes |
-| sum, mean, median, quartiles, iqr, variance, std, range | yes | `null` | `null` | `null` | `null` |
+| Statistic                                               | numeric | boolean | temporal | text   | mixed  |
+| ------------------------------------------------------- | ------- | ------- | -------- | ------ | ------ |
+| count, missing, unique, mode, min, max                  | yes     | yes     | yes      | yes    | yes    |
+| sum, mean, median, quartiles, iqr, variance, std, range | yes     | `null`  | `null`   | `null` | `null` |
 
 `variance` and `std` default to the sample formula (`ddof: 1`); pass `ddof: 0` for the
 population formula. Every profile records the `ddof` it used, so a result is never
@@ -517,8 +538,8 @@ method as `numpy.percentile` and R's `quantile(type = 7)`.
 
 ```ts
 const profile = sales.describe("revenue", { ddof: 0, percentiles: [10, 90] });
-profile.std;                  // 657.3298, the population standard deviation
-profile.percentiles.p90;      // 1631.1600000000003
+profile.std; // 657.3298, the population standard deviation
+profile.percentiles.p90; // 1631.1600000000003
 ```
 
 The description is an analytical result, not a `Dataset`. Call `toDataset()` when you need
@@ -526,7 +547,10 @@ tabular output with every statistic — including any requested percentiles, whi
 columns named after their keys — for example to feed a chart:
 
 ```ts
-sales.describe({ percentiles: [90] }).toDataset().select(["name", "kind", "mean", "p90"]);
+sales
+  .describe({ percentiles: [90] })
+  .toDataset()
+  .select(["name", "kind", "mean", "p90"]);
 ```
 
 Percentiles are interpolated in floating point, so a value like `1631.1600000000003` is
@@ -542,14 +566,14 @@ Correlation, distribution shape, position, and outliers. Every function returns 
 result rather than a bare number where the answer needs context.
 
 ```ts
-sales.correlation("quantity", "revenue");      // { r: 0.43724861958188593, n: 50, reason: null }
-sales.rankCorrelation("quantity", "revenue");  // { r: 0.5244511749947358, n: 50, reason: null }
-sales.correlationMatrix();                     // every numeric column, symmetric
-sales.zScores("revenue");                      // { values, mean, std, reason }
-sales.outliers("revenue");                     // Tukey's fences by default
+sales.correlation("quantity", "revenue"); // { r: 0.43724861958188593, n: 50, reason: null }
+sales.rankCorrelation("quantity", "revenue"); // { r: 0.5244511749947358, n: 50, reason: null }
+sales.correlationMatrix(); // every numeric column, symmetric
+sales.zScores("revenue"); // { values, mean, std, reason }
+sales.outliers("revenue"); // Tukey's fences by default
 sales.fiveNumberSummary("revenue");
-sales.skewness("revenue");                     // 1.7133020612357541
-sales.kurtosis("revenue");                     // 2.3952120604810103 (excess)
+sales.skewness("revenue"); // 1.7133020612357541
+sales.kurtosis("revenue"); // 2.3952120604810103 (excess)
 ```
 
 ### Undefined is `null`, never `NaN` or `0`
@@ -557,18 +581,18 @@ sales.kurtosis("revenue");                     // 2.3952120604810103 (excess)
 A coefficient that does not exist for the data returns `null` with a `reason`, so a caller
 can branch on it:
 
-| Situation | Result |
-| --- | --- |
+| Situation                     | Result                                        |
+| ----------------------------- | --------------------------------------------- |
 | fewer than two complete pairs | `{ r: null, n, reason: "insufficient-data" }` |
-| one column is constant | `{ r: null, n, reason: "zero-variance" }` |
-| both columns vary | `{ r: number, n, reason: null }` |
+| one column is constant        | `{ r: null, n, reason: "zero-variance" }`     |
+| both columns vary             | `{ r: number, n, reason: null }`              |
 
 `NaN` would silently poison downstream arithmetic; `0` would claim "no relationship" when
 the honest answer is "cannot be computed".
 
 ### Missing values are handled pairwise
 
-`covariance` and the correlations use only the rows where *both* columns are present.
+`covariance` and the correlations use only the rows where _both_ columns are present.
 A row missing either coordinate cannot contribute to a relationship, and imputing one would
 invent data. Consequently `n` can differ between pairs, and every result reports the `n` it
 used so this stays visible.
@@ -582,10 +606,10 @@ to one from nine thousand. Ship the number, not a verdict.
 
 ### Correlation method choice
 
-| Method | Measures | Use when |
-| --- | --- | --- |
-| Pearson (`correlation`) | linear association | both columns are roughly continuous and outlier-free |
-| Spearman (`rankCorrelation`) | any monotonic association | data is skewed, has outliers, or is ordinal |
+| Method                       | Measures                  | Use when                                             |
+| ---------------------------- | ------------------------- | ---------------------------------------------------- |
+| Pearson (`correlation`)      | linear association        | both columns are roughly continuous and outlier-free |
+| Spearman (`rankCorrelation`) | any monotonic association | data is skewed, has outliers, or is ordinal          |
 
 Pearson on `[1..5]` against `[1, 8, 27, 64, 125]` (a perfect cubic) is well under 1;
 Spearman is exactly 1. A single wild outlier drops Pearson sharply and leaves Spearman
@@ -594,9 +618,9 @@ untouched. Both are correct answers to different questions.
 ### Outliers
 
 ```ts
-sales.outliers("revenue");                            // IQR fences, k = 1.5
-sales.outliers("revenue", { threshold: 3 });          // Tukey's "extreme" fence
-sales.outliers("revenue", { method: "zscore" });      // |z| > 3
+sales.outliers("revenue"); // IQR fences, k = 1.5
+sales.outliers("revenue", { threshold: 3 }); // Tukey's "extreme" fence
+sales.outliers("revenue", { method: "zscore" }); // |z| > 3
 ```
 
 IQR is the default because it assumes nothing about the distribution. A z-score threshold
@@ -625,10 +649,10 @@ kurtosis — and for a constant column.
 ### Scaling helpers
 
 ```ts
-standardize([1, 2, 3]);                          // z-scores: [-1, 0, 1]
-normalize([1, 2, 3]);                            // [0, 0.5, 1]
-normalize([1, 2, 3], { min: -1, max: 1 });       // [-1, 0, 1]
-normalize([-2, 1, 2], { method: "maxabs" });     // [-1, 0.5, 1]
+standardize([1, 2, 3]); // z-scores: [-1, 0, 1]
+normalize([1, 2, 3]); // [0, 0.5, 1]
+normalize([1, 2, 3], { min: -1, max: 1 }); // [-1, 0, 1]
+normalize([-2, 1, 2], { method: "maxabs" }); // [-1, 0.5, 1]
 ```
 
 `standardize` is `zScores` under its other name. `normalize` maps the observed range onto a
@@ -643,8 +667,8 @@ often the better choice.
 ### Adding scores as a column
 
 ```ts
-sales.withZScores("revenue");            // adds revenue_z, aligned to rows
-sales.withZScores("revenue", "rev_z");   // custom name
+sales.withZScores("revenue"); // adds revenue_z, aligned to rows
+sales.withZScores("revenue", "rev_z"); // custom name
 ```
 
 The source dataset is unchanged. A constant source column produces an all-null score
@@ -676,10 +700,10 @@ const revenue = data.createMetric({
   format: { prefix: "$", decimals: 2, unit: "currency" },
 });
 
-revenue.name;        // "Total Revenue"
-revenue.value;       // 31122.690000000002
-revenue.definition;  // 'sum("revenue")'
-revenue.metric;      // { value, rows: 50, values: 50, reason: null }
+revenue.name; // "Total Revenue"
+revenue.value; // 31122.690000000002
+revenue.definition; // 'sum("revenue")'
+revenue.metric; // { value, rows: 50, values: 50, reason: null }
 ```
 
 `metric` reports the rows the calculation ran over and the present values it saw. When the
@@ -699,7 +723,7 @@ const byRegion = data.createMetric({
   groupBy: ["region"],
 });
 
-byRegion.byGroup().groups;   // [{ key: { region: "North" }, value: 6058.01, rows: 13, ... }, ...]
+byRegion.byGroup().groups; // [{ key: { region: "North" }, value: 6058.01, rows: 13, ... }, ...]
 byRegion.toDataset().columns; // ["region", "Revenue"]
 ```
 
@@ -747,38 +771,38 @@ listed in `skipped` with a reason rather than being silently omitted.
 ```ts
 const report = data.insights();
 
-report.insights;   // Insight[]
-report.skipped;    // { kind, reason, columns }[]
-report.truncated;  // how many were dropped by maxInsights
+report.insights; // Insight[]
+report.skipped; // { kind, reason, columns }[]
+report.truncated; // how many were dropped by maxInsights
 report.thresholds; // the defaults actually used
 ```
 
 Each insight has `kind`, `severity`, `title`, `detail`, `evidence`, and `columns`. The
 `detail` is a plain sentence built from `evidence`; nothing is rendered.
 
-| `kind` | What it reports |
-| --- | --- |
-| `missing-data` | Columns with absent values, as a count and share |
-| `outliers` | Values outside the IQR fences, with the fences themselves |
-| `correlation` | Numeric pairs at or above `strongCorrelation` |
-| `category-extreme` | Highest and lowest group means for each category |
-| `group-change` | The widest gap between comparable groups |
-| `dominance` | A category value holding at least `dominanceShare` of rows |
-| `trend` | Monotonic movement of a measure over a date or datetime column |
+| `kind`             | What it reports                                                |
+| ------------------ | -------------------------------------------------------------- |
+| `missing-data`     | Columns with absent values, as a count and share               |
+| `outliers`         | Values outside the IQR fences, with the fences themselves      |
+| `correlation`      | Numeric pairs at or above `strongCorrelation`                  |
+| `category-extreme` | Highest and lowest group means for each category               |
+| `group-change`     | The widest gap between comparable groups                       |
+| `dominance`        | A category value holding at least `dominanceShare` of rows     |
+| `trend`            | Monotonic movement of a measure over a date or datetime column |
 
 ### Thresholds and their defaults
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `strongCorrelation` | `0.7` | Minimum \|r\| to report a relationship |
-| `dominanceShare` | `0.5` | Share one value needs to count as dominant |
-| `outlierThreshold` | `1.5` | IQR fence multiplier (Tukey's convention) |
-| `trendStrength` | `0.7` | Minimum \|rho\| against time for a trend |
-| `minGroupSize` | `3` | Rows a group needs before its mean is ranked |
-| `maxCategoryRatio` | `0.5` | Highest distinct-to-rows ratio still treated as a category |
-| `minRelativeGap` | `0.25` | Smallest gap worth reporting, as a fraction of the range |
-| `maxInsights` | `50` | Maximum insights returned |
-| `minTrendPoints` | `4` | Distinct timestamps a trend needs |
+| Option              | Default | Meaning                                                    |
+| ------------------- | ------- | ---------------------------------------------------------- |
+| `strongCorrelation` | `0.7`   | Minimum \|r\| to report a relationship                     |
+| `dominanceShare`    | `0.5`   | Share one value needs to count as dominant                 |
+| `outlierThreshold`  | `1.5`   | IQR fence multiplier (Tukey's convention)                  |
+| `trendStrength`     | `0.7`   | Minimum \|rho\| against time for a trend                   |
+| `minGroupSize`      | `3`     | Rows a group needs before its mean is ranked               |
+| `maxCategoryRatio`  | `0.5`   | Highest distinct-to-rows ratio still treated as a category |
+| `minRelativeGap`    | `0.25`  | Smallest gap worth reporting, as a fraction of the range   |
+| `maxInsights`       | `50`    | Maximum insights returned                                  |
+| `minTrendPoints`    | `4`     | Distinct timestamps a trend needs                          |
 
 ### What it refuses to claim
 
@@ -825,7 +849,7 @@ inspecting the output column.
 
 ```ts
 const { dataset, report } = data.addConditionalColumnReport("band", rules, { else: "Unknown" });
-report.matched;   // e.g. [21, 14] — one count per rule
+report.matched; // e.g. [21, 14] — one count per rule
 report.unmatched; // e.g. 15
 ```
 
@@ -869,7 +893,7 @@ product into an error naming the cause.
 round trips with it.
 
 ```ts
-const long = wide.melt({ idVars: "region" });          // { region, variable, value }
+const long = wide.melt({ idVars: "region" }); // { region, variable, value }
 const back = long.pivot({ columns: "variable", values: "value" });
 ```
 
@@ -974,9 +998,9 @@ const report = sales.validate({
   region: { type: "string", allowed: ["north", "south"] },
 });
 
-report.valid;      // false
+report.valid; // false
 report.issueCount; // 3
-report.issues[0];  // { code: "PATTERN_MISMATCH", column: "order_id", row: 5, ... }
+report.issues[0]; // { code: "PATTERN_MISMATCH", column: "order_id", row: 5, ... }
 ```
 
 Rules are `type`, `nullable`, `min`, `max`, `allowed`, `pattern`, `minLength`, `maxLength`,
@@ -1009,10 +1033,10 @@ const workflow = pipeline({ name: "sales" })
 
 const result = await workflow.run();
 
-result.ok;                  // true
-result.dataset?.rowCount;   // 3
-result.steps;               // per-step timing, rows, columns, duration
-result.lineage;             // columns and row count after each step
+result.ok; // true
+result.dataset?.rowCount; // 3
+result.steps; // per-step timing, rows, columns, duration
+result.lineage; // columns and row count after each step
 ```
 
 Steps are `load`, `transform`, `validate`, and `tap`. A step may be synchronous or
@@ -1036,9 +1060,9 @@ cannot change the shape of the data.
 
 ```ts
 const description = workflow.describe();
-description.steps;             // name, kind, and schema per step
-description.reproducible;      // false when a step holds a callback
-description.nonDeterministic;  // which steps those are
+description.steps; // name, kind, and schema per step
+description.reproducible; // false when a step holds a callback
+description.nonDeterministic; // which steps those are
 ```
 
 A function has no portable text form, so callback steps are reported honestly as
@@ -1084,14 +1108,14 @@ npm run verify
 `verify` runs the typecheck, the test suite, the build, the type-contract tests, and the
 package checks.
 
-| Script | Purpose |
-| --- | --- |
-| `npm run build` | Compile ESM and CJS builds with declarations |
-| `npm test` | Run the test suite |
-| `npm run typecheck` | Type-check the source |
-| `npm run test:types` | Check the published type contract |
+| Script                 | Purpose                                         |
+| ---------------------- | ----------------------------------------------- |
+| `npm run build`        | Compile ESM and CJS builds with declarations    |
+| `npm test`             | Run the test suite                              |
+| `npm run typecheck`    | Type-check the source                           |
+| `npm run test:types`   | Check the published type contract               |
 | `npm run test:package` | Pack and verify the artifact in a real consumer |
-| `npm run verify` | Everything above, in order |
+| `npm run verify`       | Everything above, in order                      |
 
 See `docs/` for the architecture and API reference, and `examples/` for runnable
 programs.

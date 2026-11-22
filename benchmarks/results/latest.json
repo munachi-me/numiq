@@ -1,0 +1,380 @@
+{
+  "generatedAt": "2026-11-22T19:04:34.441Z",
+  "node": "v24.22.2",
+  "cases": [
+    {
+      "group": "construct",
+      "name": "createDataset(rows)",
+      "rows": 1000,
+      "timing": {
+        "median": 0.76994,
+        "min": 0.62026,
+        "p95": 3.23562,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "data getter (full copy)",
+      "rows": 1000,
+      "timing": {
+        "median": 0.46055,
+        "min": 0.43131,
+        "p95": 1.36114,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "schema getter",
+      "rows": 1000,
+      "timing": {
+        "median": 0.00101,
+        "min": 0.00056,
+        "p95": 0.00837,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "info()",
+      "rows": 1000,
+      "timing": {
+        "median": 1.107279,
+        "min": 0.25609,
+        "p95": 1.180191,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "filter (numeric)",
+      "rows": 1000,
+      "timing": {
+        "median": 0.45601,
+        "min": 0.18621,
+        "p95": 0.62167,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "sort (numeric column)",
+      "rows": 1000,
+      "timing": {
+        "median": 0.94159,
+        "min": 0.92906,
+        "p95": 1.20884,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "select (3 columns)",
+      "rows": 1000,
+      "timing": {
+        "median": 0.47044,
+        "min": 0.42134,
+        "p95": 0.71607,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "groupBy + aggregate",
+      "rows": 1000,
+      "timing": {
+        "median": 0.42273,
+        "min": 0.36735,
+        "p95": 0.68315,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "describe()",
+      "rows": 1000,
+      "timing": {
+        "median": 3.11222,
+        "min": 2.511169,
+        "p95": 4.86218,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "toTable()",
+      "rows": 1000,
+      "timing": {
+        "median": 3.15415,
+        "min": 2.02638,
+        "p95": 4.20395,
+        "samples": 9
+      }
+    },
+    {
+      "group": "construct",
+      "name": "createDataset(rows)",
+      "rows": 25000,
+      "timing": {
+        "median": 21.383799,
+        "min": 12.96429,
+        "p95": 27.564089,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "data getter (full copy)",
+      "rows": 25000,
+      "timing": {
+        "median": 5.37447,
+        "min": 5.2189,
+        "p95": 10.69328,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "schema getter",
+      "rows": 25000,
+      "timing": {
+        "median": 0.00021,
+        "min": 0.0002,
+        "p95": 0.00098,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "info()",
+      "rows": 25000,
+      "timing": {
+        "median": 7.06941,
+        "min": 6.64707,
+        "p95": 9.803159,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "filter (numeric)",
+      "rows": 25000,
+      "timing": {
+        "median": 3.55882,
+        "min": 3.37251,
+        "p95": 3.76645,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "sort (numeric column)",
+      "rows": 25000,
+      "timing": {
+        "median": 19.02267,
+        "min": 17.649119,
+        "p95": 27.838009,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "select (3 columns)",
+      "rows": 25000,
+      "timing": {
+        "median": 4.75299,
+        "min": 4.71724,
+        "p95": 4.91677,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "groupBy + aggregate",
+      "rows": 25000,
+      "timing": {
+        "median": 7.91544,
+        "min": 7.55381,
+        "p95": 12.223669,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "describe()",
+      "rows": 25000,
+      "timing": {
+        "median": 77.406858,
+        "min": 73.946659,
+        "p95": 86.259639,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "toTable()",
+      "rows": 25000,
+      "timing": {
+        "median": 1.95797,
+        "min": 1.94136,
+        "p95": 3.80475,
+        "samples": 9
+      }
+    },
+    {
+      "group": "construct",
+      "name": "createDataset(rows)",
+      "rows": 100000,
+      "timing": {
+        "median": 73.593559,
+        "min": 62.235859,
+        "p95": 81.337519,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "data getter (full copy)",
+      "rows": 100000,
+      "timing": {
+        "median": 32.07828,
+        "min": 21.53905,
+        "p95": 41.64611,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "schema getter",
+      "rows": 100000,
+      "timing": {
+        "median": 0.00021,
+        "min": 0.0002,
+        "p95": 0.00066,
+        "samples": 9
+      }
+    },
+    {
+      "group": "access",
+      "name": "info()",
+      "rows": 100000,
+      "timing": {
+        "median": 28.65128,
+        "min": 28.16229,
+        "p95": 30.46614,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "filter (numeric)",
+      "rows": 100000,
+      "timing": {
+        "median": 16.43671,
+        "min": 15.87114,
+        "p95": 28.920169,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "sort (numeric column)",
+      "rows": 100000,
+      "timing": {
+        "median": 125.415918,
+        "min": 103.688298,
+        "p95": 139.868758,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "select (3 columns)",
+      "rows": 100000,
+      "timing": {
+        "median": 19.906899,
+        "min": 19.18213,
+        "p95": 30.66351,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "groupBy + aggregate",
+      "rows": 100000,
+      "timing": {
+        "median": 39.651869,
+        "min": 38.79034,
+        "p95": 41.875009,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "describe()",
+      "rows": 100000,
+      "timing": {
+        "median": 325.943125,
+        "min": 321.224165,
+        "p95": 352.580675,
+        "samples": 9
+      }
+    },
+    {
+      "group": "transform",
+      "name": "toTable()",
+      "rows": 100000,
+      "timing": {
+        "median": 2.01331,
+        "min": 1.88136,
+        "p95": 3.62221,
+        "samples": 9
+      }
+    },
+    {
+      "group": "join",
+      "name": "inner join on rep_id",
+      "rows": 100000,
+      "timing": {
+        "median": 119.616328,
+        "min": 112.589468,
+        "p95": 155.406808,
+        "samples": 9
+      }
+    },
+    {
+      "group": "parse",
+      "name": "parseDelimited 10,000 rows",
+      "rows": 10000,
+      "timing": {
+        "median": 19.54616,
+        "min": 17.71589,
+        "p95": 24.501919,
+        "samples": 9
+      }
+    },
+    {
+      "group": "parse",
+      "name": "parseDelimited 50,000 rows",
+      "rows": 50000,
+      "timing": {
+        "median": 116.225169,
+        "min": 113.491178,
+        "p95": 147.175567,
+        "samples": 9
+      }
+    },
+    {
+      "group": "pipeline",
+      "name": "load -> filter -> sort -> validate",
+      "rows": 25000,
+      "timing": {
+        "median": 17.37672,
+        "min": 17.153119,
+        "p95": 20.183409,
+        "samples": 9
+      }
+    }
+  ]
+}

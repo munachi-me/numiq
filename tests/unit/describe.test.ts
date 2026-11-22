@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createDataset } from "../../src/core/dataset.js";
 import { columnKind } from "../../src/analytics/describe.js";
+import { iqr, mode, percentile, quantile } from "../../src/analytics/stats.js";
+import { median } from "../../src/core/aggregate.js";
 import { ColumnNotFoundError } from "../../src/errors/index.js";
 
 const numbers = (values: readonly number[]) => createDataset(values.map((value) => ({ v: value })));
@@ -364,5 +366,56 @@ describe("DatasetDescription: access", () => {
     expect(json.rowCount).toBe(2);
     expect(json.ddof).toBe(1);
     expect(json.profiles).toHaveLength(2);
+  });
+});
+
+describe("describe: equivalence with reference statistics", () => {
+  // The profile now shares one sort and one frequency pass across all statistics.
+  // These checks pin the values against the standalone reference functions, so a future
+  // change to the sharing cannot quietly alter a number.
+  const COLUMN = [2, 4, 4, 4, 5, 5, 7, 9];
+  const data = createDataset(COLUMN.map((value) => ({ v: value })));
+
+  it("matches the standalone statistic functions", () => {
+    const profile = data.describe("v");
+    expect(profile.median).toBe(median(COLUMN));
+    expect(profile.q1).toBe(quantile(COLUMN, 0.25));
+    expect(profile.q3).toBe(quantile(COLUMN, 0.75));
+    expect(profile.iqr).toBe(iqr(COLUMN));
+    expect(profile.unique).toBe(new Set(COLUMN).size);
+    expect(profile.mode).toBe(mode(COLUMN));
+  });
+
+  it("matches extra percentiles computed one at a time", () => {
+    const profile = data.describe("v", { percentiles: [10, 90] });
+    expect(profile.percentiles.p10).toBe(percentile(COLUMN, 10));
+    expect(profile.percentiles.p90).toBe(percentile(COLUMN, 90));
+  });
+
+  it("reports null, not zero, for statistics a text column cannot have", () => {
+    const text = createDataset([{ v: "a" }, { v: "b" }]).describe("v");
+    expect(text.median).toBeNull();
+    expect(text.q1).toBeNull();
+    expect(text.iqr).toBeNull();
+    expect(text.sum).toBeNull();
+    expect(text.unique).toBe(2);
+    expect(text.mode).toBe("a");
+  });
+
+  it("keeps unique and mode correct when missing cells are present", () => {
+    const profile = createDataset([{ v: 1 }, { v: null }, { v: 1 }, { v: 3 }]).describe("v");
+    expect(profile.count).toBe(3);
+    expect(profile.missing).toBe(1);
+    expect(profile.unique).toBe(2);
+    expect(profile.mode).toBe(1);
+  });
+
+  it("agrees on a column with a single distinct value", () => {
+    const profile = createDataset([{ v: 5 }, { v: 5 }, { v: 5 }]).describe("v");
+    expect(profile.median).toBe(5);
+    expect(profile.q1).toBe(5);
+    expect(profile.q3).toBe(5);
+    expect(profile.iqr).toBe(0);
+    expect(profile.std).toBe(0);
   });
 });

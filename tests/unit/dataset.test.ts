@@ -296,3 +296,56 @@ describe("runtime immutability", () => {
     expect(data.data[0]!.a).toBe(1);
   });
 });
+
+describe("sort: ordering guarantees", () => {
+  // The comparator now carries a precomputed key per row and relies on the language's
+  // stable sort for ties. These pin the behaviour that replaces the old explicit
+  // index tie-break.
+  it("keeps source order for equal keys in both directions", () => {
+    const data = createDataset([
+      { k: 1, tag: "first" },
+      { k: 1, tag: "second" },
+      { k: 0, tag: "third" },
+      { k: 1, tag: "fourth" },
+    ]);
+    expect(data.sort("k", "asc").data.map((row) => row.tag)).toEqual(["third", "first", "second", "fourth"]);
+    expect(data.sort("k", "desc").data.map((row) => row.tag)).toEqual(["first", "second", "fourth", "third"]);
+  });
+
+  it("sorts missing values last in both directions", () => {
+    const data = createDataset([
+      { k: null, tag: "missing" },
+      { k: 2, tag: "two" },
+      { k: 1, tag: "one" },
+    ]);
+    expect(data.sort("k", "asc").data.map((row) => row.tag)).toEqual(["one", "two", "missing"]);
+    expect(data.sort("k", "desc").data.map((row) => row.tag)).toEqual(["two", "one", "missing"]);
+  });
+
+  it("keeps missing values in source order among themselves", () => {
+    const data = createDataset([
+      { k: null, tag: "a" },
+      { k: 1, tag: "one" },
+      { k: null, tag: "b" },
+    ]);
+    expect(data.sort("k", "asc").data.map((row) => row.tag)).toEqual(["one", "a", "b"]);
+  });
+
+  it("does not mutate the source dataset", () => {
+    const data = createDataset([{ k: 3 }, { k: 1 }, { k: 2 }]);
+    const sorted = data.sort("k");
+    expect(sorted.data.map((row) => row.k)).toEqual([1, 2, 3]);
+    expect(data.data.map((row) => row.k)).toEqual([3, 1, 2]);
+  });
+
+  it("sorts strings and dates by value", () => {
+    const data = createDataset([{ s: "b" }, { s: "a" }, { s: "c" }]);
+    expect(data.sort("s").data.map((row) => row.s)).toEqual(["a", "b", "c"]);
+
+    const dates = createDataset([
+      { d: new Date("2024-03-01T00:00:00.000Z") },
+      { d: new Date("2024-01-01T00:00:00.000Z") },
+    ]);
+    expect(dates.sort("d").data[0]?.d).toEqual(new Date("2024-01-01T00:00:00.000Z"));
+  });
+});
