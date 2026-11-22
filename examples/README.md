@@ -26,5 +26,5 @@ npx tsx examples/01-load-and-inspect.ts
 | `15-pipelines-and-validation.ts` | Reusable pipelines, schema validation reports, and lineage |
 
 The examples read from the project-root `dataset/` folder by filename, so run them from
-the repository root. They import `numiq` by package name; to run them before publishing,
+the repository root. They import `@munachi-me/numiq` by package name; to run them before publishing,
 either `npm link` the package or build and point your tool at `dist/`.

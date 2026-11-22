@@ -3,7 +3,7 @@
  *
  * Run with: npx tsx examples/05-errors.ts
  */
-import { createDataset, loadCSV, NumiqError, FormatError, ColumnNotFoundError } from "numiq";
+import { createDataset, loadCSV, NumiqError, FormatError, ColumnNotFoundError } from "@munachi-me/numiq";
 
 const data = createDataset([{ a: 1 }]);
 

@@ -5,7 +5,7 @@
  * `describe(column)` returns one column's profile directly. Statistics that do not apply to
  * a column's type are `null` rather than `0`, so a categorical column never reports a sum.
  */
-import { useSampleDataset } from "numiq";
+import { useSampleDataset } from "@munachi-me/numiq";
 
 const sales = await useSampleDataset();
 

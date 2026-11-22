@@ -5,8 +5,8 @@ and a breaking change requires a major release with a documented migration path.
 
 ## Semantic versioning policy
 
-The public API is every value exported from the package entry points (`numiq` and
-`numiq/core`) plus every public member of the exported classes and interfaces. Anything not
+The public API is every value exported from the package entry points (`@munachi-me/numiq` and
+`@munachi-me/numiq/core`) plus every public member of the exported classes and interfaces. Anything not
 exported is internal and may change in a minor release.
 
 | Change | Release |
@@ -53,8 +53,8 @@ supported version.
 | Vite, Rollup, webpack 5, esbuild | supported |
 | Node-style `require` in a bundler | supported via the CommonJS build |
 
-The browser entry (`numiq`) is pure JavaScript with **no runtime dependencies** and no
-Node built-ins. The Node entry (`numiq` under the `node` condition) adds the local-file
+The browser entry (`@munachi-me/numiq`) is pure JavaScript with **no runtime dependencies** and no
+Node built-ins. The Node entry (`@munachi-me/numiq` under the `node` condition) adds the local-file
 loaders; bundlers must not pull `node:fs` into a browser build, which the `browser` export
 condition prevents.
 
@@ -64,10 +64,10 @@ condition prevents.
 
 | Consumer | Import | Resolves to |
 | --- | --- | --- |
-| ESM in Node | `import Numiq from "numiq"` | `dist/esm/node.js` |
-| CommonJS in Node | `const Numiq = require("numiq")` | `dist/cjs/node.js` |
-| Bundler / browser | `import Numiq from "numiq"` | `dist/esm/index.js` |
-| Core only | `import { Dataset } from "numiq/core"` | no filesystem or network |
+| ESM in Node | `import Numiq from "@munachi-me/numiq"` | `dist/esm/node.js` |
+| CommonJS in Node | `const Numiq = require("@munachi-me/numiq")` | `dist/cjs/node.js` |
+| Bundler / browser | `import Numiq from "@munachi-me/numiq"` | `dist/esm/index.js` |
+| Core only | `import { Dataset } from "@munachi-me/numiq/core"` | no filesystem or network |
 
 Types are generated for every entry point, so both module systems get accurate declarations.
 

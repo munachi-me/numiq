@@ -5,7 +5,7 @@
  * recalculated later. The insight engine only reports what the data supports, and every
  * observation includes the values behind it.
  */
-import { useSampleDataset } from "numiq";
+import { useSampleDataset } from "@munachi-me/numiq";
 
 const sales = await useSampleDataset();
 

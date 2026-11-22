@@ -3,7 +3,7 @@
  *
  * Run with: npx tsx examples/04-json-and-tsv.ts
  */
-import { loadJSON, loadTSV } from "numiq";
+import { loadJSON, loadTSV } from "@munachi-me/numiq";
 
 const users = await loadJSON("users.json");
 console.log(users.table());

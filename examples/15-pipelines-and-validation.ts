@@ -5,7 +5,7 @@
  * reusable, inspectable before it runs, and able to mix synchronous and asynchronous steps
  * without changing the calling code.
  */
-import { pipeline, inferSchema, createDataset, PipelineError } from "numiq";
+import { pipeline, inferSchema, createDataset, PipelineError } from "@munachi-me/numiq";
 
 const sales = () => [
   { order_id: "A-1", revenue: 120.5, region: "north", at: "2026-11-01T09:00:00Z" },

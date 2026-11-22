@@ -3,7 +3,7 @@
  *
  * Run with: npx tsx examples/06-sample-and-chaining.ts
  */
-import { useSampleDataset } from "numiq";
+import { useSampleDataset } from "@munachi-me/numiq";
 
 const sample = await useSampleDataset();
 console.log("sample shape:", sample.shape);

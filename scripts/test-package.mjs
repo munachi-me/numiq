@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const root = path.resolve(here, "..");
+const { name: packageName } = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 const failures = [];
 
 function check(name, condition, detail = "") {
@@ -64,6 +65,7 @@ try {
   check("excludes sources", ![...packed].some((file) => file.startsWith("src/")));
 
   const consumer = path.join(workDir, "consumer");
+  const installed = path.join(consumer, "node_modules", ...packageName.split("/"));
   await mkdir(consumer, { recursive: true });
   await writeFile(
     path.join(consumer, "package.json"),
@@ -81,7 +83,7 @@ try {
     [
       "--input-type=module",
       "-e",
-      `import Numiq, { createDataset, loadCSV, parseDelimited, useSampleDataset } from "numiq";
+      `import Numiq, { createDataset, loadCSV, parseDelimited, useSampleDataset } from "@munachi-me/numiq";
        const data = parseDelimited("a,b\\n1,2\\n", { format: "csv" });
        const sample = await Numiq.useSampleDataset();
        const chained = sample.filter((r) => Number(r.revenue) > 100).sort("revenue", "desc").select(["order_id", "revenue"]).limit(5);
@@ -527,7 +529,7 @@ try {
     process.execPath,
     [
       "-e",
-      `const Numiq = require("numiq");
+      `const Numiq = require("@munachi-me/numiq");
        const data = Numiq.parseJSON('[{"a":1}]');
        console.log(JSON.stringify({ rowCount: data.rowCount, shape: data.shape }));`,
     ],
@@ -542,11 +544,13 @@ try {
       "--input-type=module",
       "-e",
       `import { readFileSync } from "node:fs";
-       const pkg = JSON.parse(readFileSync("node_modules/numiq/package.json", "utf8"));
-       const target = pkg.exports["."].browser.default.replace("./", "node_modules/numiq/");
+       const dir = process.argv[1];
+       const pkg = JSON.parse(readFileSync(dir + "/package.json", "utf8"));
+       const target = pkg.exports["."].browser.default.replace("./", dir + "/");
        const source = readFileSync(target, "utf8");
        const builtins = [...source.matchAll(/from\\s*"(node:[^"]+)"/g)].map((m) => m[1]);
        console.log(JSON.stringify({ target, builtins }));`,
+      installed,
     ],
     { cwd: consumer, encoding: "utf8" },
   );
@@ -560,7 +564,7 @@ try {
     [
       "--input-type=module",
       "-e",
-      `import { useSampleDataset } from "numiq/core";
+      `import { useSampleDataset } from "@munachi-me/numiq/core";
        const sample = await useSampleDataset();
        console.log(JSON.stringify({ shape: sample.shape, source: sample.importReport?.source }));`,
     ],
@@ -575,14 +579,14 @@ try {
   check("sample report names its source", browserSampleResult.source === "sample-sales");
 
   console.log("\ndeclarations");
-  const declaration = await readFile(path.join(consumer, "node_modules", "numiq", "dist", "esm", "node.d.ts"), "utf8");
+  const declaration = await readFile(path.join(installed, "dist", "esm", "node.d.ts"), "utf8");
   check(
     "declares the default export",
     /export\s*\{\s*default\s*\}/.test(declaration) || declaration.includes("export default"),
   );
 
   const datasetDeclaration = await readFile(
-    path.join(consumer, "node_modules", "numiq", "dist", "esm", "core", "dataset.d.ts"),
+    path.join(installed, "dist", "esm", "core", "dataset.d.ts"),
     "utf8",
   );
   for (const member of [
@@ -614,7 +618,7 @@ try {
   }
 
   const descriptionDeclaration = await readFile(
-    path.join(consumer, "node_modules", "numiq", "dist", "esm", "analytics", "describe.d.ts"),
+    path.join(installed, "dist", "esm", "analytics", "describe.d.ts"),
     "utf8",
   );
   for (const member of ["profiles", "get", "table", "toDataset", "rowCount", "columnCount"]) {
@@ -625,7 +629,7 @@ try {
   }
 
   const groupingDeclaration = await readFile(
-    path.join(consumer, "node_modules", "numiq", "dist", "esm", "core", "group.d.ts"),
+    path.join(installed, "dist", "esm", "core", "group.d.ts"),
     "utf8",
   );
   for (const member of ["aggregate", "toDataset", "mapGroups", "groupCount", "sizes", "keys"]) {

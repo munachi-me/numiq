@@ -4,7 +4,7 @@
  * `groupBy` describes a split; nothing is computed until `aggregate` runs. The result is an
  * ordinary Dataset, so it composes with queries, sorting, and preparation.
  */
-import { createDataset, mean, median, std, useSampleDataset } from "numiq";
+import { createDataset, mean, median, std, useSampleDataset } from "@munachi-me/numiq";
 
 const sales = await useSampleDataset();
 

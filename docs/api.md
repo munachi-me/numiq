@@ -3,7 +3,7 @@
 All members are available as named exports and on the default export.
 
 ```ts
-import Numiq, { createDataset, loadCSV } from "numiq";
+import Numiq, { createDataset, loadCSV } from "@munachi-me/numiq";
 // Numiq.createDataset === createDataset
 ```
 

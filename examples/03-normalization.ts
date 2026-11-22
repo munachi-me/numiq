@@ -3,7 +3,7 @@
  *
  * Run with: npx tsx examples/03-normalization.ts
  */
-import { parseDelimited } from "numiq";
+import { parseDelimited } from "@munachi-me/numiq";
 
 const text = "country,phone,code,note\nNA,+26481234,007,\n";
 

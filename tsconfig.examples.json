@@ -8,7 +8,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
-      "numiq": [
+      "@munachi-me/numiq": [
         "./src/node.ts"
       ]
     }
