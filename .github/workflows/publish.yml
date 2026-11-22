@@ -1,0 +1,81 @@
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish (e.g. v1.0.3)
+        required: true
+      dry_run:
+        description: Rehearse without publishing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC token for npm trusted publishing
+      contents: read
+      packages: write # GitHub Packages, via the ephemeral GITHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      # No registry-url on purpose: it writes an .npmrc containing
+      # _authToken=${NODE_AUTH_TOKEN}, which is empty here and can shadow the
+      # OIDC exchange. npm defaults to registry.npmjs.org anyway.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Use an npm that supports trusted publishing
+        run: npm install -g npm@11
+
+      - run: npm ci
+
+      - name: Tag must match package.json
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "::error::Tag ${TAG} does not match package.json version ${version}"
+            exit 1
+          fi
+
+      - name: Tag must be on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Tagged commit is not an ancestor of main"
+            exit 1
+          fi
+
+      - run: npm run verify
+
+      # No token: npm exchanges the OIDC token for short-lived credentials and
+      # attaches provenance automatically on GitHub-hosted runners.
+      - run: npm publish ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Publish to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npmrc="$(mktemp)"
+          chmod 600 "$npmrc"
+          {
+            echo "@munachi-me:registry=https://npm.pkg.github.com"
+            echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
+          } > "$npmrc"
+          npm publish --userconfig "$npmrc" ${{ inputs.dry_run && '--dry-run' || '' }}
+          rm -f "$npmrc"

@@ -116,6 +116,25 @@ Feature branch → PR → squash merge → annotated tag → GitHub release. Ver
 not commit them.
 
 CI (`.github/workflows/ci.yml`) runs `npm run verify` and a clean consumer install on Node
-18/20/22. Publishing is a separate, explicitly approved step: `npm publish` for the public
-registry, and the same tarball can go to GitHub Packages with a `publishConfig` override.
+18/20/22.
+
+Publishing is a separate, explicitly approved step. `.github/workflows/publish.yml` runs on
+a `v*` tag and authenticates to npm with **OIDC trusted publishing** — there is no
+`NPM_TOKEN` secret anywhere. It refuses to publish unless the tag matches
+`package.json` and the tagged commit is an ancestor of `main`. GitHub Packages reuses the
+ephemeral `GITHUB_TOKEN`.
+
+Trusted publishing needs npm CLI 11.5.1+ and Node 22.14+, so the workflow installs
+`npm@11` explicitly rather than trusting the runner image. It also omits `registry-url`
+on `setup-node`: that input writes an `.npmrc` with `_authToken=${NODE_AUTH_TOKEN}`, which
+is empty in this workflow and can shadow the OIDC exchange.
+
+The trusted-publisher link on npm must be created interactively by a maintainer with 2FA.
+Granular tokens that bypass 2FA are rejected with E403 for this action, so it cannot be
+scripted. Configure once:
+
+```bash
+npm trust github @munachi-me/numiq --file publish.yml --repo munachi-me/numiq --allow-publish
+```
+
 Never publish without the developer's approval.
