@@ -25,9 +25,9 @@ Nothing yet.
   +import { loadCSV } from "@munachi-me/numiq";
   ```
 
-- `scripts/test-package.mjs` reads the package name from `package.json` and computes the
+- `scripts/test-package.mjs` reads the package name from `package.json` and derives the
   installed path from it. Scoped packages nest under `node_modules/@scope/name`, so the
-  previous hardcoded paths would have silently checked nothing.
+  previous hardcoded paths would have pointed at a directory that does not exist.
 
 ## [1.0.1] - 2026-11-20
 

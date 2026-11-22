@@ -23,12 +23,12 @@ createDataset(existingDataset);
 
 `options` (`DatasetOptions`):
 
-| Option          | Type                           | Default     | Meaning                    |
-| --------------- | ------------------------------ | ----------- | -------------------------- |
-| `columns`       | `readonly string[]`            | inferred    | Column order               |
-| `name`          | `string`                       | `"Dataset"` | Dataset name               |
-| `metadata`      | `Record<string, unknown>`      | `{}`        | Arbitrary metadata, frozen |
-| `normalization` | `Partial<NormalizationPolicy>` | defaults    | Cell policy for raw input  |
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `columns` | `readonly string[]` | inferred | Column order |
+| `name` | `string` | `"Dataset"` | Dataset name |
+| `metadata` | `Record<string, unknown>` | `{}` | Arbitrary metadata, frozen |
+| `normalization` | `Partial<NormalizationPolicy>` | defaults | Cell policy for raw input |
 
 Rows are normalized with the same policy the loaders use, so `createDataset([{ a: "42" }])`
 holds the number `42`.
@@ -76,12 +76,12 @@ Asynchronous. Fetches an http(s) URL and detects the format from `options.format
 the URL extension, then the `content-type` header. Throws `FormatError` when none
 identifies a supported format.
 
-| Option      | Type                       | Default  | Meaning               |
-| ----------- | -------------------------- | -------- | --------------------- |
-| `format`    | `"csv" \| "tsv" \| "json"` | detected | Overrides detection   |
-| `headers`   | `Record<string, string>`   | —        | Request headers       |
-| `timeoutMs` | `number`                   | `30000`  | Abort after this long |
-| `signal`    | `AbortSignal`              | —        | External cancellation |
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `format` | `"csv" \| "tsv" \| "json"` | detected | Overrides detection |
+| `headers` | `Record<string, string>` | — | Request headers |
+| `timeoutMs` | `number` | `30000` | Abort after this long |
+| `signal` | `AbortSignal` | — | External cancellation |
 
 Non-2xx responses throw `ImportError` with `status` set.
 
@@ -106,20 +106,20 @@ supported entry.
 
 ### Properties
 
-| Member         | Type                                     |
-| -------------- | ---------------------------------------- |
-| `columns`      | `readonly string[]`                      |
-| `data`         | `readonly Row[]`                         |
-| `shape`        | `readonly [number, number]`              |
-| `rowCount`     | `number`                                 |
-| `columnCount`  | `number`                                 |
-| `length`       | `number`                                 |
-| `empty`        | `boolean`                                |
-| `name`         | `string`                                 |
-| `metadata`     | `Readonly<Record<string, unknown>>`      |
-| `dtypes`       | `Readonly<Record<string, DType>>`        |
-| `schema`       | `Readonly<Record<string, ColumnSchema>>` |
-| `importReport` | `ImportReport \| null`                   |
+| Member | Type |
+| --- | --- |
+| `columns` | `readonly string[]` |
+| `data` | `readonly Row[]` |
+| `shape` | `readonly [number, number]` |
+| `rowCount` | `number` |
+| `columnCount` | `number` |
+| `length` | `number` |
+| `empty` | `boolean` |
+| `name` | `string` |
+| `metadata` | `Readonly<Record<string, unknown>>` |
+| `dtypes` | `Readonly<Record<string, DType>>` |
+| `schema` | `Readonly<Record<string, ColumnSchema>>` |
+| `importReport` | `ImportReport \| null` |
 
 `data` returns a deep copy on every access. `schema` is computed once and cached.
 
@@ -194,10 +194,10 @@ data.rename({ qty: "quantity", unit_price: "price" });
 
 Drops rows with missing cells. `null` and `undefined` both count as missing.
 
-| Option    | Type             | Default      | Meaning                                                                                         |
-| --------- | ---------------- | ------------ | ----------------------------------------------------------------------------------------------- |
-| `columns` | `string[]`       | every column | Columns to consider                                                                             |
-| `how`     | `"any" \| "all"` | `"any"`      | `any` drops a row when one considered cell is missing; `all` only when every considered cell is |
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `columns` | `string[]` | every column | Columns to consider |
+| `how` | `"any" \| "all"` | `"any"` | `any` drops a row when one considered cell is missing; `all` only when every considered cell is |
 
 ```ts
 data.dropMissing({ columns: ["price"], how: "all" });
@@ -207,13 +207,13 @@ data.dropMissing({ columns: ["price"], how: "all" });
 
 Fills missing cells. Pass one strategy for every column, or a mapping to narrow it.
 
-| Strategy   | Behaviour                                                        |
-| ---------- | ---------------------------------------------------------------- |
-| `"mean"`   | Arithmetic mean of present values. Numeric columns only.         |
-| `"median"` | Median of present values. Numeric columns only.                  |
-| `"mode"`   | Most frequent present value; ties resolve to the earliest value. |
-| constant   | `string`, `number`, `boolean`, `Date`, or `null`.                |
-| callback   | `(row, index) => value`.                                         |
+| Strategy | Behaviour |
+| --- | --- |
+| `"mean"` | Arithmetic mean of present values. Numeric columns only. |
+| `"median"` | Median of present values. Numeric columns only. |
+| `"mode"` | Most frequent present value; ties resolve to the earliest value. |
+| constant | `string`, `number`, `boolean`, `Date`, or `null`. |
+| callback | `(row, index) => value`. |
 
 ```ts
 data.fillMissing({ quantity: 0, price: "mean" });
@@ -227,11 +227,11 @@ compute from, and inventing a value would be worse than leaving the gap.
 
 Replaces values per column. Each column takes a rule or a list of rules applied in order.
 
-| Rule                        | Matches                                        |
-| --------------------------- | ---------------------------------------------- |
-| `{ from, to }`              | Cells equal to `from`. `from` may be an array. |
-| `{ match, to }`             | Cells where `match(value, context)` is true.   |
-| `(value, context) => value` | Every cell; the return value is used.          |
+| Rule | Matches |
+| --- | --- |
+| `{ from, to }` | Cells equal to `from`. `from` may be an array. |
+| `{ match, to }` | Cells where `match(value, context)` is true. |
+| `(value, context) => value` | Every cell; the return value is used. |
 
 ```ts
 data.replace({
@@ -316,7 +316,7 @@ output column.
 
 ```ts
 const { dataset, report } = data.addConditionalColumnReport("band", rules, { else: "Unknown" });
-report.matched; // e.g. [21, 14]
+report.matched;   // e.g. [21, 14]
 report.unmatched; // e.g. 15
 ```
 
@@ -334,14 +334,14 @@ untouched. Keys are matched by value and type, so `1` never matches `"1"`.
 const result = orders.join(customers, { on: "customer_id", how: "left" });
 ```
 
-| Option               | Meaning                                                                          |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `on`                 | Key column name, or several for a composite key                                  |
-| `leftOn` / `rightOn` | Key names when the two sides differ; must be the same length                     |
-| `how`                | `"inner"` (default), `"left"`, `"right"`, or `"full"`                            |
-| `suffixes`           | Pair applied to both sides on a non-key collision; default `["_left", "_right"]` |
-| `nullsMatch`         | Whether two missing keys count as equal; default `false`                         |
-| `maxRows`            | Guard against an accidental Cartesian product; default 1,000,000                 |
+| Option | Meaning |
+| --- | --- |
+| `on` | Key column name, or several for a composite key |
+| `leftOn` / `rightOn` | Key names when the two sides differ; must be the same length |
+| `how` | `"inner"` (default), `"left"`, `"right"`, or `"full"` |
+| `suffixes` | Pair applied to both sides on a non-key collision; default `["_left", "_right"]` |
+| `nullsMatch` | Whether two missing keys count as equal; default `false` |
+| `maxRows` | Guard against an accidental Cartesian product; default 1,000,000 |
 
 Behaviour worth knowing:
 
@@ -372,12 +372,12 @@ Turns long data into one column per distinct value of `options.columns`.
 sales.pivot({ columns: "quarter", values: "revenue" });
 ```
 
-| Option      | Meaning                                                                           |
-| ----------- | --------------------------------------------------------------------------------- |
-| `columns`   | Column whose distinct values become new column names                              |
-| `values`    | Column holding the cell values                                                    |
-| `aggregate` | `"first"` (default), `"last"`, `"sum"`, `"mean"`, `"min"`, `"max"`, `"count"`     |
-| `index`     | Row-identity columns; defaults to every column not named by `columns` or `values` |
+| Option | Meaning |
+| --- | --- |
+| `columns` | Column whose distinct values become new column names |
+| `values` | Column holding the cell values |
+| `aggregate` | `"first"` (default), `"last"`, `"sum"`, `"mean"`, `"min"`, `"max"`, `"count"` |
+| `index` | Row-identity columns; defaults to every column not named by `columns` or `values` |
 
 Generated columns appear in first-appearance order, not sorted, so a pivot is reproducible
 without assuming anything about the value types. A combination with no row becomes `null`.
@@ -399,16 +399,16 @@ and `collapsed` counts input rows that shared a cell.
 Unpivots wide data into variable/value pairs. Round trips with `pivot()`.
 
 ```ts
-wide.melt({ idVars: "region" }); // { region, variable, value }
+wide.melt({ idVars: "region" });  // { region, variable, value }
 ```
 
-| Option         | Meaning                                                      |
-| -------------- | ------------------------------------------------------------ |
-| `idVars`       | Columns kept as-is                                           |
-| `valueVars`    | Columns to unpivot; defaults to every column not in `idVars` |
-| `variableName` | Name for the former column names; default `"variable"`       |
-| `valueName`    | Name for the former cell values; default `"value"`           |
-| `dropMissing`  | Drop rows whose value is missing instead of emitting `null`  |
+| Option | Meaning |
+| --- | --- |
+| `idVars` | Columns kept as-is |
+| `valueVars` | Columns to unpivot; defaults to every column not in `idVars` |
+| `variableName` | Name for the former column names; default `"variable"` |
+| `valueName` | Name for the former cell values; default `"value"` |
+| `dropMissing` | Drop rows whose value is missing instead of emitting `null` |
 
 At least one of `idVars` or `valueVars` is required. Throws `ColumnNotFoundError` for an
 unknown column, and `ValidationError` when a column is both an id and a value, when there
@@ -451,9 +451,9 @@ data.dropDuplicates(["order_id"]);
 
 Draws `count` rows in draw order.
 
-| Option    | Type      | Default | Meaning                                                                  |
-| --------- | --------- | ------- | ------------------------------------------------------------------------ |
-| `seed`    | `number`  | none    | Makes the draw reproducible: same seed and count, same rows, every run   |
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `seed` | `number` | none | Makes the draw reproducible: same seed and count, same rows, every run |
 | `replace` | `boolean` | `false` | Sample with replacement, allowing repeats and counts above the row count |
 
 ```ts
@@ -511,14 +511,14 @@ const small = base.and("revenue", "<", 100).execute(); // `base` is unchanged
 
 ##### Operators
 
-| Operator                             | Value                            | Meaning                                  |
-| ------------------------------------ | -------------------------------- | ---------------------------------------- |
-| `=`, `!=`                            | any present value                | Equality, compared by value **and** type |
-| `>`, `>=`, `<`, `<=`                 | number, string, boolean, or date | Ordered comparison                       |
-| `in`, `notIn`                        | non-empty array                  | Membership                               |
-| `between`                            | `[low, high]`                    | Inclusive on both bounds                 |
-| `contains`, `startsWith`, `endsWith` | string                           | Substring tests on text cells            |
-| `isNull`, `isNotNull`                | none                             | Missing-value tests                      |
+| Operator | Value | Meaning |
+| --- | --- | --- |
+| `=`, `!=` | any present value | Equality, compared by value **and** type |
+| `>`, `>=`, `<`, `<=` | number, string, boolean, or date | Ordered comparison |
+| `in`, `notIn` | non-empty array | Membership |
+| `between` | `[low, high]` | Inclusive on both bounds |
+| `contains`, `startsWith`, `endsWith` | string | Substring tests on text cells |
+| `isNull`, `isNotNull` | none | Missing-value tests |
 
 `where` and `and` are the same operation, so the first condition in a chain may be written
 with either. `or` starts a new alternative.
@@ -535,10 +535,7 @@ Use `andGroup` / `orGroup` to parenthesise explicitly:
 
 ```ts
 // a AND (b OR c)
-data
-  .query()
-  .where("a", "=", 1)
-  .andGroup((g) => g.where("b", "=", 2).or("c", "=", 3));
+data.query().where("a", "=", 1).andGroup((g) => g.where("b", "=", 2).or("c", "=", 3));
 ```
 
 `toString()` renders the compiled conditions with their grouping, which is useful when a
@@ -635,7 +632,7 @@ Silently discarding them makes totals that do not add up; drop the group explici
 is not wanted:
 
 ```ts
-summary.query().where("region", "isNotNull").execute();
+summary.query().where("region", "isNotNull").execute()
 ```
 
 `groupBy` throws `ValidationError` for no columns, an empty name, or the same column twice,
@@ -650,19 +647,19 @@ Computes one output column per entry and returns a normal `Dataset`, so the resu
 with queries, sorting, and preparation. Columns are the grouping columns followed by the
 spec's keys, in the order given.
 
-| Operation  | Numeric only | Needs a column   | Result for no present values |
-| ---------- | ------------ | ---------------- | ---------------------------- |
-| `count`    | no           | no — counts rows | `0`                          |
-| `sum`      | yes          | yes              | `0`                          |
-| `mean`     | yes          | yes              | `null`                       |
-| `median`   | yes          | yes              | `null`                       |
-| `min`      | no           | yes              | `null`                       |
-| `max`      | no           | yes              | `null`                       |
-| `first`    | no           | yes              | `null`                       |
-| `last`     | no           | yes              | `null`                       |
-| `nunique`  | no           | yes              | `0`                          |
-| `std`      | yes          | yes              | `null`                       |
-| `variance` | yes          | yes              | `null`                       |
+| Operation | Numeric only | Needs a column | Result for no present values |
+| --- | --- | --- | --- |
+| `count` | no | no — counts rows | `0` |
+| `sum` | yes | yes | `0` |
+| `mean` | yes | yes | `null` |
+| `median` | yes | yes | `null` |
+| `min` | no | yes | `null` |
+| `max` | no | yes | `null` |
+| `first` | no | yes | `null` |
+| `last` | no | yes | `null` |
+| `nunique` | no | yes | `0` |
+| `std` | yes | yes | `null` |
+| `variance` | yes | yes | `null` |
 
 `count` without a column counts rows in the group; with a column it counts present cells.
 
@@ -752,12 +749,12 @@ position.
 Value of `column` from the row `offset` positions earlier (`lag`) or later (`lead`). Rows
 with no counterpart take `fill`, which defaults to `null`.
 
-| Option        | Type                 | Default  | Meaning                                      |
-| ------------- | -------------------- | -------- | -------------------------------------------- |
-| `offset`      | `number`             | `1`      | Rows to step; must be a non-negative integer |
-| `fill`        | `unknown`            | `null`   | Value where no such row exists               |
-| `partitionBy` | `string \| string[]` | none     | Partition columns                            |
-| `orderBy`     | key or keys          | required | Ordering                                     |
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `offset` | `number` | `1` | Rows to step; must be a non-negative integer |
+| `fill` | `unknown` | `null` | Value where no such row exists |
+| `partitionBy` | `string \| string[]` | none | Partition columns |
+| `orderBy` | key or keys | required | Ordering |
 
 ### Running values
 
@@ -778,12 +775,12 @@ sum. Set `ignoreMissing: true` to skip missing cells and continue the accumulati
 trailing window that ends at the current row: with `window: 3`, the third row summarises
 rows 1–3.
 
-| Option        | Type                 | Default  | Meaning                                       |
-| ------------- | -------------------- | -------- | --------------------------------------------- |
-| `window`      | `number`             | required | Rows in the window, at least 1                |
-| `minPeriods`  | `number`             | `window` | Fewest present values needed to emit a number |
-| `partitionBy` | `string \| string[]` | none     | Partition columns                             |
-| `orderBy`     | key or keys          | required | Ordering                                      |
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `window` | `number` | required | Rows in the window, at least 1 |
+| `minPeriods` | `number` | `window` | Fewest present values needed to emit a number |
+| `partitionBy` | `string \| string[]` | none | Partition columns |
+| `orderBy` | key or keys | required | Ordering |
 
 A row with fewer than `minPeriods` present values emits `null`. The default
 `minPeriods: window` means a short leading window is reported as `null` rather than as an
@@ -846,18 +843,18 @@ data.resample({
   every: "day",
   timeColumn: "at",
   aggregate: { units: "sum", orders: "count" },
-  label: "period", // default
-  onMissingTime: "drop", // default; "error" to reject instead
+  label: "period",        // default
+  onMissingTime: "drop",  // default; "error" to reject instead
 });
 ```
 
-| Option          | Type                                  | Default    | Meaning                         |
-| --------------- | ------------------------------------- | ---------- | ------------------------------- |
-| `every`         | `TimeInterval`                        | required   | Bucket width                    |
-| `timeColumn`    | `string`                              | required   | Column to bucket by             |
-| `aggregate`     | `Record<string, ResampleAggregation>` | required   | Output column per source column |
-| `label`         | `string`                              | `"period"` | Bucket column name              |
-| `onMissingTime` | `"drop" \| "error"`                   | `"drop"`   | How to treat a missing time     |
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `every` | `TimeInterval` | required | Bucket width |
+| `timeColumn` | `string` | required | Column to bucket by |
+| `aggregate` | `Record<string, ResampleAggregation>` | required | Output column per source column |
+| `label` | `string` | `"period"` | Bucket column name |
+| `onMissingTime` | `"drop" \| "error"` | `"drop"` | How to treat a missing time |
 
 The output holds one row per non-empty bucket in ascending time order, with columns
 `[label, ...aggregateKeys]`. Empty buckets produce no row: a resample summarises
@@ -877,14 +874,14 @@ before resampling.
 
 ### Intervals and labels
 
-| Interval  | Bucket starts               | Label              |
-| --------- | --------------------------- | ------------------ |
-| `hour`    | start of the UTC hour       | `2026-11-16T14:00` |
-| `day`     | UTC midnight                | `2026-11-16`       |
-| `week`    | Monday, UTC midnight        | `2026-11-16`       |
-| `month`   | first of the month          | `2026-11`          |
-| `quarter` | first of months 1, 4, 7, 10 | `2026-Q4`          |
-| `year`    | 1 January                   | `2026`             |
+| Interval | Bucket starts | Label |
+| --- | --- | --- |
+| `hour` | start of the UTC hour | `2026-11-16T14:00` |
+| `day` | UTC midnight | `2026-11-16` |
+| `week` | Monday, UTC midnight | `2026-11-16` |
+| `month` | first of the month | `2026-11` |
+| `quarter` | first of months 1, 4, 7, 10 | `2026-Q4` |
+| `year` | 1 January | `2026` |
 
 Weeks follow ISO-8601 and start on Monday. Day and week labels share a shape because a week
 label is the date its bucket begins.
@@ -910,10 +907,10 @@ type WindowOrderKey = string | { column: string; direction?: WindowDirection };
 Profiles columns. Two overloads with two result shapes:
 
 ```ts
-data.describe(); // DatasetDescription
-data.describe({ ddof: 0 }); // DatasetDescription, every column
-data.describe("revenue"); // ColumnProfile
-data.describe("revenue", { ddof: 0 }); // ColumnProfile
+data.describe();                              // DatasetDescription
+data.describe({ ddof: 0 });                   // DatasetDescription, every column
+data.describe("revenue");                     // ColumnProfile
+data.describe("revenue", { ddof: 0 });        // ColumnProfile
 data.describe("revenue", { percentiles: [90] }); // ColumnProfile
 ```
 
@@ -930,27 +927,27 @@ for an empty name. Options are validated eagerly: a negative `ddof` or a percent
 
 #### `ColumnProfile`
 
-| Field         | Type                                       | Notes                                                             |
-| ------------- | ------------------------------------------ | ----------------------------------------------------------------- |
-| `name`        | `string`                                   | column name                                                       |
-| `type`        | `DType`                                    | inferred from present values                                      |
-| `kind`        | `ColumnKind`                               | `numeric`, `boolean`, `temporal`, `categorical`, `mixed`, `empty` |
-| `count`       | `number`                                   | present values                                                    |
-| `missing`     | `number`                                   | `null`/`undefined` values                                         |
-| `total`       | `number`                                   | `count + missing`                                                 |
-| `unique`      | `number`                                   | distinct present values                                           |
-| `sum`         | `number \| null`                           | numeric only                                                      |
-| `mean`        | `number \| null`                           | numeric only                                                      |
-| `median`      | `number \| null`                           | numeric only                                                      |
-| `mode`        | `unknown`                                  | any type; ties break by first appearance                          |
-| `min` / `max` | `unknown`                                  | any type, ordered by `Dataset.sort`'s comparator                  |
-| `range`       | `number \| null`                           | numeric only (`max - min`)                                        |
-| `variance`    | `number \| null`                           | numeric only; honours `ddof`                                      |
-| `std`         | `number \| null`                           | numeric only; square root of `variance`                           |
-| `q1` / `q3`   | `number \| null`                           | numeric only                                                      |
-| `iqr`         | `number \| null`                           | numeric only (`q3 - q1`)                                          |
-| `percentiles` | `Readonly<Record<string, number \| null>>` | keys are `p<value>`                                               |
-| `ddof`        | `number`                                   | the degrees of freedom actually used                              |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | `string` | column name |
+| `type` | `DType` | inferred from present values |
+| `kind` | `ColumnKind` | `numeric`, `boolean`, `temporal`, `categorical`, `mixed`, `empty` |
+| `count` | `number` | present values |
+| `missing` | `number` | `null`/`undefined` values |
+| `total` | `number` | `count + missing` |
+| `unique` | `number` | distinct present values |
+| `sum` | `number \| null` | numeric only |
+| `mean` | `number \| null` | numeric only |
+| `median` | `number \| null` | numeric only |
+| `mode` | `unknown` | any type; ties break by first appearance |
+| `min` / `max` | `unknown` | any type, ordered by `Dataset.sort`'s comparator |
+| `range` | `number \| null` | numeric only (`max - min`) |
+| `variance` | `number \| null` | numeric only; honours `ddof` |
+| `std` | `number \| null` | numeric only; square root of `variance` |
+| `q1` / `q3` | `number \| null` | numeric only |
+| `iqr` | `number \| null` | numeric only (`q3 - q1`) |
+| `percentiles` | `Readonly<Record<string, number \| null>>` | keys are `p<value>` |
+| `ddof` | `number` | the degrees of freedom actually used |
 
 Statistics that do not apply to a column's type are `null`, never `0`. A sum of categories
 has no meaning, and reporting `0` would look like a real measurement. Numeric columns are the
@@ -980,13 +977,13 @@ They operate on arrays of already-present values and return `null` when there is
 measure:
 
 ```ts
-quantile([1, 2, 3, 4], 0.5); // 2.5
+quantile([1, 2, 3, 4], 0.5);      // 2.5
 percentile([2, 4, 4, 4, 5, 5, 7, 9], 90); // 7.6
 quartiles([2, 4, 4, 4, 5, 5, 7, 9]); // { q1: 4, q2: 4.5, q3: 5.5 }
-iqr([2, 4, 4, 4, 5, 5, 7, 9]); // 1.5
-mode([1, 2, 2, 3]); // 2
-range([1, 5, 3]); // 4
-extremes([3, 1, 4]); // { min: 1, max: 4 }
+iqr([2, 4, 4, 4, 5, 5, 7, 9]);    // 1.5
+mode([1, 2, 2, 3]);               // 2
+range([1, 5, 3]);                 // 4
+extremes([3, 1, 4]);              // { min: 1, max: 4 }
 ```
 
 Quantiles use linear interpolation between order statistics — the Hyndman–Fan type 7
@@ -1002,28 +999,28 @@ reads `3.4` rather than `3.4000000000000004`. `quantile` rejects `q` outside `[0
 
 ### Dataset methods
 
-| Method                                 | Returns             |
-| -------------------------------------- | ------------------- |
-| `covariance(left, right, options?)`    | `number \| null`    |
-| `correlation(left, right)`             | `CorrelationResult` |
-| `rankCorrelation(left, right)`         | `CorrelationResult` |
+| Method | Returns |
+| --- | --- |
+| `covariance(left, right, options?)` | `number \| null` |
+| `correlation(left, right)` | `CorrelationResult` |
+| `rankCorrelation(left, right)` | `CorrelationResult` |
 | `correlationMatrix(columns?, method?)` | `CorrelationMatrix` |
-| `zScores(column, options?)`            | `ZScoreResult`      |
-| `percentileRank(column, value)`        | `number \| null`    |
-| `skewness(column)`                     | `number \| null`    |
-| `kurtosis(column)`                     | `number \| null`    |
-| `fiveNumberSummary(column)`            | `FiveNumberSummary` |
-| `outliers(column, options?)`           | `OutlierResult`     |
-| `withZScores(column, name?, options?)` | `Dataset`           |
+| `zScores(column, options?)` | `ZScoreResult` |
+| `percentileRank(column, value)` | `number \| null` |
+| `skewness(column)` | `number \| null` |
+| `kurtosis(column)` | `number \| null` |
+| `fiveNumberSummary(column)` | `FiveNumberSummary` |
+| `outliers(column, options?)` | `OutlierResult` |
+| `withZScores(column, name?, options?)` | `Dataset` |
 
 ```ts
-data.covariance("x", "y"); // sample covariance
-data.covariance("x", "y", { ddof: 0 }); // population covariance
-data.correlation("x", "y"); // { r, n, reason }
-data.correlationMatrix(); // every numeric column
+data.covariance("x", "y");                  // sample covariance
+data.covariance("x", "y", { ddof: 0 });     // population covariance
+data.correlation("x", "y");                 // { r, n, reason }
+data.correlationMatrix();                   // every numeric column
 data.correlationMatrix(["x", "y"], "spearman");
-data.zScores("x"); // { values, mean, std, reason }
-data.withZScores("x"); // adds "x_z"
+data.zScores("x");                          // { values, mean, std, reason }
+data.withZScores("x");                      // adds "x_z"
 ```
 
 Every method throws `ColumnNotFoundError` for an unknown column and `ValidationError` when
@@ -1035,11 +1032,11 @@ target name already exists, matching `addColumn`. The source dataset is unchange
 
 #### `CorrelationResult`
 
-| Field    | Type                                             | Notes                                                     |
-| -------- | ------------------------------------------------ | --------------------------------------------------------- |
-| `r`      | `number \| null`                                 | coefficient in `[-1, 1]`, clamped against float overshoot |
-| `n`      | `number`                                         | complete pairs used                                       |
-| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why `r` is `null`                                         |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `r` | `number \| null` | coefficient in `[-1, 1]`, clamped against float overshoot |
+| `n` | `number` | complete pairs used |
+| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why `r` is `null` |
 
 There is no `pValue` and no significance flag. A test would need distributional
 assumptions that a bare coefficient does not carry, so the result reports the number and
@@ -1047,13 +1044,13 @@ the evidence behind it and stops there.
 
 #### `CorrelationMatrix`
 
-| Field       | Type                                       | Notes                                              |
-| ----------- | ------------------------------------------ | -------------------------------------------------- |
-| `columns`   | `readonly string[]`                        | in the order supplied                              |
-| `matrix`    | `readonly (readonly (number \| null)[])[]` | square and symmetric                               |
-| `cells`     | `readonly CorrelationCell[]`               | each off-diagonal cell once, with `n` and `reason` |
-| `method`    | `"pearson" \| "spearman"`                  | which coefficient was computed                     |
-| `get(x, y)` | `(x, y) => CorrelationCell`                | lookup in either direction                         |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `columns` | `readonly string[]` | in the order supplied |
+| `matrix` | `readonly (readonly (number \| null)[])[]` | square and symmetric |
+| `cells` | `readonly CorrelationCell[]` | each off-diagonal cell once, with `n` and `reason` |
+| `method` | `"pearson" \| "spearman"` | which coefficient was computed |
+| `get(x, y)` | `(x, y) => CorrelationCell` | lookup in either direction |
 
 The diagonal is `1` for every column, including a constant one, because that is the
 identity a correlation matrix is defined to have. Off-diagonal cells involving a constant
@@ -1064,12 +1061,12 @@ unknown name.
 
 #### `ZScoreResult`
 
-| Field    | Type                                             | Notes                                           |
-| -------- | ------------------------------------------------ | ----------------------------------------------- |
-| `values` | `(number \| null)[]`                             | aligned to the input rows; `null` where missing |
-| `mean`   | `number \| null`                                 | centring value                                  |
-| `std`    | `number \| null`                                 | scaling value                                   |
-| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why every score is `null`                       |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `values` | `(number \| null)[]` | aligned to the input rows; `null` where missing |
+| `mean` | `number \| null` | centring value |
+| `std` | `number \| null` | scaling value |
+| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why every score is `null` |
 
 Output stays aligned with the input rather than dropping missing rows, so it can be added
 back as a column with `addColumn`. A constant column yields all `null` scores with
@@ -1078,23 +1075,23 @@ z-score.
 
 #### `FiveNumberSummary`
 
-| Field                  | Type             | Notes                                          |
-| ---------------------- | ---------------- | ---------------------------------------------- |
-| `min` / `max`          | `number \| null` | observed bounds                                |
-| `q1` / `median` / `q3` | `number \| null` | type 7 interpolation, same as `quartiles()`    |
-| `mean`                 | `number \| null` | included so skew is visible next to the median |
-| `count`                | `number`         | present numeric values                         |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `min` / `max` | `number \| null` | observed bounds |
+| `q1` / `median` / `q3` | `number \| null` | type 7 interpolation, same as `quartiles()` |
+| `mean` | `number \| null` | included so skew is visible next to the median |
+| `count` | `number` | present numeric values |
 
 #### `OutlierResult`
 
-| Field        | Type                                             | Notes                                        |
-| ------------ | ------------------------------------------------ | -------------------------------------------- |
-| `method`     | `"iqr" \| "zscore"`                              | test applied                                 |
-| `threshold`  | `number`                                         | fence multiplier, or z threshold             |
-| `outliers`   | `Outlier[]`                                      | each with `index`, `value`, `zScore`, `side` |
-| `fences`     | `{ lower, upper } \| null`                       | present for `iqr`                            |
-| `considered` | `number`                                         | values the test could be applied to          |
-| `reason`     | `"insufficient-data" \| "zero-variance" \| null` | why nothing could be computed                |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `method` | `"iqr" \| "zscore"` | test applied |
+| `threshold` | `number` | fence multiplier, or z threshold |
+| `outliers` | `Outlier[]` | each with `index`, `value`, `zScore`, `side` |
+| `fences` | `{ lower, upper } \| null` | present for `iqr` |
+| `considered` | `number` | values the test could be applied to |
+| `reason` | `"insufficient-data" \| "zero-variance" \| null` | why nothing could be computed |
 
 `index` refers to the position in the column, including missing cells, so it maps back to
 the source row. A zero IQR yields `reason: "zero-variance"` instead of flagging every
@@ -1103,19 +1100,19 @@ non-modal value.
 ### Standalone functions
 
 ```ts
-covariance(x, y); // sample covariance
-covariance(x, y, { ddof: 0 }); // population covariance
-pearsonCorrelation(x, y); // { r, n, reason }
-spearmanCorrelation(x, y); // { r, n, reason }
+covariance(x, y);                                  // sample covariance
+covariance(x, y, { ddof: 0 });                     // population covariance
+pearsonCorrelation(x, y);                          // { r, n, reason }
+spearmanCorrelation(x, y);                         // { r, n, reason }
 correlationMatrix({ columns: [{ name: "a", values: [1, 2] }] });
-zScores(xs); // { values, mean, std, reason }
-standardize(xs); // (number | null)[]
-normalize(xs); // (number | null)[], [0, 1]
+zScores(xs);                                       // { values, mean, std, reason }
+standardize(xs);                                   // (number | null)[]
+normalize(xs);                                     // (number | null)[], [0, 1]
 normalize(xs, { min: -1, max: 1 });
-normalize(xs, { method: "maxabs" }); // divides by max |x|
-percentileRank(xs, 2); // 75 for [1, 2, 2, 3]
-skewness(xs); // adjusted Fisher-Pearson
-kurtosis(xs); // excess, bias-corrected
+normalize(xs, { method: "maxabs" });               // divides by max |x|
+percentileRank(xs, 2);                             // 75 for [1, 2, 2, 3]
+skewness(xs);                                      // adjusted Fisher-Pearson
+kurtosis(xs);                                      // excess, bias-corrected
 fiveNumberSummary(xs);
 detectOutliers(xs, { method: "zscore", threshold: 3 });
 ```
@@ -1125,28 +1122,28 @@ entries, so no caller has to pre-filter.
 
 #### Formulas
 
-| Statistic       | Formula                                                           |
-| --------------- | ----------------------------------------------------------------- |
-| covariance      | `Σ(x - x̄)(y - ȳ) / (n - ddof)`                                    |
-| Pearson         | `Σ(x - x̄)(y - ȳ) / √(Σ(x - x̄)² · Σ(y - ȳ)²)`                      |
-| Spearman        | Pearson applied to average ranks                                  |
-| z-score         | `(x - x̄) / s`                                                     |
-| percentile rank | `100 · count(≤ x) / n`                                            |
-| skewness (G1)   | `n/((n-1)(n-2)) · Σ((x - x̄)/s)³`                                  |
-| kurtosis (G2)   | `n(n+1)/((n-1)(n-2)(n-3)) · Σ((x - x̄)/s)⁴ − 3(n-1)²/((n-2)(n-3))` |
+| Statistic | Formula |
+| --- | --- |
+| covariance | `Σ(x - x̄)(y - ȳ) / (n - ddof)` |
+| Pearson | `Σ(x - x̄)(y - ȳ) / √(Σ(x - x̄)² · Σ(y - ȳ)²)` |
+| Spearman | Pearson applied to average ranks |
+| z-score | `(x - x̄) / s` |
+| percentile rank | `100 · count(≤ x) / n` |
+| skewness (G1) | `n/((n-1)(n-2)) · Σ((x - x̄)/s)³` |
+| kurtosis (G2) | `n(n+1)/((n-1)(n-2)(n-3)) · Σ((x - x̄)/s)⁴ − 3(n-1)²/((n-2)(n-3))` |
 
 These are the bias-corrected forms `scipy.stats` reports with `bias=False` and `pandas`
 reports by default. Kurtosis is excess: a normal distribution is `0`.
 
 #### Minimum sample sizes
 
-| Statistic           | Minimum           | Below it                    |
-| ------------------- | ----------------- | --------------------------- |
-| covariance, Pearson | 2 pairs           | `null`, `insufficient-data` |
-| Spearman            | 2 pairs           | `null`, `insufficient-data` |
-| z-score             | 2 values (ddof 1) | all `null`                  |
-| skewness            | 3 values          | `null`                      |
-| kurtosis            | 4 values          | `null`                      |
+| Statistic | Minimum | Below it |
+| --- | --- | --- |
+| covariance, Pearson | 2 pairs | `null`, `insufficient-data` |
+| Spearman | 2 pairs | `null`, `insufficient-data` |
+| z-score | 2 values (ddof 1) | all `null` |
+| skewness | 3 values | `null` |
+| kurtosis | 4 values | `null` |
 
 Each floor is the point at which the formula's denominator stops being zero, not an
 arbitrary round number.
@@ -1160,8 +1157,8 @@ over data with scattered gaps, different cells can therefore rest on different r
 
 #### Assumptions and limitations
 
-- Pearson measures _linear_ association. `r = 0` means no linear trend, not independence.
-- Spearman measures _monotonic_ association and is robust to outliers, but not to ties that
+- Pearson measures *linear* association. `r = 0` means no linear trend, not independence.
+- Spearman measures *monotonic* association and is robust to outliers, but not to ties that
   destroy ordering; average ranks mitigate this without eliminating it.
 - `normalize` and `standardize` are both sensitive to a single extreme value.
 - Outlier tests identify unusual values, not errors. Removing them without inspection can
@@ -1176,17 +1173,17 @@ The same primitives are exported for use outside a grouping, operating on arrays
 already-present values:
 
 ```ts
-sum([1, 2, 3]); // 6
-mean([1, 2, 3]); // 2, or null when empty
-median([1, 2, 3]); // 2, or null when empty
-variance([1, 2, 3]); // sample variance, or null
-variance([1, 2, 3], { ddof: 0 }); // population variance
-std([1, 2, 3]); // sample standard deviation
-min([1, 2, 3]); // 1
-max([1, 2, 3]); // 3
-first([1, 2, 3]); // 1
-last([1, 2, 3]); // 3
-nunique([1, 1, 2]); // 2
+sum([1, 2, 3]);                      // 6
+mean([1, 2, 3]);                     // 2, or null when empty
+median([1, 2, 3]);                   // 2, or null when empty
+variance([1, 2, 3]);                 // sample variance, or null
+variance([1, 2, 3], { ddof: 0 });    // population variance
+std([1, 2, 3]);                      // sample standard deviation
+min([1, 2, 3]);                      // 1
+max([1, 2, 3]);                      // 3
+first([1, 2, 3]);                    // 1
+last([1, 2, 3]);                     // 3
+nunique([1, 1, 2]);                  // 2
 ```
 
 `sum` uses Neumaier compensation, so `sum([1e16, 1, -1e16])` is `1` where naive addition
@@ -1196,22 +1193,22 @@ correct answer is `1`.
 
 ### Types
 
-| Type                 | Shape                                                                       |
-| -------------------- | --------------------------------------------------------------------------- |
-| `AggregationOp`      | the eleven operation names above                                            |
-| `AggregationSpec`    | `{ column?: string; op: AggregationOp; ddof?: number }`                     |
-| `CustomAggregation`  | `{ column: string; fn: AggregationFn }`                                     |
-| `AggregationFn`      | `(values: readonly unknown[], context: AggregationContext) => unknown`      |
-| `GroupAggregationFn` | `(rows: readonly Readonly<Row>[], context: AggregationContext) => unknown`  |
-| `AggregationEntry`   | `AggregationSpec \| CustomAggregation \| GroupAggregationFn`                |
-| `AggregateSpec`      | `Readonly<Record<string, AggregationEntry>>`                                |
-| `AggregationContext` | `{ column: string \| null; rows: readonly Readonly<Row>[] }`                |
-| `DispersionOptions`  | `{ ddof?: number }`                                                         |
-| `ColumnProfile`      | the per-column statistics object returned by `describe(column)`             |
-| `ColumnKind`         | `numeric` \| `boolean` \| `temporal` \| `categorical` \| `mixed` \| `empty` |
-| `DescribeOptions`    | `{ ddof?: number; percentiles?: readonly number[] }`                        |
-| `Quartiles`          | `{ q1: number; q2: number; q3: number }`                                    |
-| `Extremes`           | `{ min: unknown; max: unknown }`                                            |
+| Type | Shape |
+| --- | --- |
+| `AggregationOp` | the eleven operation names above |
+| `AggregationSpec` | `{ column?: string; op: AggregationOp; ddof?: number }` |
+| `CustomAggregation` | `{ column: string; fn: AggregationFn }` |
+| `AggregationFn` | `(values: readonly unknown[], context: AggregationContext) => unknown` |
+| `GroupAggregationFn` | `(rows: readonly Readonly<Row>[], context: AggregationContext) => unknown` |
+| `AggregationEntry` | `AggregationSpec \| CustomAggregation \| GroupAggregationFn` |
+| `AggregateSpec` | `Readonly<Record<string, AggregationEntry>>` |
+| `AggregationContext` | `{ column: string \| null; rows: readonly Readonly<Row>[] }` |
+| `DispersionOptions` | `{ ddof?: number }` |
+| `ColumnProfile` | the per-column statistics object returned by `describe(column)` |
+| `ColumnKind` | `numeric` \| `boolean` \| `temporal` \| `categorical` \| `mixed` \| `empty` |
+| `DescribeOptions` | `{ ddof?: number; percentiles?: readonly number[] }` |
+| `Quartiles` | `{ q1: number; q2: number; q3: number }` |
+| `Extremes` | `{ min: unknown; max: unknown }` |
 
 ## Schema validation
 
@@ -1255,46 +1252,46 @@ it by hand.
 
 ### Rules
 
-| Rule                      | Applies to     | Meaning                                                                                               |
-| ------------------------- | -------------- | ----------------------------------------------------------------------------------------------------- |
-| `type`                    | any            | Expected per-value type. One of `string`, `number`, `integer`, `boolean`, `date`, `datetime`, `time`. |
-| `nullable`                | any            | `false` rejects missing values. Defaults to allowing them.                                            |
-| `min` / `max`             | numbers, dates | Inclusive bounds. A date bound may be a `Date` or an ISO string.                                      |
-| `allowed`                 | any            | Closed set of permitted values.                                                                       |
-| `pattern`                 | strings        | Regular expression the **whole** value must match.                                                    |
-| `minLength` / `maxLength` | strings        | Inclusive length bounds, counted in UTF-16 code units.                                                |
-| `validate`                | any            | `(value, row, index) => boolean \| string`. `false` rejects; a string rejects with that message.      |
+| Rule | Applies to | Meaning |
+| --- | --- | --- |
+| `type` | any | Expected per-value type. One of `string`, `number`, `integer`, `boolean`, `date`, `datetime`, `time`. |
+| `nullable` | any | `false` rejects missing values. Defaults to allowing them. |
+| `min` / `max` | numbers, dates | Inclusive bounds. A date bound may be a `Date` or an ISO string. |
+| `allowed` | any | Closed set of permitted values. |
+| `pattern` | strings | Regular expression the **whole** value must match. |
+| `minLength` / `maxLength` | strings | Inclusive length bounds, counted in UTF-16 code units. |
+| `validate` | any | `(value, row, index) => boolean \| string`. `false` rejects; a string rejects with that message. |
 
 A column listed with no rules is still checked for presence.
 
 ### Issue codes
 
-| Code                                               | Meaning                                                                          |
-| -------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `MISSING_COLUMN`                                   | The schema names a column the dataset does not have. Reported once, not per row. |
-| `NULL_NOT_ALLOWED`                                 | A missing value in a column with `nullable: false`.                              |
-| `TYPE_MISMATCH`                                    | The value is not the declared type. Remaining rules for that cell are skipped.   |
-| `NOT_ORDERABLE`                                    | The value passed its type but cannot be compared to a bound.                     |
-| `BELOW_MINIMUM` / `ABOVE_MAXIMUM`                  | The value is outside `min` / `max`.                                              |
-| `NOT_ALLOWED`                                      | The value is not in `allowed`.                                                   |
-| `PATTERN_MISMATCH`                                 | The string does not match `pattern`.                                             |
-| `PATTERN_NOT_APPLICABLE` / `LENGTH_NOT_APPLICABLE` | A string rule was applied to a non-string value.                                 |
-| `TOO_SHORT` / `TOO_LONG`                           | The string is outside `minLength` / `maxLength`.                                 |
-| `CUSTOM_VALIDATOR_FAILED`                          | `validate` returned `false` or a message.                                        |
-| `CUSTOM_VALIDATOR_THREW`                           | `validate` threw; the error is reported rather than escaping.                    |
+| Code | Meaning |
+| --- | --- |
+| `MISSING_COLUMN` | The schema names a column the dataset does not have. Reported once, not per row. |
+| `NULL_NOT_ALLOWED` | A missing value in a column with `nullable: false`. |
+| `TYPE_MISMATCH` | The value is not the declared type. Remaining rules for that cell are skipped. |
+| `NOT_ORDERABLE` | The value passed its type but cannot be compared to a bound. |
+| `BELOW_MINIMUM` / `ABOVE_MAXIMUM` | The value is outside `min` / `max`. |
+| `NOT_ALLOWED` | The value is not in `allowed`. |
+| `PATTERN_MISMATCH` | The string does not match `pattern`. |
+| `PATTERN_NOT_APPLICABLE` / `LENGTH_NOT_APPLICABLE` | A string rule was applied to a non-string value. |
+| `TOO_SHORT` / `TOO_LONG` | The string is outside `minLength` / `maxLength`. |
+| `CUSTOM_VALIDATOR_FAILED` | `validate` returned `false` or a message. |
+| `CUSTOM_VALIDATOR_THREW` | `validate` threw; the error is reported rather than escaping. |
 
 ### `ValidationReport`
 
-| Field                      | Meaning                                         |
-| -------------------------- | ----------------------------------------------- |
-| `valid`                    | True when there were no issues.                 |
-| `rowCount` / `columnCount` | Rows examined and columns named by the schema.  |
-| `checked`                  | Cells examined, including missing ones.         |
-| `issues`                   | The issues, capped by `maxIssues`.              |
-| `issueCount`               | Total issues, which may exceed `issues.length`. |
-| `truncated`                | True when `issues` was capped.                  |
-| `invalidRows`              | Rows with at least one issue.                   |
-| `byCode`                   | Issue counts keyed by code.                     |
+| Field | Meaning |
+| --- | --- |
+| `valid` | True when there were no issues. |
+| `rowCount` / `columnCount` | Rows examined and columns named by the schema. |
+| `checked` | Cells examined, including missing ones. |
+| `issues` | The issues, capped by `maxIssues`. |
+| `issueCount` | Total issues, which may exceed `issues.length`. |
+| `truncated` | True when `issues` was capped. |
+| `invalidRows` | Rows with at least one issue. |
+| `byCode` | Issue counts keyed by code. |
 
 `maxIssues` defaults to 100, so a badly broken dataset cannot build an unbounded list.
 `columnsOnly: true` skips every check except column presence.
@@ -1331,12 +1328,12 @@ const result = await workflow.run();
 
 ### Steps
 
-| Method                           | Receives                          | Returns                                                                                           |
-| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `load(fn, options?)`             | `{ index, name, total }`          | A `Dataset`, an array of rows, or a column-oriented object. Must be first and only one may exist. |
-| `transform(fn, options?)`        | `(data, context)`                 | A `Dataset` or an array of rows.                                                                  |
-| `validate(schemaOrFn, options?)` | `(data, context)` when a function | A schema. The step fails the run when the data does not pass.                                     |
-| `tap(fn, options?)`              | `(data, context)`                 | Ignored. The dataset passes through unchanged.                                                    |
+| Method | Receives | Returns |
+| --- | --- | --- |
+| `load(fn, options?)` | `{ index, name, total }` | A `Dataset`, an array of rows, or a column-oriented object. Must be first and only one may exist. |
+| `transform(fn, options?)` | `(data, context)` | A `Dataset` or an array of rows. |
+| `validate(schemaOrFn, options?)` | `(data, context)` when a function | A schema. The step fails the run when the data does not pass. |
+| `tap(fn, options?)` | `(data, context)` | Ignored. The dataset passes through unchanged. |
 
 Every step takes an optional `{ name }`. Names must be non-empty and unique, and both are
 checked when the step is added rather than when the pipeline runs.
@@ -1377,15 +1374,15 @@ wants the report. With `{ throwOnError: true }` it throws a `PipelineError` inst
 
 ### `PipelineResult`
 
-| Field                        | Meaning                                       |
-| ---------------------------- | --------------------------------------------- |
-| `dataset`                    | The result, or `null` when a step failed.     |
-| `ok`                         | True when every step completed.               |
-| `steps`                      | Per-step reports, including the failing step. |
-| `lineage`                    | One entry per completed step.                 |
-| `failedStep` / `failedIndex` | Which step failed, when one did.              |
-| `durationMs`                 | Total wall-clock duration.                    |
-| `executed` / `total`         | Steps attempted and steps defined.            |
+| Field | Meaning |
+| --- | --- |
+| `dataset` | The result, or `null` when a step failed. |
+| `ok` | True when every step completed. |
+| `steps` | Per-step reports, including the failing step. |
+| `lineage` | One entry per completed step. |
+| `failedStep` / `failedIndex` | Which step failed, when one did. |
+| `durationMs` | Total wall-clock duration. |
+| `executed` / `total` | Steps attempted and steps defined. |
 
 ### `StepReport`
 
@@ -1406,8 +1403,8 @@ Renders the definition as data without running it, and states which steps hold c
 
 ```ts
 const description = workflow.describe();
-description.reproducible; // false when any step holds a function
-description.nonDeterministic; // names of those steps
+description.reproducible;      // false when any step holds a function
+description.nonDeterministic;  // names of those steps
 ```
 
 A function has no portable text form. Rather than inventing one — which would mean `eval`,
@@ -1435,42 +1432,42 @@ Used in `schema`. Aliases `int`, `float`, `decimal`, `text`, `bool` are accepted
 
 ### `NormalizationPolicy`
 
-| Field               | Type                | Default |
-| ------------------- | ------------------- | ------- |
-| `trimStrings`       | `boolean`           | `false` |
-| `emptyStringAsNull` | `boolean`           | `true`  |
-| `inferTypes`        | `boolean`           | `true`  |
-| `nullValues`        | `readonly string[]` | `[""]`  |
+| Field | Type | Default |
+| --- | --- | --- |
+| `trimStrings` | `boolean` | `false` |
+| `emptyStringAsNull` | `boolean` | `true` |
+| `inferTypes` | `boolean` | `true` |
+| `nullValues` | `readonly string[]` | `[""]` |
 
 `nullValues` is matched case-insensitively against the cell, after trimming when
 `trimStrings` is on.
 
 ### `ImportReport`
 
-| Field             | Type                               |
-| ----------------- | ---------------------------------- |
-| `format`          | `"csv" \| "tsv" \| "json"`         |
-| `source`          | `string`                           |
-| `rowsRead`        | `number`                           |
-| `rowsImported`    | `number`                           |
-| `columns`         | `readonly string[]`                |
+| Field | Type |
+| --- | --- |
+| `format` | `"csv" \| "tsv" \| "json"` |
+| `source` | `string` |
+| `rowsRead` | `number` |
+| `rowsImported` | `number` |
+| `columns` | `readonly string[]` |
 | `missingByColumn` | `Readonly<Record<string, number>>` |
-| `warnings`        | `readonly ImportWarning[]`         |
-| `normalization`   | `Readonly<NormalizationPolicy>`    |
-| `delimiter?`      | `string`                           |
-| `contentType?`    | `string`                           |
+| `warnings` | `readonly ImportWarning[]` |
+| `normalization` | `Readonly<NormalizationPolicy>` |
+| `delimiter?` | `string` |
+| `contentType?` | `string` |
 
 Warning codes: `ragged-row`, `invalid-value`, `unsafe-integer`.
 
 ### `TableOptions`
 
-| Field          | Type      | Default |
-| -------------- | --------- | ------- |
-| `maxRows`      | `number`  | `1000`  |
-| `maxColumns`   | `number`  | `20`    |
-| `maxCellWidth` | `number`  | `28`    |
-| `showIndex`    | `boolean` | `true`  |
-| `showShape`    | `boolean` | `true`  |
+| Field | Type | Default |
+| --- | --- | --- |
+| `maxRows` | `number` | `1000` |
+| `maxColumns` | `number` | `20` |
+| `maxCellWidth` | `number` | `28` |
+| `showIndex` | `boolean` | `true` |
+| `showShape` | `boolean` | `true` |
 
 ## Metrics
 
@@ -1478,39 +1475,39 @@ Warning codes: `ragged-row`, `invalid-value`, `unsafe-integer`.
 
 Returns a `Metric`. A spec supplies exactly one calculation: `aggregation` or `fn`.
 
-| Field         | Type                                | Notes                                                                                                |
-| ------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `name`        | `string`                            | Required. Non-empty; becomes the output column name                                                  |
-| `column`      | `string`                            | Required for every aggregation except `count`                                                        |
-| `aggregation` | `AggregationOp`                     | One of `count`, `sum`, `mean`, `min`, `max`, `median`, `first`, `last`, `nunique`, `std`, `variance` |
-| `fn`          | `(values, context) => unknown`      | Custom calculation, with `column`                                                                    |
-| `fn`          | `(rows, context) => unknown`        | Custom calculation, without `column`                                                                 |
-| `ddof`        | `number`                            | Applies to `std` and `variance` only                                                                 |
-| `format`      | `MetricFormat`                      | Carried, never applied                                                                               |
-| `metadata`    | `Readonly<Record<string, unknown>>` | Carried, never interpreted                                                                           |
-| `groupBy`     | `readonly string[]`                 | Grouping columns                                                                                     |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | `string` | Required. Non-empty; becomes the output column name |
+| `column` | `string` | Required for every aggregation except `count` |
+| `aggregation` | `AggregationOp` | One of `count`, `sum`, `mean`, `min`, `max`, `median`, `first`, `last`, `nunique`, `std`, `variance` |
+| `fn` | `(values, context) => unknown` | Custom calculation, with `column` |
+| `fn` | `(rows, context) => unknown` | Custom calculation, without `column` |
+| `ddof` | `number` | Applies to `std` and `variance` only |
+| `format` | `MetricFormat` | Carried, never applied |
+| `metadata` | `Readonly<Record<string, unknown>>` | Carried, never interpreted |
+| `groupBy` | `readonly string[]` | Grouping columns |
 
 ### `Metric`
 
-| Member                        | Type                       |
-| ----------------------------- | -------------------------- |
-| `name`                        | `string`                   |
-| `value`                       | `unknown`                  |
-| `definition`                  | `string`                   |
-| `aggregation`                 | `AggregationOp \| null`    |
-| `column`                      | `string \| null`           |
-| `metric`                      | `MetricResult`             |
-| `format`                      | `MetricFormat`             |
-| `metadata`                    | `MetricMetadata`           |
-| `groupBy`                     | `readonly string[]`        |
-| `rowCount`                    | `number`                   |
-| `rows`                        | `readonly Readonly<Row>[]` |
-| `columns`                     | `readonly string[]`        |
-| `byGroup()`                   | `GroupedMetricResult`      |
-| `toDataset()`                 | `{ columns, rows }`        |
-| `recalculate(rows, columns?)` | `Metric`                   |
-| `compare(options)`            | `MetricComparison`         |
-| `toJSON()`                    | Plain object, for logging  |
+| Member | Type |
+| --- | --- |
+| `name` | `string` |
+| `value` | `unknown` |
+| `definition` | `string` |
+| `aggregation` | `AggregationOp \| null` |
+| `column` | `string \| null` |
+| `metric` | `MetricResult` |
+| `format` | `MetricFormat` |
+| `metadata` | `MetricMetadata` |
+| `groupBy` | `readonly string[]` |
+| `rowCount` | `number` |
+| `rows` | `readonly Readonly<Row>[]` |
+| `columns` | `readonly string[]` |
+| `byGroup()` | `GroupedMetricResult` |
+| `toDataset()` | `{ columns, rows }` |
+| `recalculate(rows, columns?)` | `Metric` |
+| `compare(options)` | `MetricComparison` |
+| `toJSON()` | Plain object, for logging |
 
 `MetricResult` is `{ value, rows, values, reason }`, where `reason` is `"empty"`,
 `"no-values"`, `"not-numeric"`, or `null`.
@@ -1535,17 +1532,17 @@ Returns an `InsightReport`: `{ insights, skipped, truncated, thresholds }`.
 
 Returns the resolved thresholds, rejecting out-of-range values with `RangeError`.
 
-| Option              | Default | Valid range   |
-| ------------------- | ------- | ------------- |
-| `strongCorrelation` | `0.7`   | `0 <= x <= 1` |
-| `dominanceShare`    | `0.5`   | `0 < x <= 1`  |
-| `outlierThreshold`  | `1.5`   | `> 0`         |
-| `trendStrength`     | `0.7`   | `0 <= x <= 1` |
-| `minGroupSize`      | `3`     | `>= 1`        |
-| `maxCategoryRatio`  | `0.5`   | `0 < x <= 1`  |
-| `minRelativeGap`    | `0.25`  | `0 <= x <= 1` |
-| `maxInsights`       | `50`    | `>= 1`        |
-| `minTrendPoints`    | `4`     | `>= 3`        |
+| Option | Default | Valid range |
+| --- | --- | --- |
+| `strongCorrelation` | `0.7` | `0 <= x <= 1` |
+| `dominanceShare` | `0.5` | `0 < x <= 1` |
+| `outlierThreshold` | `1.5` | `> 0` |
+| `trendStrength` | `0.7` | `0 <= x <= 1` |
+| `minGroupSize` | `3` | `>= 1` |
+| `maxCategoryRatio` | `0.5` | `0 < x <= 1` |
+| `minRelativeGap` | `0.25` | `0 <= x <= 1` |
+| `maxInsights` | `50` | `>= 1` |
+| `minTrendPoints` | `4` | `>= 3` |
 
 ## Building blocks
 
@@ -1590,12 +1587,12 @@ The frozen default `NormalizationPolicy`. Spread it to build a custom policy:
 
 ## Errors
 
-| Class                 | `code`              | Extra fields                                |
-| --------------------- | ------------------- | ------------------------------------------- |
-| `NumiqError`          | —                   | base class                                  |
-| `ValidationError`     | `VALIDATION_ERROR`  | —                                           |
-| `ImportError`         | `IMPORT_ERROR`      | `status?`, `source?`                        |
-| `FormatError`         | `FORMAT_ERROR`      | —                                           |
-| `EnvironmentError`    | `ENVIRONMENT_ERROR` | —                                           |
-| `ColumnNotFoundError` | `COLUMN_NOT_FOUND`  | `column`, `available`                       |
-| `PipelineError`       | `PIPELINE_ERROR`    | `step`, `stepIndex`, `stepKind`, `original` |
+| Class | `code` | Extra fields |
+| --- | --- | --- |
+| `NumiqError` | — | base class |
+| `ValidationError` | `VALIDATION_ERROR` | — |
+| `ImportError` | `IMPORT_ERROR` | `status?`, `source?` |
+| `FormatError` | `FORMAT_ERROR` | — |
+| `EnvironmentError` | `ENVIRONMENT_ERROR` | — |
+| `ColumnNotFoundError` | `COLUMN_NOT_FOUND` | `column`, `available` |
+| `PipelineError` | `PIPELINE_ERROR` | `step`, `stepIndex`, `stepKind`, `original` |
