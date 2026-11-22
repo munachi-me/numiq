@@ -91,8 +91,31 @@ When optimizing:
 `describe()` and `sort()` are the hot paths that matter. `toTable()` is bounded by
 `maxRows` and is not one.
 
+## Stable surface (since 1.0.0)
+
+The API is frozen and follows semantic versioning; the policy is in
+`docs/compatibility.md`. Before adding an export, ask whether it is necessary — a new
+export is a permanent commitment, not a convenience. Anything not exported is internal and
+free to change in a minor release.
+
+- **Every export is documented.** `docs/api.md` covers all 93 runtime exports. An export
+  without documentation is an incomplete change.
+- **No breaking change without a major release** and a note in `docs/migration.md`.
+- **Node 18, 20, and 22 are the support matrix**, enforced by CI. `engines.node` is `>=18`
+  because `test-package.mjs` avoids `import.meta.dirname` (Node 20.11+) for that reason.
+- **The local-file sandbox is a security boundary, not a preference.** Absolute paths,
+  `..`, path separators on both platforms, null bytes, and symlinks resolving outside
+  `dataset/` are refused; containment is checked on `realpath` results.
+  `tests/integration/loaders.test.ts` pins each case — including a symlink escape, which
+  is the one only `realpath` catches. Do not relax these to make a test pass.
+
 ## Release flow
 
 Feature branch → PR → squash merge → annotated tag → GitHub release. Verify on merged
 `main` before tagging. The spec files in the repo root are local-only and gitignored; do
 not commit them.
+
+CI (`.github/workflows/ci.yml`) runs `npm run verify` and a clean consumer install on Node
+18/20/22. Publishing is a separate, explicitly approved step: `npm publish` for the public
+registry, and the same tarball can go to GitHub Packages with a `publishConfig` override.
+Never publish without the developer's approval.

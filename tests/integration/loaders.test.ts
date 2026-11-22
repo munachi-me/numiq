@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { createServer, type Server } from "node:http";
-import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, mkdir, symlink } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -103,6 +103,42 @@ describe("local files", () => {
     await writeFile(path.join(workDir, "outside.csv"), "a\n1\n");
     await expect(loadCSV("outside.csv", { datasetDir: workDir })).rejects.toThrow(ImportError);
     await expect(loadCSV("../outside.csv", { datasetDir: workDir })).rejects.toThrow(ValidationError);
+  });
+
+  // Security: the local-file sandbox. Each case below is a way out of dataset/ that the
+  // loader must refuse, so the guarantee is pinned rather than assumed.
+  it("refuses an absolute path", async () => {
+    const absolute = path.join(workDir, "dataset", "sales.csv");
+    await expect(loadCSV(absolute, { datasetDir: workDir })).rejects.toThrow(ValidationError);
+  });
+
+  it("refuses a Windows-style absolute path", async () => {
+    await expect(loadCSV("C:\\Windows\\system.ini", { datasetDir: workDir })).rejects.toThrow(ValidationError);
+  });
+
+  it("refuses a nested path even when the file exists", async () => {
+    await mkdir(path.join(workDir, "dataset", "nested"), { recursive: true });
+    await writeFile(path.join(workDir, "dataset", "nested", "inner.csv"), "a\n1\n");
+    await expect(loadCSV("nested/inner.csv", { datasetDir: workDir })).rejects.toThrow(ValidationError);
+    await expect(loadCSV("nested\\inner.csv", { datasetDir: workDir })).rejects.toThrow(ValidationError);
+  });
+
+  it("refuses a null byte in the filename", async () => {
+    await expect(loadCSV("sales.csv\u0000.txt", { datasetDir: workDir })).rejects.toThrow(ValidationError);
+  });
+
+  it("refuses a symlink that resolves outside the dataset folder", async () => {
+    // The filename is bare and the link lives inside dataset/, so only realpath-based
+    // containment stops this read.
+    await writeFile(path.join(workDir, "secret.csv"), "secret\n1\n");
+    await symlink(path.join(workDir, "secret.csv"), path.join(workDir, "dataset", "link.csv"));
+    await expect(loadCSV("link.csv", { datasetDir: workDir })).rejects.toThrow(ImportError);
+  });
+
+  it("allows a symlink that stays inside the dataset folder", async () => {
+    await symlink(path.join(workDir, "dataset", "sales.csv"), path.join(workDir, "dataset", "alias.csv"));
+    const data = await loadCSV("alias.csv", { datasetDir: workDir });
+    expect(data.rowCount).toBe(2);
   });
 
   it("reports a missing file as an ImportError", async () => {

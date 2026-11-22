@@ -1544,6 +1544,47 @@ Returns the resolved thresholds, rejecting out-of-range values with `RangeError`
 | `maxInsights` | `50` | `>= 1` |
 | `minTrendPoints` | `4` | `>= 3` |
 
+## Building blocks
+
+These functions are exported and stable. Each one does the work behind a corresponding
+`Dataset` method; use the method unless you are working with raw rows.
+
+### `validateDescribeOptions(options?)`
+
+Resolves `describe()` options to `{ ddof, percentiles }`, throwing `RangeError` for a
+negative or non-integer `ddof`, a non-array `percentiles`, or a percentile outside `0..100`.
+
+### `profileColumn(name, values, total, options?)`
+
+Profiles one column's values into a `ColumnProfile`. `total` is the row count and is passed
+rather than derived, so an all-null column reports `total` missing values instead of `0`.
+
+### `joinTables(leftRows, leftColumns, rightRows, rightColumns, options)`
+
+Joins raw tables into a `JoinResult`. `options` matches `Dataset.join` (`on`, `how`,
+`suffixes`, `nullsMatch`, `maxRows`) with the key columns given as names. Throws
+`ValidationError` when the join would produce duplicate column names.
+
+### `pivotRows(rows, columns, options)`
+
+Pivots long data into one column per distinct value of `options.columns`, aggregating
+`options.values`. Returns a `PivotResult` carrying the pivoted rows and `collapsed`.
+
+### `meltRows(rows, columns, options?)`
+
+Unpivots wide data into variable/value pairs. Returns a `PreparedTable`. `idVars` and
+`valueVars` select which columns are kept and which are melted.
+
+### `concatRows(tables, options?)`
+
+Stacks rows from several tables. `options.columns` is `"union"` (default) to keep every
+column or `"strict"` to require identical columns. Throws `ValidationError` on empty input.
+
+### `DEFAULT_NORMALIZATION`
+
+The frozen default `NormalizationPolicy`. Spread it to build a custom policy:
+`{ ...DEFAULT_NORMALIZATION, nulls: ["NA"] }`.
+
 ## Errors
 
 | Class | `code` | Extra fields |
