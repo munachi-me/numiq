@@ -27,6 +27,15 @@ function check(name, condition, detail = "") {
   }
 }
 
+/**
+ * `npm publish --dry-run` exports `npm_config_dry_run`, which the nested `npm pack` and
+ * `npm install` below would inherit and honour — producing an empty tarball and a
+ * "corrupted tarball" error. The rehearsal has to actually pack and install, so strip it.
+ */
+const childEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => key.toLowerCase() !== "npm_config_dry_run"),
+);
+
 /** The bundled sample's columns, in order. */
 const SAMPLE_COLUMNS = ["order_id", "date", "product", "category", "region", "quantity", "revenue"];
 
@@ -36,6 +45,7 @@ try {
   const packOutput = execFileSync("npm", ["pack", "--json", "--pack-destination", workDir], {
     cwd: root,
     encoding: "utf8",
+    env: childEnv,
   });
   // `npm pack --json` returns an array in some versions and a name-keyed object in others.
   const parsed = JSON.parse(packOutput);
@@ -59,7 +69,11 @@ try {
     path.join(consumer, "package.json"),
     JSON.stringify({ name: "consumer", private: true, type: "module" }, null, 2),
   );
-  execFileSync("npm", ["install", "--no-audit", "--no-fund", tarball], { cwd: consumer, stdio: "pipe" });
+  execFileSync("npm", ["install", "--no-audit", "--no-fund", tarball], {
+    cwd: consumer,
+    stdio: "pipe",
+    env: childEnv,
+  });
 
   console.log("\nesm import");
   const esm = execFileSync(
@@ -319,16 +333,16 @@ try {
     JSON.stringify(esmResult.groupedColumns),
   );
   check("aggregate produces one row per group", esmResult.groupedRows === 4, String(esmResult.groupedRows));
-  check(
-    "group counts sum to the row count",
-    esmResult.groupedCountTotal === 50,
-    String(esmResult.groupedCountTotal),
-  );
+  check("group counts sum to the row count", esmResult.groupedCountTotal === 50, String(esmResult.groupedCountTotal));
   check("aggregates a first group correctly", esmResult.groupedFirst?.n === 13, JSON.stringify(esmResult.groupedFirst));
   check("supports custom aggregators", esmResult.customGroupedRows === 4, String(esmResult.customGroupedRows));
   check("exposes group sizes", Array.isArray(esmResult.groupSizes), JSON.stringify(esmResult.groupSizes));
   check("exposes the GroupedDataset export", esmResult.GroupedDatasetIdentity === true);
-  check("exports standalone aggregation helpers", esmResult.standaloneSum === 6 && esmResult.standaloneMedian === 2, String(esmResult.standaloneSum));
+  check(
+    "exports standalone aggregation helpers",
+    esmResult.standaloneSum === 6 && esmResult.standaloneMedian === 2,
+    String(esmResult.standaloneSum),
+  );
   check(
     "standalone std honours ddof",
     Math.abs(Number(esmResult.standaloneStd) - Math.sqrt(2)) < 1e-12,
@@ -423,10 +437,18 @@ try {
 
   console.log("\nadvanced statistics");
   const adv = esmResult.advanced;
-  check("correlates through the packed package", Math.abs(adv.pearson.r - 0.43724861958188593) < 1e-12, String(adv.pearson.r));
+  check(
+    "correlates through the packed package",
+    Math.abs(adv.pearson.r - 0.43724861958188593) < 1e-12,
+    String(adv.pearson.r),
+  );
   check("reports the pair count", adv.pearson.n === 50, String(adv.pearson.n));
   check("carries a null reason when computed", adv.pearson.reason === null);
-  check("rank correlation differs from Pearson", Math.abs(adv.spearman.r - 0.5244511749947358) < 1e-12, String(adv.spearman.r));
+  check(
+    "rank correlation differs from Pearson",
+    Math.abs(adv.spearman.r - 0.5244511749947358) < 1e-12,
+    String(adv.spearman.r),
+  );
   check(
     "builds a matrix over numeric columns",
     JSON.stringify(adv.matrixColumns) === '["quantity","revenue"]',
@@ -438,15 +460,31 @@ try {
   check("reports excess kurtosis", Math.abs(adv.kurtosis - 2.3952120604810103) < 1e-12, String(adv.kurtosis));
   check("summarises five numbers", adv.five.count === 50 && adv.five.min === 29.5 && adv.five.max === 2720.94);
   check("finds IQR outliers", adv.outlierCount === 4, String(adv.outlierCount));
-  check("reports the outlier fence", Math.abs(adv.outlierFence.upper - 1903.9875) < 1e-9, String(adv.outlierFence.upper));
-  check("computes z-scores", adv.zReason === null && Math.abs(adv.zFirst + 0.8651368264727416) < 1e-12, String(adv.zFirst));
+  check(
+    "reports the outlier fence",
+    Math.abs(adv.outlierFence.upper - 1903.9875) < 1e-9,
+    String(adv.outlierFence.upper),
+  );
+  check(
+    "computes z-scores",
+    adv.zReason === null && Math.abs(adv.zFirst + 0.8651368264727416) < 1e-12,
+    String(adv.zFirst),
+  );
   check("adds a z-score column", adv.zColumn === true);
   check("computes percentile rank", adv.pctRank === 94, String(adv.pctRank));
   check("nulls z-scores for a constant column", adv.constantZ === null, String(adv.constantZ));
   check("exports standalone covariance", Math.abs(adv.standaloneCov - 2) < 1e-12, String(adv.standaloneCov));
   check("exports standalone Pearson", Math.abs(adv.standalonePearson - 1) < 1e-12, String(adv.standalonePearson));
-  check("exports normalize", JSON.stringify(adv.standaloneNormalize) === "[0,0.5,1]", JSON.stringify(adv.standaloneNormalize));
-  check("exports standardize", JSON.stringify(adv.standaloneStandardize) === "[-1,0,1]", JSON.stringify(adv.standaloneStandardize));
+  check(
+    "exports normalize",
+    JSON.stringify(adv.standaloneNormalize) === "[0,0.5,1]",
+    JSON.stringify(adv.standaloneNormalize),
+  );
+  check(
+    "exports standardize",
+    JSON.stringify(adv.standaloneStandardize) === "[-1,0,1]",
+    JSON.stringify(adv.standaloneStandardize),
+  );
   check("exports skewness", adv.standaloneSkew > 1, String(adv.standaloneSkew));
   check("exposes advanced helpers on the default namespace", adv.AdvancedIdentity === true);
 
@@ -455,7 +493,11 @@ try {
   check("names a metric", met.name === "Total Revenue");
   check("computes the metric sum", Math.abs(met.value - 31122.69) < 1e-6, String(met.value));
   check("states the definition", met.definition === 'sum("revenue")');
-  check("reports rows and values", met.evidence.rows === 50 && met.evidence.values === 50, JSON.stringify(met.evidence));
+  check(
+    "reports rows and values",
+    met.evidence.rows === 50 && met.evidence.values === 50,
+    JSON.stringify(met.evidence),
+  );
   check("counts rows", met.count === 50, String(met.count));
   check("computes grouped metrics", met.grouped.length === 4, JSON.stringify(met.grouped));
   check("runs a custom callback", met.custom > 0, String(met.custom));
