@@ -98,12 +98,16 @@ so they are not normalized twice.
 if `dist/esm/index.js` contains one, and two tests assert the same thing — one over the
 source tree, one over the packed artifact.
 
-Filesystem access is injected rather than imported. `loaders.ts` holds a module-level
-`localFileReader` that is `null` until `node.ts` calls `setLocalFileReader(readLocalFile)`.
-When the reader is `null`, a local path raises an `EnvironmentError` naming the fix.
+Filesystem access is bound per entry point rather than imported. `loaders.ts` exports
+`createFileLoaders(getReader)`, which captures the reader in a closure. `node.ts` builds
+`loadCSV`, `loadJSON`, and `loadTSV` around `readLocalFile`; `index.ts` builds them around
+`() => null`, so a local path raises an `EnvironmentError` naming the fix.
 
-This is why `node.ts` is listed in `sideEffects`: importing it mutates loader state on
-purpose. Bundlers must not tree-shake that assignment away.
+The reader must not live in module-level state. Both entry points resolve to the same
+module instance, so a shared mutable reader would let importing `node.ts` grant filesystem
+access to the `@munachi-me/numiq/core` entry — making a documented guarantee depend on
+import order. A test imports the Node entry first and asserts the core entry still refuses
+local filenames.
 
 ## Type inference versus casting
 

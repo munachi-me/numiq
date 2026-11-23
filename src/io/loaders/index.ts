@@ -1,4 +1,4 @@
-export { loadCSV, loadJSON, loadTSV, loadURL } from "./loaders.js";
+export { createFileLoaders, loadURL } from "./loaders.js";
 export {
   formatFromContentType,
   formatFromPath,
