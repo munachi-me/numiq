@@ -161,3 +161,18 @@ npm trust github @munachi-me/numiq --file publish.yml --repo munachi-me/numiq --
 ```
 
 Never publish without the developer's approval.
+
+## Git write access in the agent sandbox
+
+The sandbox credentials are **read-only** for this repository, even though
+`GET /repos/munachi-me/numiq` reports `permissions.push: true` (that field reflects the
+human account, not the installation token in use).
+
+- `GITHUB_TOKEN` authenticates and can read refs and contents, but `git push` fails with
+  `403`, and `POST /git/refs` returns `Resource not accessible by integration`
+  (`x-accepted-github-permissions: metadata=read`).
+- `OH_GIT_CREDENTIAL_ACCESS_TOKEN_GITHUB` is a JWT that git rejects outright.
+
+So: commit locally, then hand off. Do not retry push variants — the failure is
+authorisation, not transport. The remote URL holds no credentials, so no cleanup is needed
+after a failed attempt.
