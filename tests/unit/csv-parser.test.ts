@@ -257,7 +257,8 @@ describe("TSV", () => {
   });
 
   it("rejects a format that is not csv or tsv", () => {
-    expect(() => parseDelimited("a,b\n1,2\n", { format: "json" as never })).not.toThrow();
+    // Previously this parsed and labelled the CSV rows `format: "json"`.
+    expect(() => parseDelimited("a,b\n1,2\n", { format: "json" as never })).toThrow(ValidationError);
   });
 });
 
@@ -274,5 +275,14 @@ describe("error types", () => {
 
   it("throws ValidationError for non-string input", () => {
     expect(() => parseDelimited(42 as never, { format: "csv" })).toThrow(ValidationError);
+  });
+
+  it("throws ValidationError, not TypeError, when format is missing", () => {
+    // Only reachable from untyped callers, since `format` is required by the type.
+    expect(() => parseDelimited("a\n1\n", undefined as never)).toThrow(ValidationError);
+    expect(() => parseDelimited("a\n1\n", undefined as never)).toThrow(/format/);
+    // `{}` used to parse and leave `importReport.format` undefined.
+    expect(() => parseDelimited("a\n1\n", {} as never)).toThrow(ValidationError);
+    expect(() => parseDelimited("a\n1\n", { format: "xml" } as never)).toThrow(ValidationError);
   });
 });

@@ -151,6 +151,16 @@ createDataset({ name: ["Ada", "Lin"], age: [36, 41] });
 createDataset([{ a: 1, b: 2 }], { columns: ["b", "a"] });
 ```
 
+Hand-built rows go through the same cell normalization as a parsed file, so
+`createDataset([{ a: "1" }])` stores the number `1`, not the string `"1"`. This surprises
+people who expect their values to pass through untouched. Pass
+`{ normalization: { inferTypes: false } }` to keep every value exactly as given:
+
+```ts
+createDataset([{ a: "1" }]); // [{ a: 1 }]
+createDataset([{ a: "1" }], { normalization: { inferTypes: false } }); // [{ a: "1" }]
+```
+
 ## The Dataset
 
 A `Dataset` is immutable. Every read returns a defensive copy, so mutating what you
@@ -365,8 +375,12 @@ release and currently has no effect.
 Casting is strict. `date` and `datetime` require ISO input (`YYYY-MM-DD`,
 `YYYY-MM-DDTHH:MM:SS`) and produce real `Date` objects at UTC midnight. `time` stays a
 canonical `HH:MM:SS` string, because a wall-clock time has no date to anchor a `Date` to.
-A failed cast throws a `FormatError` naming the row and column unless `onInvalid: "null"`
-is set.
+A failed cast during a load throws a `FormatError` naming the row and column unless
+`onInvalid: "null"` is set.
+
+`Dataset.cast()` uses the same type names and is equally strict, but throws
+`ValidationError` instead, because it runs after the import and has no format context to
+blame. Catch `NumiqError` if you want to handle both without distinguishing.
 
 Without a schema, Numiq infers types for reporting (`dtypes`) but never silently converts
 date-like strings into `Date` objects. What you see in `data` is what the file contained.
@@ -769,11 +783,22 @@ const scoped = revenue.recalculate(north.data, north.columns);
 scoped.value; // a smaller total, over 13 rows
 
 revenue.compare({ to: scoped.metric, label: "North" });
-// { difference, ratio, percentChange, reason: null }
+// { difference, ratio, percentChange, percentDifference, reason: null }
 ```
 
 `compare` returns `reason: "not-numeric"` when either side is not a number, and
 `reason: "zero-baseline"` when the baseline is zero, rather than producing `Infinity`.
+
+Two percentage fields, and they differ. For a metric that doubled, baseline `100` to `200`:
+
+| Field               | Formula                            | Result |
+| ------------------- | ---------------------------------- | ------ |
+| `percentChange`     | `value / otherValue * 100`         | `200`  |
+| `percentDifference` | `(value - otherValue) / otherValue * 100` | `100`  |
+
+`percentChange` predates `percentDifference` and reports the new value as a percentage of
+the baseline, which reads oddly for a field called "change". It is retained unchanged for
+compatibility; prefer `percentDifference` in new code.
 
 Metric aggregations delegate to the same primitives `groupBy().aggregate()` uses, so a
 metric and a grouped aggregation over the same column cannot disagree.

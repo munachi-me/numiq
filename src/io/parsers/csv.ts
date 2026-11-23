@@ -1,5 +1,5 @@
 import type { Dataset } from "../../core/dataset.js";
-import type { CsvOptions, ImportFormat, LoadOptions } from "../types.js";
+import type { CsvOptions, DelimitedFormat, LoadOptions } from "../types.js";
 import type { Row } from "../../core/types.js";
 import { FormatError, ValidationError } from "../../errors/index.js";
 import { createNormalizedDataset } from "../../core/dataset.js";
@@ -11,9 +11,21 @@ import { detectDelimiter, tokenize } from "./csv-tokenizer.js";
 /** Parse delimited text into a dataset. Synchronous: no I/O happens here. */
 export function parseDelimited(
   text: string,
-  options: CsvOptions & LoadOptions & { format: ImportFormat; source?: string; contentType?: string },
+  options: CsvOptions & LoadOptions & { format: DelimitedFormat; source?: string; contentType?: string },
 ): Dataset {
   if (typeof text !== "string") throw new ValidationError("Delimited input must be a string.");
+  // `format` is required by the type, but untyped callers can omit it. Without this check
+  // the report would carry `format: undefined`, and omitting `options` entirely threw a
+  // TypeError from reading `.delimiter` off undefined.
+  if (options === null || typeof options !== "object") {
+    throw new ValidationError('parseDelimited expects an options object with a "format" of "csv" or "tsv".');
+  }
+  if (options.format !== "csv" && options.format !== "tsv") {
+    throw new ValidationError(
+      `parseDelimited requires a "format" of "csv" or "tsv" (received ${JSON.stringify(options.format)}). ` +
+        "Use parseJSON for JSON input.",
+    );
+  }
   if (options.delimiter !== undefined && options.delimiter.length !== 1) {
     throw new ValidationError("delimiter must be a single character.");
   }
