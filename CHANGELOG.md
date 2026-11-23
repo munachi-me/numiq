@@ -18,6 +18,14 @@ All notable changes to Numiq are recorded here. The format follows
 - README "Releasing" section, the `@munachi-me/numiq/core` subpath, and a complete script
   table covering every `package.json` script.
 
+### Fixed
+
+- A `workflow_dispatch` rehearsal of an already-published version failed at npm's
+  duplicate-version check, so the documented "rehearse with `dry_run`" procedure always
+  reported red. A dry run now tolerates that specific error, since reaching it proves
+  `prepublishOnly` ran and the tarball packed. The tolerance is gated on `--dry-run`, so a
+  real publish that hits a duplicate or an auth error still fails.
+
 ### Changed
 
 - The publish workflow checks that the OIDC token is available before doing any work, so a

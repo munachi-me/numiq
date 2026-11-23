@@ -79,7 +79,21 @@ jobs:
       - name: Publish to npm
         env:
           DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
-        run: npm publish ${DRY_RUN}
+        run: |
+          set +e
+          output="$(npm publish ${DRY_RUN} 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          [ "$status" -eq 0 ] && exit 0
+          # Rehearsing an already-published version stops at the registry's
+          # duplicate check. Reaching it proves prepublishOnly ran and the
+          # tarball packed, which is what a rehearsal is for.
+          if [ -n "${DRY_RUN}" ] && printf '%s' "$output" | grep -q "previously published"; then
+            echo "::notice::Already published. Packing and prepublish verified; a dry run stops before the OIDC exchange."
+            exit 0
+          fi
+          exit "$status"
 
       - name: Publish to GitHub Packages
         env:
@@ -92,5 +106,15 @@ jobs:
             echo "@munachi-me:registry=https://npm.pkg.github.com"
             echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
           } > "$npmrc"
-          npm publish --userconfig "$npmrc" ${DRY_RUN}
+          set +e
+          output="$(npm publish --userconfig "$npmrc" ${DRY_RUN} 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
           rm -f "$npmrc"
+          [ "$status" -eq 0 ] && exit 0
+          if [ -n "${DRY_RUN}" ] && printf '%s' "$output" | grep -q "previously published"; then
+            echo "::notice::Already published to GitHub Packages; rehearsal verified packing."
+            exit 0
+          fi
+          exit "$status"
