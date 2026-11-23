@@ -2,7 +2,7 @@
  * Numiq default entry point.
  *
  * This module must stay free of Node.js built-ins so it can be bundled for browsers.
- * Filesystem loading lives in `node.ts`, which installs a reader into the loader module.
+ * Filesystem loading lives in `node.ts`, which binds its own loaders to a real reader.
  */
 export { Dataset, createDataset } from "./core/dataset.js";
 export type { SortDirection } from "./core/dataset.js";
@@ -183,7 +183,7 @@ export type {
 } from "./insights/insights.js";
 export { useSampleDataset } from "./core/sample.js";
 export { renderTable } from "./display/table.js";
-export { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
+export { loadURL } from "./io/loaders/loaders.js";
 export { parseDelimited } from "./io/parsers/csv.js";
 export { parseJSON } from "./io/parsers/json.js";
 export { detectDelimiter, tokenize } from "./io/parsers/csv-tokenizer.js";
@@ -273,7 +273,8 @@ import { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
 import { analyze, resolveInsightOptions } from "./insights/insights.js";
 import { useSampleDataset } from "./core/sample.js";
 import { renderTable } from "./display/table.js";
-import { loadCSV, loadJSON, loadTSV, loadURL } from "./io/loaders/loaders.js";
+import { loadURL } from "./io/loaders/loaders.js";
+import { createFileLoaders } from "./io/loaders/loaders.js";
 import { parseDelimited } from "./io/parsers/csv.js";
 import { parseJSON } from "./io/parsers/json.js";
 import { detectDelimiter, tokenize } from "./io/parsers/csv-tokenizer.js";
@@ -287,6 +288,14 @@ import {
   EnvironmentError,
   ColumnNotFoundError,
 } from "./errors/index.js";
+
+/**
+ * The browser-safe loaders, built with no filesystem reader.
+ *
+ * Declared after the imports so the CommonJS emit has already required `loaders.js` before
+ * this call runs; a top-of-file `export const` would be hoisted above its own `require`.
+ */
+export const { loadCSV, loadJSON, loadTSV } = createFileLoaders(() => null);
 
 /**
  * Default namespace export.

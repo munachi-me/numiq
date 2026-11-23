@@ -15,19 +15,38 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-/** Load a CSV file or URL into a dataset. */
-export function loadCSV(source: Source, options: LoadOptions & CsvOptions = {}): Promise<Dataset> {
-  return loadWith("csv", source, options);
+/**
+ * Reads a filename from the project's `dataset/` folder.
+ *
+ * Supplied by the Node entry point only. The browser entry never imports it, so a bundler
+ * targeting the browser cannot reach `node:fs` through the loaders.
+ */
+export type LocalFileReader = (filename: string, datasetDir?: string) => Promise<ResolvedSource>;
+
+/** The three loaders that can read a local filename. */
+export interface FileLoaders {
+  loadCSV(source: Source, options?: LoadOptions & CsvOptions): Promise<Dataset>;
+  loadTSV(source: Source, options?: LoadOptions & CsvOptions): Promise<Dataset>;
+  loadJSON(source: Source, options?: LoadOptions & JsonOptions): Promise<Dataset>;
 }
 
-/** Load a TSV file or URL into a dataset. */
-export function loadTSV(source: Source, options: LoadOptions & CsvOptions = {}): Promise<Dataset> {
-  return loadWith("tsv", source, options);
-}
-
-/** Load a JSON file or URL into a dataset. */
-export function loadJSON(source: Source, options: LoadOptions & JsonOptions = {}): Promise<Dataset> {
-  return loadWith("json", source, options);
+/**
+ * Build the file loaders around a reader supplied by the entry point.
+ *
+ * The reader is captured in a closure rather than held in module-level state. Both entry
+ * points resolve to this same module instance, so shared mutable state would let the Node
+ * entry grant filesystem access to `@munachi-me/numiq/core` merely by being imported
+ * first — turning a documented guarantee into a function of import order.
+ *
+ * `getReader` is called per load rather than once at construction so the entry point keeps
+ * control of when a reader exists.
+ */
+export function createFileLoaders(getReader: () => LocalFileReader | null): FileLoaders {
+  return {
+    loadCSV: (source, options = {}) => loadWith("csv", source, options, getReader),
+    loadTSV: (source, options = {}) => loadWith("tsv", source, options, getReader),
+    loadJSON: (source, options = {}) => loadWith("json", source, options, getReader),
+  };
 }
 
 /**
@@ -64,8 +83,9 @@ async function loadWith(
   format: ImportFormat,
   source: Source,
   options: LoadOptions & CsvOptions & JsonOptions & FormatOptions,
+  getReader: () => LocalFileReader | null,
 ): Promise<Dataset> {
-  const resolved = await resolveSource(source, options);
+  const resolved = await resolveSource(source, options, getReader);
   assertFormatMatches(format, resolved);
   return parseResolved(format, resolved.text, resolved, options);
 }
@@ -107,7 +127,11 @@ function parseResolved(
   });
 }
 
-async function resolveSource(source: Source, options: LoadOptions): Promise<ResolvedSource> {
+async function resolveSource(
+  source: Source,
+  options: LoadOptions,
+  getReader: () => LocalFileReader | null,
+): Promise<ResolvedSource> {
   if (source instanceof URL) {
     if (!/^https?:/i.test(source.protocol)) {
       throw new ValidationError(`Only http: and https: URLs are supported (received "${source.protocol}").`);
@@ -117,7 +141,9 @@ async function resolveSource(source: Source, options: LoadOptions): Promise<Reso
 
   if (typeof source === "string") {
     if (/^https?:\/\//i.test(source)) return fetchSource(source, options);
-    return readLocalFile(source, options.datasetDir);
+    const reader = getReader();
+    if (reader === null) assertNotLocalPath(source);
+    return reader!(source, options.datasetDir);
   }
 
   if (source instanceof ArrayBuffer || source instanceof Uint8Array) {
@@ -216,26 +242,6 @@ function safePathname(url: string): string {
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * Local file access is injected by the Node entry point.
- *
- * The browser entry leaves this unset, so `loadCSV("data.csv")` fails with an actionable
- * `EnvironmentError` instead of a bundler error or a silent failure.
- */
-export type LocalFileReader = (filename: string, datasetDir?: string) => Promise<ResolvedSource>;
-
-let localFileReader: LocalFileReader | null = null;
-
-/** @internal Used by the Node entry point to enable filesystem loading. */
-export function setLocalFileReader(reader: LocalFileReader): void {
-  localFileReader = reader;
-}
-
-async function readLocalFile(filename: string, datasetDir?: string): Promise<ResolvedSource> {
-  if (localFileReader === null) assertNotLocalPath(filename);
-  return localFileReader!(filename, datasetDir);
 }
 
 export { EnvironmentError, FormatError };
