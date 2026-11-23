@@ -288,12 +288,18 @@ describe("Metric comparison", () => {
     expect(comparison.difference).toBe(75);
     expect(comparison.ratio).toBe(2);
     expect(comparison.percentChange).toBe(200);
+    expect(comparison.percentDifference).toBe(100);
     expect(comparison.reason).toBeNull();
   });
 
   it("compares against a bare number", () => {
     const total = DATA.createMetric({ name: "Total", column: "revenue", aggregation: "sum" });
-    expect(total.compare({ to: 100 })).toMatchObject({ difference: 50, ratio: 1.5, percentChange: 150 });
+    expect(total.compare({ to: 100 })).toMatchObject({
+      difference: 50,
+      ratio: 1.5,
+      percentChange: 150,
+      percentDifference: 50,
+    });
   });
 
   it("refuses to divide by a zero baseline", () => {
@@ -305,6 +311,7 @@ describe("Metric comparison", () => {
     const comparison = zero.compare({ to: 0 });
     expect(comparison.ratio).toBeNull();
     expect(comparison.percentChange).toBeNull();
+    expect(comparison.percentDifference).toBeNull();
     expect(comparison.reason).toBe("zero-baseline");
   });
 

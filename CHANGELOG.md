@@ -4,6 +4,36 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `MetricComparison.percentDifference`: the conventional
+  `(value - otherValue) / otherValue * 100`, so a doubling reports `100`. `percentChange`
+  is unchanged at `200` for the same comparison; it reports the new value as a percentage
+  of the baseline, which is not what its name suggests. Both are documented side by side.
+
+### Fixed
+
+- `parseDelimited` now validates `format` instead of failing obscurely. Omitting the
+  options object threw a bare `TypeError` from reading `.delimiter` off `undefined`, and
+  passing `{}` parsed successfully while labelling the report `format: undefined`. Both
+  now throw `ValidationError` naming the expected values. `format: "json"` was also
+  accepted and produced CSV rows tagged as JSON; it is now rejected, and the `format`
+  parameter is typed `"csv" | "tsv"` so the mistake is caught at compile time.
+- `package.json` `sideEffects` listed `./dist/{esm,cjs}/node.js`, a leftover from when the
+  Node entry installed a filesystem reader into shared module state. That entry is now
+  pure, so the field is `false` and bundlers can tree-shake the package freely.
+
+### Changed
+
+- Documentation corrections, no runtime change. The README described every failed cast as
+  throwing `FormatError`; `Dataset.cast()` throws `ValidationError`, because it runs after
+  the import and has no format context. The README now states both classes and notes that
+  `NumiqError` catches either. It also documents that `createDataset` normalizes
+  hand-built rows like a parsed file (`createDataset([{ a: "1" }])` stores `1`), with
+  `normalization: { inferTypes: false }` as the opt-out.
+
 ## [1.0.4] - 2026-11-23
 
 ### Fixed

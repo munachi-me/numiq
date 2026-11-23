@@ -29,6 +29,7 @@ import Numiq, {
   type NormalizationPolicy,
   type DatasetOptions,
   type CsvOptions,
+  type DelimitedFormat,
   type JsonOptions,
   useSampleDataset,
   type JoinHow,
@@ -215,6 +216,10 @@ expectType<Promise<Dataset>>(loadCSV(new Blob(["a\n1"])));
 expectType<Promise<Dataset>>(loadCSV(new Uint8Array([97])));
 expectType<Promise<Dataset>>(Numiq.loadURL("https://example.com/a.csv"));
 expectType<Dataset>(Numiq.parseDelimited("a\n1", { format: "csv" }));
+expectType<Dataset>(Numiq.parseDelimited("a\n1", { format: "tsv" }));
+// @ts-expect-error `parseDelimited` cannot produce JSON; use `parseJSON`.
+Numiq.parseDelimited("a\n1", { format: "json" });
+expectType<DelimitedFormat>("tsv");
 expectType<Dataset>(Numiq.parseJSON('[{"a":1}]'));
 
 // Option bags are structural and all-optional.

@@ -213,7 +213,15 @@ export type {
   Row,
   TableOptions,
 } from "./core/types.js";
-export type { CsvOptions, FormatOptions, ImportFormat, JsonOptions, LoadOptions, Source } from "./io/types.js";
+export type {
+  CsvOptions,
+  DelimitedFormat,
+  FormatOptions,
+  ImportFormat,
+  JsonOptions,
+  LoadOptions,
+  Source,
+} from "./io/types.js";
 export type { NumiqErrorCode } from "./errors/index.js";
 export type { ColumnCast } from "./io/normalization/schema.js";
 export type { NormalizedCell } from "./io/normalization/values.js";

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createDataset } from "../../src/core/dataset.js";
-import { ColumnNotFoundError, ValidationError } from "../../src/errors/index.js";
+import { ColumnNotFoundError, FormatError, ValidationError } from "../../src/errors/index.js";
+import { parseDelimited } from "../../src/io/parsers/csv.js";
 
 const rows = () => [
   { id: 1, qty: 2, price: 10, note: "a" },
@@ -488,6 +489,13 @@ describe("cast", () => {
 
   it("rejects a value that cannot be converted, naming row and column", () => {
     expect(() => createDataset([{ v: "abc" }]).cast({ v: "number" })).toThrow(/cast failed at row 0, column "v"/);
+  });
+
+  it("throws ValidationError, while a load-time cast throws FormatError", () => {
+    // Documented in the README: the classes differ because a load has a format context to
+    // blame and a post-import cast does not. Both extend NumiqError.
+    expect(() => createDataset([{ v: "abc" }]).cast({ v: "number" })).toThrow(ValidationError);
+    expect(() => parseDelimited("v\nabc\n", { format: "csv", schema: { v: "number" } })).toThrow(FormatError);
   });
 
   it("rejects a fractional value for an integer column", () => {

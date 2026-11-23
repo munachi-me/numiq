@@ -172,8 +172,18 @@ export interface MetricComparison {
   readonly difference: number | null;
   /** `value / otherValue`, when both are numbers and the baseline is not zero. */
   readonly ratio: number | null;
-  /** `ratio * 100`, for convenience. */
+  /**
+   * `ratio * 100`: the value expressed as a percentage of the baseline, so a doubling is
+   * `200`. This is *not* the conventional "percent change" of `(value - otherValue) /
+   * otherValue * 100`, which would report `100` for a doubling. Kept under its historical
+   * name for compatibility; prefer `percentDifference`, which is unambiguous.
+   */
   readonly percentChange: number | null;
+  /**
+   * `(value - otherValue) / otherValue * 100`: the conventional percent change, so a
+   * doubling is `100` and a halving is `-50`. `null` on the same conditions as `ratio`.
+   */
+  readonly percentDifference: number | null;
   /** Why a derived field is `null`, or `null` when the comparison is complete. */
   readonly reason: MetricComparisonReason | null;
 }
@@ -446,16 +456,35 @@ export class Metric {
         difference: null,
         ratio: null,
         percentChange: null,
+        percentDifference: null,
         reason: "not-numeric",
       };
     }
 
     const difference = value - otherValue;
     if (otherValue === 0) {
-      return { other: label, value, otherValue, difference, ratio: null, percentChange: null, reason: "zero-baseline" };
+      return {
+        other: label,
+        value,
+        otherValue,
+        difference,
+        ratio: null,
+        percentChange: null,
+        percentDifference: null,
+        reason: "zero-baseline",
+      };
     }
     const ratio = value / otherValue;
-    return { other: label, value, otherValue, difference, ratio, percentChange: ratio * 100, reason: null };
+    return {
+      other: label,
+      value,
+      otherValue,
+      difference,
+      ratio,
+      percentChange: ratio * 100,
+      percentDifference: (difference / otherValue) * 100,
+      reason: null,
+    };
   }
 
   /**

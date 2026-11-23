@@ -3,6 +3,9 @@ import type { ColumnType, ColumnTypeSpec, ImportReport, NormalizationPolicy } fr
 /** Formats the parsers understand. Excel is deliberately absent. */
 export type ImportFormat = "csv" | "tsv" | "json";
 
+/** Formats `parseDelimited` accepts: it cannot produce JSON. */
+export type DelimitedFormat = Extract<ImportFormat, "csv" | "tsv">;
+
 /** Anything a loader can read without filesystem access. */
 export type Source = string | URL | Blob | ArrayBuffer | Uint8Array;
 

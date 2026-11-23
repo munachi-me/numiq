@@ -1512,8 +1512,13 @@ Returns a `Metric`. A spec supplies exactly one calculation: `aggregation` or `f
 `MetricResult` is `{ value, rows, values, reason }`, where `reason` is `"empty"`,
 `"no-values"`, `"not-numeric"`, or `null`.
 
-`MetricComparison` is `{ other, value, otherValue, difference, ratio, percentChange, reason }`.
+`MetricComparison` is `{ other, value, otherValue, difference, ratio, percentChange, percentDifference, reason }`.
 `reason` is `"not-numeric"`, `"zero-baseline"`, or `null`.
+
+`percentChange` is `value / otherValue * 100`, so a doubling from `100` to `200` reports
+`200`. `percentDifference` is the conventional `(value - otherValue) / otherValue * 100`,
+which reports `100` for the same doubling. Both are `null` when the comparison has a
+`reason`. Prefer `percentDifference`; `percentChange` is kept unchanged for compatibility.
 
 ### `isAggregationOp(value)`
 

@@ -65,10 +65,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "sideEffects": [
-    "./dist/esm/node.js",
-    "./dist/cjs/node.js"
-  ],
+  "sideEffects": false,
   "engines": {
     "node": ">=18"
   },

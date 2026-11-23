@@ -43,6 +43,14 @@ describe("createDataset from records", () => {
     expect(data.columnCount).toBe(2);
     expect(data.empty).toBe(true);
   });
+
+  it("normalizes hand-built cells like a parsed file", () => {
+    // Documented in the README: the constructor applies the same policy as a loader, so
+    // `inferTypes: false` is the escape hatch for keeping values verbatim.
+    expect(createDataset([{ a: "1" }]).data).toEqual([{ a: 1 }]);
+    expect(createDataset([{ a: "1" }], { normalization: { inferTypes: false } }).data).toEqual([{ a: "1" }]);
+    expect(createDataset([{ a: "" }]).data).toEqual([{ a: null }]);
+  });
 });
 
 describe("createDataset from column-oriented data", () => {
