@@ -4,6 +4,19 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-11-23
+
+### Fixed
+
+- `@munachi-me/numiq/core` no longer gains filesystem access when the Node entry is
+  imported in the same process. The local file reader was module-level state in
+  `loaders.ts`, and both entry points resolve to that same module instance, so
+  `node.ts` installing a reader made `core.loadCSV("sales.csv")` read from disk instead
+  of raising the documented `EnvironmentError`. The guarantee held only when `/core` was
+  loaded first, so it depended on import order. Each entry point now binds its own reader
+  in a closure, and a regression test imports the Node entry first to pin the behaviour.
+  The defect predates 1.0.3; it was found while verifying that release.
+
 ## [1.0.3] - 2026-11-23
 
 ### Added
