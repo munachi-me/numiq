@@ -1170,7 +1170,9 @@ over data with scattered gaps, different cells can therefore rest on different r
 ### Standalone helpers
 
 The same primitives are exported for use outside a grouping, operating on arrays of
-already-present values:
+already-present values. Missing cells (`null` and `undefined`) are skipped rather than
+treated as data, so a result never changes because a gap survived the caller's own
+filtering:
 
 ```ts
 sum([1, 2, 3]);                      // 6

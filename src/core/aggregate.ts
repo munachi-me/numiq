@@ -18,7 +18,7 @@
  */
 import type { Row } from "./types.js";
 import { compareValues } from "../utils/compare.js";
-import { stableKey } from "../utils/values.js";
+import { isPresent, stableKey } from "../utils/values.js";
 
 /** Every aggregation Numiq computes natively. */
 export type AggregationOp =
@@ -132,32 +132,44 @@ export function max(values: readonly unknown[]): unknown {
 }
 
 function extremum(values: readonly unknown[], replaces: (order: number) => boolean): unknown {
-  if (values.length === 0) return null;
-  let best = values[0];
+  // Seed from the first present value. Seeding from `values[0]` let a leading `null`
+  // survive: `compareValues` falls back to string comparison, and `"3" < "null"` is
+  // true, so `max` never replaced it.
+  let best: unknown = null;
+  let started = false;
   for (const value of values) {
-    if (best === undefined) {
+    if (!isPresent(value)) continue;
+    if (!started) {
       best = value;
+      started = true;
       continue;
     }
     if (replaces(compareValues(value, best))) best = value;
   }
-  return best ?? null;
+  return started ? best : null;
 }
 
 /** First present value in source order. */
 export function first(values: readonly unknown[]): unknown {
-  return values.length === 0 ? null : (values[0] ?? null);
+  for (const value of values) if (isPresent(value)) return value;
+  return null;
 }
 
 /** Last present value in source order. */
 export function last(values: readonly unknown[]): unknown {
-  return values.length === 0 ? null : (values[values.length - 1] ?? null);
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (isPresent(value)) return value;
+  }
+  return null;
 }
 
 /** Number of distinct present values. */
 export function nunique(values: readonly unknown[]): number {
   const seen = new Set<string>();
-  for (const value of values) seen.add(stableKey(value));
+  for (const value of values) {
+    if (isPresent(value)) seen.add(stableKey(value));
+  }
   return seen.size;
 }
 

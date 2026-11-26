@@ -121,6 +121,12 @@ describe("mode", () => {
     expect(mode([])).toBeNull();
   });
 
+  it("ignores missing values instead of letting them win", () => {
+    expect(mode([null, null, 1])).toBe(1);
+    expect(mode([undefined, 2, 2])).toBe(2);
+    expect(mode([null, undefined])).toBeNull();
+  });
+
   it("returns a copy, so callers cannot mutate their input", () => {
     const source = new Date("2026-05-05");
     const result = mode([source, new Date("2026-05-05")]) as Date;

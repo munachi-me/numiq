@@ -155,6 +155,27 @@ describe("min and max", () => {
     expect(min([9])).toBe(9);
     expect(max([9])).toBe(9);
   });
+
+  it("skips missing values wherever they appear", () => {
+    // A leading null used to win outright: compareValues falls back to string comparison
+    // and "3" < "null", so max never replaced the seed.
+    expect(max([null, 3, 1])).toBe(3);
+    expect(max([3, null, 1])).toBe(3);
+    expect(max([3, 1, null])).toBe(3);
+    expect(min([null, 3, 1])).toBe(1);
+    expect(min([3, null, 1])).toBe(1);
+    expect(min([3, 1, null])).toBe(1);
+  });
+
+  it("skips undefined as well as null", () => {
+    expect(max([undefined, 3, 1])).toBe(3);
+    expect(min([undefined, 3, 1])).toBe(1);
+  });
+
+  it("returns null when every value is missing", () => {
+    expect(min([null, undefined])).toBeNull();
+    expect(max([null, undefined])).toBeNull();
+  });
 });
 
 describe("first and last", () => {
@@ -171,6 +192,16 @@ describe("first and last", () => {
   it("keeps text as text", () => {
     expect(first(["b", "a"])).toBe("b");
   });
+
+  it("returns present values, skipping leading and trailing misses", () => {
+    expect(first([null, 5, 6])).toBe(5);
+    expect(last([6, 5, null])).toBe(5);
+  });
+
+  it("returns null when every value is missing", () => {
+    expect(first([null, undefined])).toBeNull();
+    expect(last([null, undefined])).toBeNull();
+  });
 });
 
 describe("nunique", () => {
@@ -180,6 +211,14 @@ describe("nunique", () => {
 
   it("returns 0 for no values", () => {
     expect(nunique([])).toBe(0);
+  });
+
+  it("does not count missing values as a distinct value", () => {
+    // Matches Dataset.unique, describe().unique and groupBy's nunique, all of which
+    // exclude missing cells. Counting null made the free function disagree with them.
+    expect(nunique([1, 1, 2, null])).toBe(2);
+    expect(nunique([1, undefined, 2, null])).toBe(2);
+    expect(nunique([null, null])).toBe(0);
   });
 
   it("distinguishes types that stringify alike", () => {
