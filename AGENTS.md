@@ -115,6 +115,31 @@ Feature branch → PR → squash merge → annotated tag → GitHub release. Ver
 `main` before tagging. The spec files in the repo root are local-only and gitignored; do
 not commit them.
 
+### Always confirm the release on the registry
+
+A green publish workflow is **not** proof the version is live. After every release, check
+the registry itself and do not report success until it answers:
+
+```bash
+npm view @munachi-me/numiq version --prefer-online   # must print the new version
+```
+
+Two traps, both hit during 1.0.5:
+
+- **Propagation lag.** `npm publish` returns after the registry accepts the upload, but the
+  packument stays stale for roughly 90 seconds. Effect: `@munachi-me/numiq/1.0.5` returned
+  `404` and `dist-tags.latest` still showed the previous version while the workflow log
+  plainly said `+ @munachi-me/numiq@1.0.5`. Re-poll; do not start debugging the workflow.
+- **Stale local packument cache.** A plain `npm install pkg@version` can fail with
+  `ETARGET` on a version that does exist. Use `--prefer-online` for verification installs.
+
+Check `dist-tags.latest`, not just the version's existence: a publish can land without
+moving `latest`. Also confirm the GitHub Packages copy, since it publishes in a separate
+step and can fail while npmjs succeeds (or the reverse).
+
+Version propagation is the one step where "the automation exited 0" and "the artifact
+exists" genuinely differ, so verify the artifact and not the automation.
+
 CI (`.github/workflows/ci.yml`) runs `npm run verify` and a clean consumer install on Node
 18/20/22.
 
