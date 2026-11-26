@@ -4,6 +4,19 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-11-24
+
+### Fixed
+
+- The exported aggregates now agree with `Dataset`, `describe()` and `groupBy()` about
+  missing values. `min`, `max`, `first`, `last`, `nunique` and `mode` read the raw array
+  and treated a missing cell as data, so `max([null, 3, 1])` returned `null` and
+  `nunique([1, 1, 2, null])` returned `3` where every other surface said `2`. `extremum`
+  seeded from `values[0]`, and because `compareValues` falls back to string comparison
+  `"3" < "null"` held, so `max` could never replace a leading `null`. `first`, `last`,
+  `nunique` and `mode` had the same gap. No existing test passed a missing cell to these
+  functions, and correcting them is not a behaviour change for any fully present column.
+
 ## [1.0.5] - 2026-11-23
 
 ### Added
