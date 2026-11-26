@@ -10,7 +10,7 @@
  * placeholder such as `0` or `NaN`.
  */
 import { compareValues } from "../utils/compare.js";
-import { cloneValue, stableKey } from "../utils/values.js";
+import { cloneValue, isPresent, stableKey } from "../utils/values.js";
 
 /**
  * Validate a quantile/probability argument.
@@ -220,15 +220,15 @@ export function iqr(values: readonly number[]): number | null {
  *
  * Ties are broken by first appearance in the input, so the answer is deterministic for a
  * given column order and does not depend on insertion order of an internal map. Returns
- * `null` for no values.
+ * `null` for no values and for an input with no present values.
  *
  * Works on any comparable value type — numbers, text, booleans, dates — because equality
  * uses the same stable key as `Dataset.unique`.
  */
 export function mode(values: readonly unknown[]): unknown {
-  if (values.length === 0) return null;
   const counts = new Map<string, { value: unknown; count: number }>();
   for (const value of values) {
+    if (!isPresent(value)) continue;
     const key = stableKey(value);
     const entry = counts.get(key);
     if (entry === undefined) counts.set(key, { value, count: 1 });
