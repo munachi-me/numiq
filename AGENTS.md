@@ -98,7 +98,7 @@ The API is frozen and follows semantic versioning; the policy is in
 export is a permanent commitment, not a convenience. Anything not exported is internal and
 free to change in a minor release.
 
-- **Every export is documented.** `docs/api.md` covers all 93 runtime exports. An export
+- **Every export is documented.** `docs/api.md` covers all 98 runtime exports. An export
   without documentation is an incomplete change.
 - **No breaking change without a major release** and a note in `docs/migration.md`.
 - **Node 18, 20, and 22 are the support matrix**, enforced by CI. `engines.node` is `>=18`

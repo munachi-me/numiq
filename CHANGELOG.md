@@ -4,6 +4,54 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-20
+
+Data intelligence and quality. Every addition reads; none of them changes existing
+behaviour, and the per-column statistics are the same `ColumnProfile` objects
+`describe()` already produced.
+
+### Added
+
+- `Dataset.profile()`: a dataset-level quality view next to `describe()`. `describe()`
+  answers "what are the numbers in this column"; `profile()` answers "is this dataset
+  ready to analyse". Returns a `DatasetProfile` carrying `summary` (shape, missing cells
+  and their share, duplicate rows, approximate memory, type breakdown, empty and constant
+  columns), the per-column `ColumnProfile` objects, and a severity-ranked list of
+  `findings`. Accepts nothing, a column name, a list of names, or `ProfileOptions` with
+  `maxFindings` (default 100) so a pathological dataset cannot produce an unreadable
+  report. Dataset-level findings such as `DUPLICATE_ROWS` are only emitted when every
+  column is profiled, since on a subset "duplicate" would mean something else.
+- `Dataset.getQualityReport()`: the same findings as a flat, severity-ranked
+  `QualityReport` with `bySeverity`, `healthy`, `forColumn()`, `forCode()` and `table()`.
+  Errors sort before warnings before informational observations.
+- `Dataset.missingValues()`: which rows hold a missing cell, per column, with `maxRows`
+  and truncation reporting. `profile()` says a column has 12 missing values; this says
+  which 12.
+- `Dataset.findDuplicates()`: groups rows that repeat, on every column by default or on a
+  named subset. Reports the repeated values and the row indexes, and `removable` matches
+  what `dropDuplicates()` would remove.
+- `Dataset.detectOutliers()`: outliers per numeric column, located by row. Differs from
+  the existing `outliers()` by keeping the row index and scanning several columns at once.
+- `Dataset.normalizeText()` and the exported `normalizeText()`: trim, collapse inner
+  whitespace, optionally case-fold to lower/upper/title, and optionally treat extra
+  characters as whitespace. Non-string cells are left untouched rather than coerced, so a
+  numeric column stays numeric. Returns a per-column change report with counts and up to
+  five before/after examples, so the effect can be inspected rather than trusted.
+- Validation `unique` rule: `{ unique: true }` rejects repeated values in a column, and
+  `{ unique: ["a", "b"] }` makes a column combination unique. Compared with the same
+  equality `Dataset.unique` uses, so `1` and `"1"` differ. Missing values are exempt —
+  "no value" repeated is not a duplicate. Issues carry code `DUPLICATE_VALUE` and name the
+  first row the value appeared in.
+- `UNTRIMMED_STRINGS`, `MIXED_TYPES`, `CONSTANT_COLUMN`, `ALL_MISSING`, `EMPTY_COLUMN`,
+  `DUPLICATE_ROWS` and `OUTLIERS` quality findings, each with a stable code, a severity,
+  and the column and count affected.
+
+### Notes
+
+- `profile()` and `getQualityReport()` share one finding generator, so a column cannot be
+  a warning in one report and an observation in the other. Tests pin that agreement, along
+  with missing-value, duplicate and outlier counts across every surface that reports them.
+
 ## [1.0.6] - 2026-11-24
 
 ### Fixed

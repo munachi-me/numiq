@@ -54,6 +54,40 @@ export interface SampleOptions {
   replace?: boolean;
 }
 
+/** Case conversion applied by `normalizeText`. */
+export type TextCase = "lower" | "upper" | "title";
+
+/** How a text cleanup treats whitespace. */
+export type WhitespaceMode = "trim" | "collapse" | "none";
+
+/** Options for `normalizeText`. */
+export interface NormalizeTextOptions {
+  /** `trim` (default) removes leading/trailing runs; `collapse` also folds inner runs to one space. */
+  whitespace?: WhitespaceMode;
+  /** Case conversion to apply after whitespace handling. Omit to leave case alone. */
+  case?: TextCase;
+  /** Extra characters treated as whitespace, e.g. `["\\u00a0"]` for non-breaking spaces. */
+  extraWhitespace?: readonly string[];
+}
+
+/** One change made by a cleanup operation, used to build before/after reports. */
+export interface CleaningChange {
+  readonly column: string;
+  /** Rows whose value changed. */
+  readonly changed: number;
+  /** Rows examined. */
+  readonly examined: number;
+  /** A few example changes, capped so a report stays readable. */
+  readonly examples: readonly { readonly row: number; readonly before: unknown; readonly after: unknown }[];
+}
+
+/** Outcome of a cleanup operation: the new table plus what changed. */
+export interface CleaningResult extends PreparedTable {
+  readonly changes: readonly CleaningChange[];
+  /** Total rows whose value changed in at least one column. */
+  readonly changedRows: number;
+}
+
 const FILL_KEYWORDS = new Set(["mean", "median", "mode"]);
 
 function isFillKeyword(value: unknown): value is "mean" | "median" | "mode" {
@@ -504,4 +538,116 @@ export function sampleRows(
   }
 
   return { rows: picked, columns: [...columns] };
+}
+
+// ---------------------------------------------------------------- text cleanup
+
+const MAX_EXAMPLES = 5;
+
+/** Characters stripped when the caller supplies extra whitespace beyond `String.trim`. */
+function buildWhitespacePattern(extra: readonly string[]): RegExp | null {
+  const parts: string[] = [];
+  for (const character of extra) {
+    if (typeof character !== "string" || character.length === 0) {
+      throw new ValidationError(
+        `normalizeText expects non-empty strings in extraWhitespace, received ${String(character)}.`,
+      );
+    }
+    parts.push(character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  }
+  return parts.length === 0 ? null : new RegExp(`[${parts.join("")}]`, "g");
+}
+
+function applyCase(value: string, mode: TextCase): string {
+  switch (mode) {
+    case "lower":
+      return value.toLowerCase();
+    case "upper":
+      return value.toUpperCase();
+    case "title":
+      // Capitalise each word without touching the rest, so "o'brien" becomes "O'brien"
+      // rather than losing its apostrophe casing.
+      return value.replace(/(^|\s)(\S)/g, (_match, lead: string, first: string) => lead + first.toUpperCase());
+    default:
+      return value;
+  }
+}
+
+function normalizeTextValue(value: unknown, options: NormalizeTextOptions, extra: RegExp | null): unknown {
+  if (typeof value !== "string") return value;
+  let text = value;
+  if (extra !== null) text = text.replace(extra, " ");
+  const mode = options.whitespace ?? "trim";
+  if (mode === "trim") text = text.trim();
+  else if (mode === "collapse") text = text.trim().replace(/\s+/g, " ");
+  if (options.case !== undefined) text = applyCase(text, options.case);
+  return text;
+}
+
+/**
+ * Normalize text columns: whitespace, optional case, and optional extra whitespace
+ * characters.
+ *
+ * Non-string cells are left untouched rather than coerced. A number `5` and a string
+ * `" 5 "` are different problems, and silently turning the number into text would make a
+ * numeric column stop being numeric.
+ *
+ * Returns the new table plus a per-column change report, so a caller can see what moved
+ * before accepting it.
+ */
+export function normalizeText(
+  rows: readonly Row[],
+  columns: readonly string[],
+  targets: readonly string[],
+  options: NormalizeTextOptions = {},
+): CleaningResult {
+  assertKnownColumns(columns, targets, "normalizeText");
+  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+    throw new ValidationError("normalizeText expects an options object.");
+  }
+  if (options.whitespace !== undefined && !["trim", "collapse", "none"].includes(options.whitespace)) {
+    throw new ValidationError(
+      `normalizeText expects whitespace to be "trim", "collapse" or "none", received ${String(options.whitespace)}.`,
+    );
+  }
+  if (options.case !== undefined && !["lower", "upper", "title"].includes(options.case)) {
+    throw new ValidationError(
+      `normalizeText expects case to be "lower", "upper" or "title", received ${String(options.case)}.`,
+    );
+  }
+  const extra = buildWhitespacePattern(options.extraWhitespace ?? []);
+
+  const changed = new Map<string, { count: number; examples: { row: number; before: unknown; after: unknown }[] }>();
+  for (const column of targets) changed.set(column, { count: 0, examples: [] });
+  const changedRows = new Set<number>();
+
+  const out = rows.map((row, index) => {
+    const copy = copyRow(row, columns);
+    for (const column of targets) {
+      const before = copy[column];
+      const after = withContext("normalizeText", index, column, () => normalizeTextValue(before, options, extra));
+      if (after === before) continue;
+      copy[column] = after;
+      changedRows.add(index);
+      const entry = changed.get(column);
+      if (entry === undefined) continue;
+      entry.count += 1;
+      if (entry.examples.length < MAX_EXAMPLES) {
+        entry.examples.push({ row: index, before: cloneValue(before), after: cloneValue(after) });
+      }
+    }
+    return copy;
+  });
+
+  const changes: CleaningChange[] = targets.map((column) => {
+    const entry = changed.get(column) ?? { count: 0, examples: [] };
+    return Object.freeze({
+      column,
+      changed: entry.count,
+      examined: rows.length,
+      examples: Object.freeze(entry.examples.map((example) => Object.freeze(example))),
+    });
+  });
+
+  return { rows: out, columns: [...columns], changes, changedRows: changedRows.size };
 }
