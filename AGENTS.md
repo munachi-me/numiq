@@ -209,3 +209,41 @@ human account, not the installation token in use).
 So: commit locally, then hand off. Do not retry push variants — the failure is
 authorisation, not transport. The remote URL holds no credentials, so no cleanup is needed
 after a failed attempt.
+
+## Audit findings: chunked reading and data spaces (2.0.0 prep)
+
+Bugs found by comparing implementations against each other and against ground truth,
+rather than by reading code. All fixed with regression tests that fail without the fix.
+
+**`chunkDelimited` vs `parseDelimited`.** The chunked reader tokenizes the whole text, then
+rebuilds each chunk as header-then-rows so `parseDelimited` does the actual parsing. That
+keeps casting and type inference in one place, but it means every option has to be
+translated by hand, and three were translated wrongly:
+
+- Blank records must be dropped *before* `skipRows`, exactly as `parseDelimited` does.
+  Otherwise a leading blank line becomes the header.
+- `header: false` needs a synthetic header (`column_1`… or the caller's `columns`). Passing
+  `columns` through to a chunk that already claims `header: true` throws.
+- `collectChunks` must fall back to a whole-file parse when no chunk is produced, or a
+  header-only file loses its columns.
+
+Fuzzing `parseDelimited` against `collectChunks` and concatenated chunks over random
+ragged/blank/headerless input is the cheapest way to catch this class of bug; 400 cases now
+agree on columns, rows, and rejection messages.
+
+**`ChunkProgress.lastRecord`** is documented as a zero-based index and must be
+`start + slice.length - 1`. `reduceChunks` must forward the progress the generator emitted,
+not recompute it.
+
+**`findRelationship` with an explicit name** must verify the relationship connects the two
+datasets asked about. Accepting any name and using its columns silently joins on the wrong
+keys whenever both datasets share column names — plausible rows, no error.
+
+**`pairedValues` truncates to the shorter array.** Deliberate (`correlationMatrix` has
+ragged columns), documented, not changed. Check `n` when inputs come from different sources.
+
+## Release state
+
+`main` is ahead of `origin/main`; the registry's `latest` is `1.1.1`. Pushing and publishing
+are both blocked in this sandbox (read-only git token, no npm auth). Tags exist only up to
+`v1.1.1`. Do not attempt push or publish; hand off to the developer.
