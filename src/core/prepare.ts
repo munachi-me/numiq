@@ -477,7 +477,7 @@ export function dropDuplicateRows(
 }
 
 /** Deterministic 32-bit PRNG, so a seeded sample is reproducible across runs. */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
     state = (state + 0x6d2b79f5) >>> 0;

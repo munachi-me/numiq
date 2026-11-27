@@ -118,6 +118,23 @@ import type {
   OutlierResult,
   ZScoreResult,
 } from "../analytics/advanced.js";
+import { linearRegression, type RegressionModel, type RegressionOptions } from "../analytics/regression.js";
+import {
+  chiSquareTest,
+  jarqueBeraTest,
+  meanConfidenceInterval,
+  oneSampleTTest,
+  oneWayAnova,
+  pairedTTest,
+  twoSampleTTest,
+} from "../analytics/tests.js";
+import type {
+  HypothesisTestResult,
+  OneSampleTTestOptions,
+  TestOptions,
+  TwoSampleTTestOptions,
+} from "../analytics/tests.js";
+import { cohortAnalysis, percentChange, stratifiedSample, systematicSample, type CohortOptions } from "./analysis.js";
 import { Metric } from "../metrics/metric.js";
 import type { MetricSpec } from "../metrics/metric.js";
 import { analyze } from "../insights/insights.js";
@@ -516,6 +533,204 @@ export class Dataset {
     const scores = zScores(this.#columnValues(column), options);
     const table = addColumn(this.#rows, this.#columns, name, scores.values);
     return this.#build(table.rows, table.columns);
+  }
+
+  // ------------------------------------------------- 1.2.0 analytics and inference
+
+  /**
+   * Fit a linear regression of `target` on `features`.
+   *
+   * Rows missing the target or any feature are dropped listwise; the model reports `n`.
+   * Throws `ValidationError` when the design is singular (collinear features) or too few
+   * complete rows remain, rather than returning a model full of `NaN`.
+   */
+  regression(options: RegressionOptions): RegressionModel {
+    this.#assertColumn(options.target);
+    this.#assertNumericColumns([options.target, ...options.features], "regression");
+    return linearRegression(this.#rows, options);
+  }
+
+  /** One-sample t-test on a column's mean against `mu` (default `0`). */
+  tTest(column: string, options: OneSampleTTestOptions = {}): HypothesisTestResult {
+    this.#assertNumericColumns([column], "tTest");
+    return oneSampleTTest(this.#columnValues(column), options);
+  }
+
+  /**
+   * Two-sample t-test comparing one column across two groups.
+   *
+   * `groupColumn` is split at its distinct values; with more than two the two named in
+   * `groups` are used, and with exactly two the order is first-appearance.
+   */
+  tTestBetween(
+    column: string,
+    groupColumn: string,
+    groups?: readonly [string, string],
+    options: TwoSampleTTestOptions = {},
+  ): HypothesisTestResult {
+    this.#assertNumericColumns([column], "tTestBetween");
+    this.#assertColumn(groupColumn);
+    const [left, right] = groups ?? this.#twoGroupLabels(groupColumn);
+    return twoSampleTTest(
+      this.#valuesWhere(column, groupColumn, left),
+      this.#valuesWhere(column, groupColumn, right),
+      options,
+    );
+  }
+
+  /**
+   * Paired t-test between two columns, row by row.
+   *
+   * Only rows where both values are present contribute a pair.
+   */
+  pairedTTest(before: string, after: string, options: TestOptions = {}): HypothesisTestResult {
+    this.#assertNumericColumns([before, after], "pairedTTest");
+    return pairedTTest(this.#columnValues(before), this.#columnValues(after), options);
+  }
+
+  /**
+   * Chi-square test of independence between two categorical columns.
+   *
+   * Builds the contingency table from the distinct values of each column. Every column
+   * type is accepted, because a category can be numeric (a status code) as easily as text.
+   */
+  chiSquare(column: string, otherColumn: string, options: TestOptions = {}): HypothesisTestResult {
+    this.#assertColumn(column);
+    this.#assertColumn(otherColumn);
+    if (column === otherColumn) {
+      throw new ValidationError("chiSquare() needs two different columns.");
+    }
+    return chiSquareTest(this.#contingency(column, otherColumn), options);
+  }
+
+  /**
+   * One-way ANOVA of a numeric column across the levels of a grouping column.
+   *
+   * Groups with no usable values are excluded; a level whose values are all missing is
+   * reported in `details` rather than silently treated as a group of zeroes.
+   */
+  anova(column: string, groupColumn: string, options: TestOptions = {}): HypothesisTestResult {
+    this.#assertNumericColumns([column], "anova");
+    this.#assertColumn(groupColumn);
+    if (column === groupColumn) {
+      throw new ValidationError("anova() needs a numeric column and a different grouping column.");
+    }
+    const groups = this.distinct(groupColumn).map((label) => ({
+      name: label === null ? "(missing)" : String(label),
+      values: this.#valuesWhere(column, groupColumn, label),
+    }));
+    return oneWayAnova(groups, options);
+  }
+
+  /** Jarque-Bera test of normality for a numeric column. */
+  normalityTest(column: string, options: TestOptions = {}): HypothesisTestResult {
+    this.#assertNumericColumns([column], "normalityTest");
+    return jarqueBeraTest(this.#columnValues(column), options);
+  }
+
+  /** Confidence interval for a column's mean, using the t distribution. */
+  meanConfidenceInterval(
+    column: string,
+    confidence = 0.95,
+  ): { lower: number; upper: number; mean: number; level: number; df: number } {
+    this.#assertNumericColumns([column], "meanConfidenceInterval");
+    return meanConfidenceInterval(this.#columnValues(column), { confidence });
+  }
+
+  /**
+   * Stratified sample: draw `size` rows proportionally from each level of `strata`.
+   *
+   * Each stratum contributes `round(size * n_stratum / n)` rows, at least one where it has
+   * any rows, so a small stratum is not rounded out of existence. A seeded `random` makes
+   * the draw reproducible.
+   */
+  stratifiedSample(size: number, strata: string | readonly string[], options: SampleOptions = {}): Dataset {
+    const columns = typeof strata === "string" ? [strata] : [...strata];
+    if (columns.length === 0) throw new ValidationError("stratifiedSample() needs at least one strata column.");
+    for (const column of columns) this.#assertColumn(column);
+    const result = stratifiedSample(this.#rows, this.#columns, size, columns, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * Systematic sample: take every `interval`-th row after a random start.
+   *
+   * Cheap for a very large dataset because it walks the rows once. Only the first
+   * `floor(n / interval)` complete cycles are used, so every drawn row is `interval` apart.
+   */
+  systematicSample(interval: number, options: SampleOptions = {}): Dataset {
+    const result = systematicSample(this.#rows, this.#columns, interval, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * Percentage change of a numeric column from the previous row.
+   *
+   * `null` where the previous value is missing or zero, because a percentage change from
+   * zero is undefined rather than infinite. Use `sortByTime` first if rows are unordered.
+   */
+  percentChange(column: string, name = `${column}_pctChange`): Dataset {
+    this.#assertNumericColumns([column], "percentChange");
+    const values = percentChange(this.#columnValues(column));
+    const table = addColumn(this.#rows, this.#columns, name, values);
+    return this.#build(table.rows, table.columns);
+  }
+
+  /**
+   * Cohort analysis: group rows by a cohort key and a period, then summarise each cell.
+   *
+   * The cohort key is normally a fixed attribute (signup month, plan), and the period is
+   * derived from a time column. Returns one row per cohort-period pair with the metrics
+   * requested, which is the shape a retention table or a revenue-cohort chart needs.
+   */
+  cohort(options: CohortOptions): Dataset {
+    this.#assertColumn(options.cohort);
+    this.#assertColumn(options.time);
+    for (const metric of options.metrics) {
+      this.#assertNumericColumns([metric.column], "cohort");
+    }
+    const result = cohortAnalysis(this.#rows, options);
+    return this.#build(result.rows, result.columns);
+  }
+
+  /** Values of `column` where `groupColumn` equals `label`. */
+  #valuesWhere(column: string, groupColumn: string, label: unknown): unknown[] {
+    const values: unknown[] = [];
+    for (const row of this.#rows) {
+      if (Object.is(row[groupColumn], label) || row[groupColumn] === label) values.push(row[column]);
+    }
+    return values;
+  }
+
+  /**
+   * The two group labels to compare, in first-appearance order.
+   *
+   * Throws for fewer than two levels: a t-test on one group has nothing to compare, and
+   * silently testing against an empty array would report a meaningless p-value.
+   */
+  #twoGroupLabels(groupColumn: string): [unknown, unknown] {
+    const labels = this.distinct(groupColumn);
+    if (labels.length < 2) {
+      throw new ValidationError(
+        `tTestBetween() needs at least two distinct values in "${groupColumn}", found ${labels.length}.`,
+      );
+    }
+    return [labels[0], labels[1]];
+  }
+
+  /** Contingency counts of `column` against `otherColumn`, rows and columns in first-appearance order. */
+  #contingency(column: string, otherColumn: string): number[][] {
+    const rowLabels = this.distinct(column);
+    const columnLabels = this.distinct(otherColumn);
+    const table: number[][] = rowLabels.map(() => new Array<number>(columnLabels.length).fill(0));
+    for (const row of this.#rows) {
+      const rowIndex = rowLabels.findIndex((label) => label === row[column]);
+      const columnIndex = columnLabels.findIndex((label) => label === row[otherColumn]);
+      if (rowIndex < 0 || columnIndex < 0) continue;
+      const target = table[rowIndex] as number[];
+      target[columnIndex] = (target[columnIndex] ?? 0) + 1;
+    }
+    return table;
   }
 
   /** Numeric column names, in dataset order. */

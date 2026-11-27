@@ -708,12 +708,17 @@ A row missing either coordinate cannot contribute to a relationship, and imputin
 invent data. Consequently `n` can differ between pairs, and every result reports the `n` it
 used so this stays visible.
 
-### No significance claims
+### No significance claims from `correlation()`
 
-The correlation results carry `r`, `n`, and `reason` — and nothing else. There is no
-p-value and no "significant" flag. Deciding whether a relationship is real needs a test
-with its own distributional assumptions, and a bare `r` from nine points looks identical
-to one from nine thousand. Ship the number, not a verdict.
+`correlation()` and `rankCorrelation()` carry `r`, `n`, and `reason` — and nothing else.
+There is no p-value and no "significant" flag attached to them. A bare `r` from nine points
+looks identical to one from nine thousand, so attaching a verdict to it would invite the
+wrong conclusion.
+
+Significance is available, but as a separate, explicit call with its own assumptions —
+`tTest`, `anova`, `chiSquare`, and the rest in [Hypothesis testing](#hypothesis-testing).
+Keeping the two apart means a reader who sees `r` cannot mistake it for a tested claim, and
+a reader who wants a test has to name the test and the assumptions it makes.
 
 ### Correlation method choice
 
@@ -732,6 +737,7 @@ untouched. Both are correct answers to different questions.
 sales.outliers("revenue"); // IQR fences, k = 1.5
 sales.outliers("revenue", { threshold: 3 }); // Tukey's "extreme" fence
 sales.outliers("revenue", { method: "zscore" }); // |z| > 3
+sales.outliers("revenue", { method: "modified-zscore" }); // median/MAD, |z| > 3.5
 ```
 
 IQR is the default because it assumes nothing about the distribution. A z-score threshold
@@ -741,8 +747,13 @@ a real feature. On the bundled sample, revenue has 4 IQR outliers with an upper 
 
 One trap worth knowing: a single extreme value inflates the standard deviation enough to
 hide itself. For `[1, 2, 3, 4, 5, 6, 7, 8, 9, 100]` the z-score of `100` is `2.836` —
-under a threshold of 3 — so the z-score method finds nothing while IQR finds it. This is
-arithmetic, not a bug, and it is why IQR is the default.
+under a threshold of 3 — so the z-score method finds **nothing**, while IQR finds it. This
+is arithmetic, not a bug.
+
+`modified-zscore` fixes that specific trap by using the median and the median absolute
+deviation instead of the mean and standard deviation, neither of which one extreme value can
+move. On the same array it reports `100` with a modified z-score of `25.4961`. When
+outliers are suspected but not yet located, this is the method to reach for.
 
 An outlier is not an error. It is a value that is unusual relative to its neighbours, and
 the usual right response is to look at it.
@@ -796,6 +807,232 @@ The standalone functions are exported for use outside a dataset: `covariance`,
 `pearsonCorrelation`, `spearmanCorrelation`, `correlationMatrix`, `zScores`, `standardize`,
 `normalize`, `percentileRank`, `skewness`, `kurtosis`, `fiveNumberSummary`, and
 `detectOutliers`.
+
+## Linear regression
+
+Fit a line (or a hyperplane) and judge how well it fits.
+
+```ts
+const model = sales.regression({ target: "revenue", features: ["marketing"] });
+model.intercept; // -3.979274611399181
+model.coefficients.marketing; // 10.134715025906747
+model.rSquared; // 0.9951557525438541
+model.adjustedRSquared; // 0.9939446906798177
+model.n; // 6
+model.rmse; // 4.483706830626324
+model.pValues().marketing; // 0.000008814273709800702
+model.predict([{ marketing: 30 }]); // [~300.06]
+model.residuals(); // actual minus predicted, per used row
+```
+
+Several numeric features fit a multiple regression through the same path:
+
+```ts
+const multi = sales.regression({ target: "revenue", features: ["marketing", "staff"] });
+multi.coefficients.marketing; // 7.576791808873765
+multi.coefficients.staff; // 8.600682593856549
+multi.intercept; // 4.095563139931382
+multi.rSquared; // 0.9978617541839714
+multi.adjustedRSquared; // 0.9964362569732856
+multi.parameters; // 3 (two features plus the intercept)
+```
+
+Features must be numeric. A text column such as `region` is rejected with a
+`ValidationError` naming the column — encode it first (for example into indicator columns)
+if it belongs in the model.
+
+### The model, stated plainly
+
+Ordinary least squares: the coefficients minimise the sum of squared residuals. When the
+design matrix is singular — the features are collinear — **there is no unique answer**, so
+the call throws rather than returning a model with `NaN` coefficients.
+
+Rows are dropped **listwise**: a row is used only if the target and every feature are
+present. `model.n` reports how many survived, so a heavy drop is visible instead of silent.
+
+### What regression does not do
+
+It does not check its own assumptions. OLS is unbiased under linearity, independent errors,
+constant variance, and — for the t-tests on coefficients — normal errors. R-squared will
+happily read `0.98` on data where the true relationship is curved, and the coefficient
+p-values are meaningless if the errors are correlated (time series, repeated measures,
+clustered data). Inspect `residuals()` before trusting a fit.
+
+A high R-squared is not a claim that the model is right, and a coefficient is not a causal
+effect. Regression describes association.
+
+## Hypothesis testing
+
+Every test returns the same shape: `statistic`, `df`, `df2`, `pValue`, the null and
+alternative in words, `significant`, `alpha`, an `interpretation`, `n`, and a `details` bag.
+
+```ts
+sales.tTest("revenue", { mu: 150 });
+// statistic 0.8502303018977035, df 5, pValue 0.434012128904921, significant false
+
+sales.tTestBetween("revenue", "region");
+// Welch t = -6.123724356957945, df 4, pValue 0.0036022326091040106, significant true
+
+sales.pairedTTest("revenue_before", "revenue_after");
+sales.chiSquare("region", "channel");
+sales.anova("revenue", "region");
+sales.normalityTest("revenue");
+sales.meanConfidenceInterval("revenue"); // { lower, upper, mean, level, df }
+```
+
+| Test            | Question                                       | Assumptions                                              |
+| --------------- | ---------------------------------------------- | -------------------------------------------------------- |
+| `tTest`         | is the mean different from `mu`?               | independent observations, approximately normal mean      |
+| `tTestBetween`  | do two group means differ?                     | independent groups; Welch, so unequal variances are fine |
+| `pairedTTest`   | is the within-pair difference centred on zero? | independent pairs, normal differences                    |
+| `chiSquare`     | are two categorical columns associated?        | independent observations, expected counts near 5 or more |
+| `anova`         | does any group mean differ?                    | independent, normal, similar variances                   |
+| `normalityTest` | is the column normally distributed?            | reliable above ~30 values (Jarque-Bera)                  |
+
+**These assumptions are documented, not checked.** A t-test on heavily skewed data, or an
+ANOVA on unequal variances with unequal group sizes, returns a p-value that is simply
+wrong — and nothing warns you. `describe()` and `profile()` exist to look first.
+
+### Reading a p-value
+
+A p-value is the probability of a statistic at least this extreme **if the null were true**.
+It is not the probability that the null is true, and it is not an effect size. With enough
+rows, a difference too small to matter produces a tiny p-value. Report the mean difference
+or the group spread alongside it.
+
+Significance is not causation. No test here can tell you _why_ groups differ.
+
+### Choosing Welch over pooled
+
+`tTestBetween` uses Welch's t-test by default because it does not assume equal variances.
+With unequal variances and unequal group sizes, the pooled form's false-positive rate can be
+several times its nominal alpha. Welch keeps the rate near alpha and costs almost nothing
+when the variances happen to be equal. Pass `{ pooled: true }` only when equal variances are
+genuinely known.
+
+### Undefined tests return `NaN`, they do not throw
+
+A test that cannot be computed — fewer than two values, or a zero-variance sample — returns
+`pValue: NaN` with an `interpretation` saying why. That lets you run a test across many
+columns and see which ones were untestable, instead of having the loop die on the first
+constant column. A `significant` flag is always `false` in that case, never accidentally
+`true`.
+
+## Probability distributions
+
+Four distributions, plus the special functions they are built from. Each exposes `mean`,
+`variance`, `sd`, a density or mass, a cumulative, a quantile, and a `sample`.
+
+```ts
+normalCdf(1.96); // 0.9750021048517796
+normalQuantile(0.975); // 1.959963986120195
+tQuantile(0.975, 10); // 2.228138851986274
+chiSquareQuantile(0.95, 2); // 5.991464547107979
+fQuantile(0.95, 1, 10); // ~4.9646
+
+const binom = binomialDistribution(10, 0.5);
+binom.pmf(5); // 0.24609374999999936
+binom.cdf(5); // 0.623046875
+
+const poisson = poissonDistribution(3);
+poisson.cdf(2); // 0.4231900811268444
+```
+
+`normalDistribution`, `uniformDistribution`, `binomialDistribution`, and
+`poissonDistribution` return objects with `pdf`/`pmf`, `cdf`, `quantile`, and `sample`.
+`drawSamples(distribution, count, { random })` draws many at once.
+
+### Accuracy
+
+The normal, chi-square, and Poisson CDFs come from the regularized incomplete gamma; t and
+F from the regularized incomplete beta. Both use the standard series and continued-fraction
+expansions, accurate to roughly 1e-15. The tests pin reference values from published
+tables, so a change to the numerics cannot drift silently.
+
+`normalQuantile` uses a closed-form rational approximation (about 9 digits) rather than
+bisection, because a quantile is used for thresholds and sampling rather than a reported
+p-value. The t, chi-square, and F quantiles have no closed form and are found by bisection on
+the CDF — slower, but correct at the tails, which is exactly where a threshold lives.
+
+### Discrete quantiles are exact
+
+`binomialDistribution(...).quantile(p)` is a binary search over the CDF, not a normal
+approximation, so a large-`n` binomial is not silently replaced by a bell curve. Sampling
+from a discrete distribution uses the same search, so every draw is a valid integer in
+support.
+
+### Reproducible draws
+
+Every `sample` accepts a generator. Pass a seeded one — `drawSamples(d, 5, { random: gen })`
+— and the same seed gives the same draws. Without a seed it uses `Math.random`.
+
+### No fitting
+
+These distributions will not estimate their own parameters from data. Choosing a
+distribution and its parameters is a modelling decision with assumptions the caller owns.
+
+## Sampling and cohorts
+
+### Stratified sampling
+
+```ts
+sales.stratifiedSample(20, "region"); // proportional draw from each region
+sales.stratifiedSample(20, ["region", "channel"], { seed: 42 }); // reproducible
+```
+
+Allocation is largest-remainder, so the total is exactly `size` while staying as close to
+proportional as integers allow. A stratum with rows but a rounded allocation of zero gets
+one row rather than vanishing, so the sample can exceed `size` when strata are very small —
+never fall short of it.
+
+### Systematic sampling
+
+```ts
+sales.systematicSample(10, { seed: 1 }); // every 10th row after a random start
+```
+
+Always takes exactly `floor(n / interval)` rows. Fixing the count matters: taking every
+`interval`-th row from a random start otherwise yields one extra row whenever the start is
+small enough that a final row still fits, so the sample size would depend on the draw.
+
+**Limitation:** if the data are periodic with a period dividing `interval`, a systematic
+sample can be unrepresentative. Use a random or stratified sample when that is possible.
+
+Both samplers accept `{ seed }`, and the same seed gives the same rows on any machine.
+
+### Percentage change
+
+```ts
+sales.sortByTime("month").percentChange("revenue"); // adds revenue_pctChange
+```
+
+`null` for the first row and wherever the previous value is missing or zero — a percentage
+change from zero is undefined, not infinite. The denominator is the absolute previous value,
+so a move from `-100` to `-50` reads as `+50%` rather than flipping sign.
+
+### Cohort analysis
+
+```ts
+sales.cohort({
+  cohort: "region",
+  time: "month",
+  interval: "month",
+  metrics: [
+    { column: "revenue", operation: "sum" },
+    { column: "revenue", operation: "mean", name: "avg" },
+    { column: "revenue", operation: "count", name: "orders" },
+  ],
+});
+// columns: region, period, rows, revenue_sum, avg, orders
+```
+
+One row per cohort × period cell, ordered by cohort first-appearance then ascending period,
+ready to pivot into a retention or revenue-cohort table. Operations are `sum`, `mean`,
+`count`, `min`, and `max`.
+
+A time value that cannot be parsed **throws** rather than being dropped. Silently discarding
+rows would move revenue between periods without telling anyone, and a cohort table that
+quietly omits data is worse than one that refuses to build.
 
 ## Metrics
 
@@ -872,9 +1109,9 @@ revenue.compare({ to: scoped.metric, label: "North" });
 
 Two percentage fields, and they differ. For a metric that doubled, baseline `100` to `200`:
 
-| Field               | Formula                            | Result |
-| ------------------- | ---------------------------------- | ------ |
-| `percentChange`     | `value / otherValue * 100`         | `200`  |
+| Field               | Formula                                   | Result |
+| ------------------- | ----------------------------------------- | ------ |
+| `percentChange`     | `value / otherValue * 100`                | `200`  |
 | `percentDifference` | `(value - otherValue) / otherValue * 100` | `100`  |
 
 `percentChange` predates `percentDifference` and reports the new value as a percentage of

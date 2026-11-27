@@ -43,6 +43,44 @@ export type {
   OutlierResult,
   ZScoreResult,
 } from "./analytics/advanced.js";
+export {
+  binomialDistribution,
+  chiSquareCdf,
+  chiSquareQuantile,
+  drawSamples,
+  fCdf,
+  fQuantile,
+  incompleteBeta,
+  incompleteGamma,
+  normalCdf,
+  normalDistribution,
+  normalQuantile,
+  poissonDistribution,
+  tCdf,
+  tQuantile,
+  uniformDistribution,
+} from "./analytics/distributions.js";
+export type { ContinuousDistribution, DiscreteDistribution } from "./analytics/distributions.js";
+export { linearRegression } from "./analytics/regression.js";
+export type { RegressionModel, RegressionOptions, RegressionRow } from "./analytics/regression.js";
+export {
+  chiSquareTest,
+  jarqueBeraTest,
+  meanConfidenceInterval,
+  oneSampleTTest,
+  oneWayAnova,
+  pairedTTest,
+  twoSampleTTest,
+} from "./analytics/tests.js";
+export type {
+  AnovaGroup,
+  HypothesisTestResult,
+  OneSampleTTestOptions,
+  TestOptions,
+  TwoSampleTTestOptions,
+} from "./analytics/tests.js";
+export { cohortAnalysis, percentChange, stratifiedSample, systematicSample } from "./core/analysis.js";
+export type { CohortMetric, CohortOptions } from "./core/analysis.js";
 export type {
   AggregateSpec,
   AggregationContext,
@@ -269,6 +307,34 @@ import {
   standardize,
   zScores,
 } from "./analytics/advanced.js";
+import {
+  binomialDistribution,
+  chiSquareCdf,
+  chiSquareQuantile,
+  drawSamples,
+  fCdf,
+  fQuantile,
+  incompleteBeta,
+  incompleteGamma,
+  normalCdf,
+  normalDistribution,
+  normalQuantile,
+  poissonDistribution,
+  tCdf,
+  tQuantile,
+  uniformDistribution,
+} from "./analytics/distributions.js";
+import { linearRegression } from "./analytics/regression.js";
+import {
+  chiSquareTest,
+  jarqueBeraTest,
+  meanConfidenceInterval,
+  oneSampleTTest,
+  oneWayAnova,
+  pairedTTest,
+  twoSampleTTest,
+} from "./analytics/tests.js";
+import { cohortAnalysis, percentChange, stratifiedSample, systematicSample } from "./core/analysis.js";
 import { addConditionalColumn } from "./core/conditional.js";
 import { joinTables } from "./core/join.js";
 import { concatRows, meltRows, pivotRows } from "./core/reshape.js";
@@ -374,6 +440,33 @@ const Numiq = {
   spearmanCorrelation,
   standardize,
   zScores,
+  binomialDistribution,
+  chiSquareCdf,
+  chiSquareQuantile,
+  drawSamples,
+  fCdf,
+  fQuantile,
+  incompleteBeta,
+  incompleteGamma,
+  normalCdf,
+  normalDistribution,
+  normalQuantile,
+  poissonDistribution,
+  tCdf,
+  tQuantile,
+  uniformDistribution,
+  linearRegression,
+  chiSquareTest,
+  jarqueBeraTest,
+  meanConfidenceInterval,
+  oneSampleTTest,
+  oneWayAnova,
+  pairedTTest,
+  twoSampleTTest,
+  cohortAnalysis,
+  percentChange,
+  stratifiedSample,
+  systematicSample,
   addConditionalColumn,
   joinTables,
   pivotRows,

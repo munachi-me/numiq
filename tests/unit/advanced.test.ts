@@ -486,3 +486,52 @@ describe("standardize", () => {
     expect(mean).toBeCloseTo(0, 12);
   });
 });
+
+describe("detectOutliers modified z-score", () => {
+  it("uses the median and MAD, so a cluster of outliers cannot mask itself", () => {
+    // A plain z-score is inflated by these values; the modified score still finds them.
+    const values = [10, 10, 10, 11, 11, 11, 12, 12, 12, 100, 200, 300];
+    const modified = detectOutliers(values, { method: "modified-zscore" });
+    expect(modified.method).toBe("modified-zscore");
+    expect(modified.threshold).toBe(3.5);
+    expect(modified.outliers.map((outlier) => outlier.value)).toEqual(expect.arrayContaining([100, 200, 300]));
+  });
+
+  it("flags both tails", () => {
+    const values = [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, -500, 900];
+    const result = detectOutliers(values, { method: "modified-zscore" });
+    const sides = new Set(result.outliers.map((outlier) => outlier.side));
+    expect(sides.has("low")).toBe(true);
+    expect(sides.has("high")).toBe(true);
+  });
+
+  it("reports a modified score rather than a standard z-score", () => {
+    const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100];
+    const result = detectOutliers(values, { method: "modified-zscore" });
+    expect(result.outliers[0]?.zScore).toBeTypeOf("number");
+    expect(Math.abs(result.outliers[0]?.zScore as number)).toBeGreaterThan(3.5);
+  });
+
+  it("honours a custom threshold", () => {
+    const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 40];
+    const strict = detectOutliers(values, { method: "modified-zscore", threshold: 2 });
+    const loose = detectOutliers(values, { method: "modified-zscore", threshold: 10 });
+    expect(strict.outliers.length).toBeGreaterThanOrEqual(loose.outliers.length);
+  });
+
+  it("reports zero-variance when over half the values equal the median", () => {
+    const result = detectOutliers([5, 5, 5, 5, 100], { method: "modified-zscore" });
+    expect(result.reason).toBe("zero-variance");
+    expect(result.outliers).toEqual([]);
+  });
+
+  it("reports insufficient data for an empty column", () => {
+    expect(detectOutliers([], { method: "modified-zscore" }).reason).toBe("insufficient-data");
+  });
+
+  it("skips missing and non-finite values", () => {
+    const result = detectOutliers([1, 2, 3, null, Number.NaN, 4, 5, 100], { method: "modified-zscore" });
+    expect(result.considered).toBe(6);
+    expect(result.outliers.every((outlier) => Number.isFinite(outlier.value))).toBe(true);
+  });
+});

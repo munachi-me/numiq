@@ -29,7 +29,7 @@
  */
 import { mean, variance } from "../core/aggregate.js";
 import { ColumnNotFoundError, ValidationError } from "../errors/index.js";
-import { quartiles } from "./stats.js";
+import { medianOfSorted, quartiles, sortedColumn } from "./stats.js";
 
 /** A pair of numbers drawn from the same row. */
 interface Pair {
@@ -504,7 +504,7 @@ export function fiveNumberSummary(values: readonly unknown[]): FiveNumberSummary
 // ------------------------------------------------------------- outliers
 
 /** How an outlier test decided what counts as an outlier. */
-export type OutlierMethod = "iqr" | "zscore";
+export type OutlierMethod = "iqr" | "zscore" | "modified-zscore";
 
 /** Options for outlier detection. */
 export interface OutlierOptions {
@@ -556,15 +556,24 @@ export interface OutlierResult {
  * real feature rather than an error. Use it when you specifically want a mean-and-spread
  * notion of unusual.
  *
+ * **Modified z-score.** The median absolute deviation form, `0.6745·(x - median) / MAD`,
+ * with the threshold applied to that score (default 3.5). It replaces the mean and standard
+ * deviation with the median and MAD, both of which a single extreme value cannot move.
+ * That is the point: a plain z-score is computed *from* the outliers it is trying to find,
+ * so one very large value inflates the standard deviation and hides itself. The modified
+ * score is the recommended default when outliers are suspected but not yet located.
+ *
  * An outlier is not an error. It is a value that is unusual relative to the rest, and the
  * correct response is usually to look at it, not to delete it.
  */
 export function detectOutliers(values: readonly unknown[], options: OutlierOptions = {}): OutlierResult {
   const method = options.method ?? "iqr";
-  if (method !== "iqr" && method !== "zscore") {
-    throw new ValidationError(`detectOutliers method must be "iqr" or "zscore", received "${String(method)}".`);
+  if (method !== "iqr" && method !== "zscore" && method !== "modified-zscore") {
+    throw new ValidationError(
+      `detectOutliers method must be "iqr", "zscore", or "modified-zscore", received "${String(method)}".`,
+    );
   }
-  const threshold = options.threshold ?? (method === "iqr" ? 1.5 : 3);
+  const threshold = options.threshold ?? (method === "iqr" ? 1.5 : method === "zscore" ? 3 : 3.5);
   if (typeof threshold !== "number" || !Number.isFinite(threshold) || threshold <= 0) {
     throw new RangeError("detectOutliers threshold must be a positive finite number.");
   }
@@ -599,6 +608,28 @@ export function detectOutliers(values: readonly unknown[], options: OutlierOptio
       else if (value > upper) outliers.push({ index, value, zScore: null, side: "high" });
     }
     return { ...base, outliers, fences: { lower, upper } };
+  }
+
+  if (method === "modified-zscore") {
+    const sorted = sortedColumn(numbers);
+    const centre = medianOfSorted(sorted);
+    if (centre === null) return { ...base, reason: "insufficient-data" };
+    const deviations = sortedColumn(numbers.map((value) => Math.abs(value - centre)));
+    const mad = medianOfSorted(deviations);
+    // A zero MAD means over half the values equal the median; every deviation would be
+    // infinitely unusual, so there is no meaningful scale to measure against.
+    if (mad === null || mad === 0) return { ...base, reason: "zero-variance" };
+
+    const modified: Outlier[] = [];
+    for (let index = 0; index < values.length; index += 1) {
+      const value = values[index];
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      const score = (0.6745 * (value - centre)) / mad;
+      if (Math.abs(score) > threshold) {
+        modified.push({ index, value, zScore: score, side: score < 0 ? "low" : "high" });
+      }
+    }
+    return { ...base, outliers: modified };
   }
 
   const scores = zScores(numbers, { ddof: 1 });

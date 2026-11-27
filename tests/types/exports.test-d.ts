@@ -21,6 +21,37 @@ import Numiq, {
   createDataset,
   loadCSV,
   Dataset,
+  linearRegression,
+  oneSampleTTest,
+  twoSampleTTest,
+  pairedTTest,
+  chiSquareTest,
+  oneWayAnova,
+  jarqueBeraTest,
+  meanConfidenceInterval,
+  normalCdf,
+  normalQuantile,
+  normalDistribution,
+  uniformDistribution,
+  binomialDistribution,
+  poissonDistribution,
+  tCdf,
+  tQuantile,
+  chiSquareCdf,
+  chiSquareQuantile,
+  fCdf,
+  fQuantile,
+  incompleteBeta,
+  incompleteGamma,
+  drawSamples,
+  stratifiedSample,
+  systematicSample,
+  percentChange,
+  cohortAnalysis,
+  type RegressionModel,
+  type HypothesisTestResult,
+  type ContinuousDistribution,
+  type DiscreteDistribution,
   type Row,
   type DType,
   type TableOptions,
@@ -752,3 +783,118 @@ expectType<typeof Pipeline>(Numiq.Pipeline);
 expectType<typeof PipelineError>(Numiq.PipelineError);
 expectType<typeof validateRows>(Numiq.validateRows);
 expectType<typeof inferSchema>(Numiq.inferSchema);
+
+// ---------------------------------------------------------------- 1.2.0 analytics
+
+const fit = linearRegression([{ x: 1, y: 2 }], { target: "y", features: ["x"] });
+expectType<RegressionModel>(fit);
+expectType<number>(fit.intercept);
+expectType<number>(fit.rSquared);
+expectType<Readonly<Record<string, number>>>(fit.coefficients);
+expectType<number[]>(fit.predict([{ x: 2 }]));
+expectType<number[]>(fit.residuals());
+expectType<Readonly<Record<string, number | null>>>(fit.standardErrors());
+expectType<Readonly<Record<string, number | null>>>(fit.pValues());
+
+const tResult = oneSampleTTest([1, 2, 3]);
+expectType<HypothesisTestResult>(tResult);
+expectType<number>(tResult.statistic);
+expectType<number | null>(tResult.df);
+expectType<number | null>(tResult.df2);
+expectType<number>(tResult.pValue);
+expectType<string>(tResult.nullHypothesis);
+expectType<string>(tResult.alternativeHypothesis);
+expectType<boolean>(tResult.significant);
+expectType<number>(tResult.alpha);
+expectType<string>(tResult.interpretation);
+expectType<Readonly<Record<string, number>>>(tResult.details);
+
+expectType<HypothesisTestResult>(twoSampleTTest([1, 2], [3, 4]));
+expectType<HypothesisTestResult>(twoSampleTTest([1, 2], [3, 4], { pooled: true }));
+expectType<HypothesisTestResult>(pairedTTest([1, 2], [2, 3]));
+expectType<HypothesisTestResult>(
+  chiSquareTest([
+    [1, 2],
+    [3, 4],
+  ]),
+);
+expectType<HypothesisTestResult>(
+  oneWayAnova([
+    { name: "a", values: [1, 2] },
+    { name: "b", values: [3, 4] },
+  ]),
+);
+expectType<HypothesisTestResult>(jarqueBeraTest([1, 2, 3, 4]));
+expectType<{ lower: number; upper: number; mean: number; level: number; df: number }>(
+  meanConfidenceInterval([1, 2, 3]),
+);
+
+// Distributions.
+const normal = normalDistribution(0, 1);
+expectType<ContinuousDistribution>(normal);
+expectType<number>(normal.pdf(0));
+expectType<number>(normal.cdf(0));
+expectType<number>(normal.quantile(0.5));
+expectType<number>(normal.mean());
+expectType<number>(normal.variance());
+expectType<number>(normal.sd());
+expectType<number>(normal.sample());
+expectType<ContinuousDistribution>(uniformDistribution(0, 1));
+const binom = binomialDistribution(10, 0.5);
+expectType<DiscreteDistribution>(binom);
+expectType<number>(binom.pmf(3));
+expectType<number>(binom.cdf(3));
+expectType<number>(binom.quantile(0.5));
+expectType<DiscreteDistribution>(poissonDistribution(2));
+expectType<number>(normalCdf(0));
+expectType<number>(normalQuantile(0.5));
+expectType<number>(tCdf(0, 5));
+expectType<number>(tQuantile(0.5, 5));
+expectType<number>(chiSquareCdf(1, 2));
+expectType<number>(chiSquareQuantile(0.5, 2));
+expectType<number>(fCdf(1, 2, 3));
+expectType<number>(fQuantile(0.5, 2, 3));
+expectType<number>(incompleteBeta(1, 2, 0.5));
+expectType<number>(incompleteGamma(1, 0.5));
+expectType<number[]>(drawSamples(normal, 3));
+
+// Sampling and cohort helpers.
+expectType<{ rows: Row[]; columns: string[] }>(stratifiedSample([{ a: 1 }], ["a"], 1, ["a"]));
+expectType<{ rows: Row[]; columns: string[] }>(systematicSample([{ a: 1 }], ["a"], 1));
+expectType<(number | null)[]>(percentChange([1, 2, 3]));
+expectType<{ rows: Row[]; columns: string[] }>(
+  cohortAnalysis([{ c: "x", t: "2024-01-01", v: 1 }], {
+    cohort: "c",
+    time: "t",
+    metrics: [{ column: "v", operation: "sum" }],
+  }),
+);
+
+// Dataset methods.
+const analyticsData = createDataset([{ x: 1, y: 2, g: "a", t: "2024-01-01", v: 1 }]);
+expectType<RegressionModel>(analyticsData.regression({ target: "y", features: ["x"] }));
+expectType<HypothesisTestResult>(analyticsData.tTest("y"));
+expectType<HypothesisTestResult>(analyticsData.tTestBetween("y", "g"));
+expectType<HypothesisTestResult>(analyticsData.pairedTTest("x", "y"));
+expectType<HypothesisTestResult>(analyticsData.chiSquare("g", "g"));
+expectType<HypothesisTestResult>(analyticsData.anova("y", "g"));
+expectType<HypothesisTestResult>(analyticsData.normalityTest("y"));
+expectType<{ lower: number; upper: number; mean: number; level: number; df: number }>(
+  analyticsData.meanConfidenceInterval("y"),
+);
+expectType<Dataset>(analyticsData.stratifiedSample(1, "g"));
+expectType<Dataset>(analyticsData.systematicSample(2));
+expectType<Dataset>(analyticsData.percentChange("y"));
+expectType<Dataset>(analyticsData.cohort({ cohort: "g", time: "t", metrics: [{ column: "v", operation: "sum" }] }));
+
+// Outlier methods are a closed union.
+expectType<OutlierResult>(detectOutliers([1, 2, 3], { method: "modified-zscore" }));
+// @ts-expect-error an unknown outlier method is rejected at compile time
+detectOutliers([1, 2, 3], { method: "made-up" });
+
+// The default namespace exposes the 1.2.0 surface too.
+expectType<typeof linearRegression>(Numiq.linearRegression);
+expectType<typeof oneWayAnova>(Numiq.oneWayAnova);
+expectType<typeof normalDistribution>(Numiq.normalDistribution);
+expectType<typeof stratifiedSample>(Numiq.stratifiedSample);
+expectType<typeof cohortAnalysis>(Numiq.cohortAnalysis);

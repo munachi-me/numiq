@@ -4,6 +4,60 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-27
+
+Advanced analytics and statistics. Purely additive: every 1.1.x call keeps its signature
+and behaviour, and nothing in this release changes an existing result.
+
+### Added
+
+- **Linear regression.** `Dataset.regression({ target, features })` and the standalone
+  `linearRegression(rows, options)` fit ordinary least squares for one or many numeric
+  features. The returned `RegressionModel` carries `coefficients`, `intercept`, `rSquared`,
+  `adjustedRSquared`, `mse`, `rmse`, `degreesOfFreedom`, `predict()`, `residuals()`,
+  `fitted()`, `standardErrors()`, `pValues()`, and `rowsUsed()`. Rows are dropped listwise
+  and `n` reports how many were used; a singular design (collinear features) throws rather
+  than returning `NaN` coefficients.
+- **Hypothesis tests.** `tTest`, `tTestBetween` (Welch by default, `{ pooled: true }`
+  available), `pairedTTest`, `chiSquare`, `anova`, `normalityTest` (Jarque-Bera), and
+  `meanConfidenceInterval` as `Dataset` methods, with standalone equivalents
+  `oneSampleTTest`, `twoSampleTTest`, `pairedTTest`, `chiSquareTest`, `oneWayAnova`,
+  `jarqueBeraTest`, and `meanConfidenceInterval`. Every test returns the same
+  `HypothesisTestResult` shape: statistic, degrees of freedom, p-value, the null and
+  alternative in words, a significance flag, an interpretation, `n`, and test-specific
+  `details`. A test that cannot run returns `NaN` with a stated reason instead of throwing.
+- **Probability distributions.** `normalDistribution`, `uniformDistribution`,
+  `binomialDistribution`, and `poissonDistribution`, each with `mean`, `variance`, `sd`, a
+  density or mass, `cdf`, `quantile`, and `sample`. `drawSamples(distribution, count,
+{ random })` draws many at once, and a seeded generator makes draws reproducible.
+- **Special functions.** `normalCdf`, `normalQuantile`, `tCdf`, `tQuantile`,
+  `chiSquareCdf`, `chiSquareQuantile`, `fCdf`, `fQuantile`, `incompleteGamma`, and
+  `incompleteBeta`. The CDFs are accurate to about `1e-15`; discrete quantiles are an exact
+  binary search over the CDF rather than a normal approximation.
+- **Sampling designs.** `stratifiedSample(size, strata, options?)` allocates
+  proportionally by largest remainder and keeps every stratum with rows present.
+  `systematicSample(interval, options?)` takes exactly `floor(n / interval)` rows from a
+  random start. Both accept `{ seed }` for reproducible draws.
+- **Cohorts and change.** `Dataset.percentChange(column, name?)` adds period-over-period
+  percentage change, and `Dataset.cohort({ cohort, time, interval, metrics })` builds a
+  cohort × period table with `sum`, `mean`, `count`, `min`, and `max` metrics.
+  `percentChange` and `cohortAnalysis` are also exported standalone.
+- **`modified-zscore` outlier method.** `detectOutliers` and `Dataset.outliers` accept
+  `{ method: "modified-zscore" }`, which scores `0.6745·(x − median) / MAD` against a
+  default threshold of `3.5`. Unlike a plain z-score it is not masked by the very outlier
+  it is looking for.
+
+### Notes
+
+- The new statistical functions state their assumptions in their documentation and do not
+  check them. A t-test on heavily skewed data, or an ANOVA on unequal variances with
+  unequal group sizes, returns a p-value that is wrong without warning.
+- `correlation()` and `rankCorrelation()` still report no p-value. Significance is a
+  separate, explicit call so a bare coefficient cannot be mistaken for a tested claim.
+- Regression `pValues()` and the tests assume independent, approximately normal errors.
+  They are not valid for autocorrelated series or clustered data.
+- No runtime dependencies were added; all of the numerics are in-process.
+
 ## [1.1.1] - 2026-11-27
 
 Documentation correction. No source change; the published code is identical to 1.1.0.

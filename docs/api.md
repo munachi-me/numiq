@@ -1200,7 +1200,8 @@ target name already exists, matching `addColumn`. The source dataset is unchange
 
 There is no `pValue` and no significance flag. A test would need distributional
 assumptions that a bare coefficient does not carry, so the result reports the number and
-the evidence behind it and stops there.
+the evidence behind it and stops there. For a tested claim, call `tTest`, `anova`,
+`chiSquare`, or `regression` explicitly — each states its own assumptions.
 
 #### `CorrelationMatrix`
 
@@ -1246,7 +1247,7 @@ z-score.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `method` | `"iqr" \| "zscore"` | test applied |
+| `method` | `"iqr" \| "zscore" \| "modified-zscore"` | test applied |
 | `threshold` | `number` | fence multiplier, or z threshold |
 | `outliers` | `Outlier[]` | each with `index`, `value`, `zScore`, `side` |
 | `fences` | `{ lower, upper } \| null` | present for `iqr` |
@@ -1255,7 +1256,12 @@ z-score.
 
 `index` refers to the position in the column, including missing cells, so it maps back to
 the source row. A zero IQR yields `reason: "zero-variance"` instead of flagging every
-non-modal value.
+non-modal value; `modified-zscore` does the same when the median absolute deviation is zero.
+
+`modified-zscore` scores `0.6745·(x − median) / MAD` against a default threshold of `3.5`.
+Because neither the median nor the MAD moves when one value is extreme, it does not suffer
+the masking that makes a plain z-score miss a lone outlier. `fences` is `null` for both
+z-score methods.
 
 ### Standalone functions
 
@@ -1275,6 +1281,7 @@ skewness(xs);                                      // adjusted Fisher-Pearson
 kurtosis(xs);                                      // excess, bias-corrected
 fiveNumberSummary(xs);
 detectOutliers(xs, { method: "zscore", threshold: 3 });
+detectOutliers(xs, { method: "modified-zscore" });  // median/MAD, threshold 3.5
 ```
 
 All of these take arrays of possibly-missing values and ignore `null`/`undefined`/non-finite
@@ -1323,7 +1330,213 @@ over data with scattered gaps, different cells can therefore rest on different r
 - `normalize` and `standardize` are both sensitive to a single extreme value.
 - Outlier tests identify unusual values, not errors. Removing them without inspection can
   bias every subsequent statistic.
-- No p-values, no confidence intervals, no hypothesis tests in this release.
+
+## Regression
+
+### `Dataset.regression(options)`
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `target` | `string` | column to predict; must be numeric |
+| `features` | `readonly string[]` | at least one numeric predictor, unique, not the target |
+
+Returns a `RegressionModel`.
+
+| Field / method | Type | Notes |
+| --- | --- | --- |
+| `target` | `string` | predicted column |
+| `features` | `readonly string[]` | in coefficient order |
+| `coefficients` | `Readonly<Record<string, number>>` | per feature, excluding the intercept |
+| `intercept` | `number` | `b0` |
+| `n` | `number` | complete rows used, after listwise drop |
+| `parameters` | `number` | features plus the intercept |
+| `rSquared` | `number` | `1 − SSres/SStot`; `NaN` for a constant target |
+| `adjustedRSquared` | `number` | penalised for predictor count |
+| `mse` | `number` | `SSres / (n − parameters)` |
+| `rmse` | `number` | `√mse` |
+| `degreesOfFreedom` | `number` | `n − parameters` |
+| `predict(rows)` | `number[]` | one prediction per row |
+| `residuals()` | `number[]` | actual minus fitted, per used row |
+| `fitted()` | `number[]` | fitted value per used row |
+| `standardErrors()` | `Record<string, number \| null>` | intercept keyed `"(intercept)"` |
+| `pValues()` | `Record<string, number \| null>` | two-sided t-test against zero |
+| `rowsUsed()` | `readonly Row[]` | the rows the fit used |
+
+```ts
+data.regression({ target: "revenue", features: ["marketing"] });
+data.regression({ target: "revenue", features: ["marketing", "staff"] });
+```
+
+Throws `ValidationError` for a non-numeric or unknown column, fewer than two complete rows,
+fewer rows than parameters, or a singular design (collinear features). A singular system has
+no unique solution, so returning coefficients would be inventing them.
+
+### `linearRegression(rows, options)`
+
+The standalone form. Same options, same result type.
+
+## Hypothesis testing
+
+Every test returns a `HypothesisTestResult`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `test` | `string` | which test produced the result |
+| `statistic` | `number` | `NaN` when it cannot be computed |
+| `df` | `number \| null` | first degrees of freedom |
+| `df2` | `number \| null` | second, for F tests |
+| `pValue` | `number` | `NaN` when it cannot be computed |
+| `nullHypothesis` | `string` | stated in words |
+| `alternativeHypothesis` | `string` | stated in words |
+| `significant` | `boolean` | `pValue < alpha`; always `false` for `NaN` |
+| `alpha` | `number` | level used, default `0.05` |
+| `interpretation` | `string` | one line, generated from the numbers |
+| `n` | `number` | observations used |
+| `details` | `Readonly<Record<string, number>>` | test-specific extras |
+
+### Dataset methods
+
+| Method | Question | Notes |
+| --- | --- | --- |
+| `tTest(column, options?)` | mean vs `mu` | `{ mu, alpha, alternative }` |
+| `tTestBetween(column, groupColumn, groups?, options?)` | two group means | Welch by default; `{ pooled }` |
+| `pairedTTest(before, after, options?)` | paired difference vs zero | complete pairs only |
+| `chiSquare(column, otherColumn, options?)` | association of two categories | builds the table from distinct values |
+| `anova(column, groupColumn, options?)` | any group mean differs | one-way |
+| `normalityTest(column, options?)` | normality | Jarque-Bera |
+| `meanConfidenceInterval(column, confidence?)` | CI for a mean | t-based, default `0.95` |
+
+`alternative` is `"two-sided"` (default), `"less"`, or `"greater"`. `groups` for
+`tTestBetween` is a `[left, right]` pair of labels; without it the first two distinct values
+in first-appearance order are compared, and fewer than two throws.
+
+### Standalone functions
+
+```ts
+oneSampleTTest(values, { mu: 0 });
+twoSampleTTest(left, right, { pooled: false });
+pairedTTest(before, after);
+chiSquareTest([[20, 30], [30, 20]]);
+oneWayAnova([{ name: "A", values: [...] }, { name: "B", values: [...] }]);
+jarqueBeraTest(values);
+meanConfidenceInterval(values, { confidence: 0.95 });
+```
+
+`chiSquareTest` takes a contingency table of non-negative counts and throws for a
+malformed table or one whose counts are all zero. `oneWayAnova` throws for fewer than two
+groups or an empty group.
+
+### Behaviour when a test cannot run
+
+Too few values or zero variance yields `statistic: NaN`, `pValue: NaN`,
+`significant: false`, and an `interpretation` naming the reason — it does not throw. This
+lets a caller test many columns and inspect which were untestable.
+
+### Assumptions
+
+None are checked. Each test's docstring states its own: independence, approximate
+normality of the mean or residuals, and — for ANOVA — similar variances across groups.
+`chiSquareTest` reports `details.cellsWithExpectedBelow5` so the small-count assumption is
+visible rather than assumed. `jarqueBeraTest` is unreliable below roughly 30 values.
+
+## Probability distributions
+
+### Special functions
+
+```ts
+normalCdf(z);            normalQuantile(p);
+tCdf(t, df);             tQuantile(p, df);
+chiSquareCdf(x, df);     chiSquareQuantile(p, df);
+fCdf(x, df1, df2);       fQuantile(p, df1, df2);
+incompleteGamma(a, x);   incompleteBeta(a, b, x);
+```
+
+`normalCdf`, `tCdf`, `chiSquareCdf`, and `fCdf` are accurate to about `1e-15`.
+`normalQuantile` is a closed-form approximation accurate to about 9 digits. The t,
+chi-square, and F quantiles are found by bisection on the CDF, so they are correct at the
+tails.
+
+### Distributions
+
+```ts
+normalDistribution(mean?, sd?);        // default 0, 1
+uniformDistribution(min?, max?);       // default 0, 1
+binomialDistribution(trials, probability);
+poissonDistribution(rate);
+drawSamples(distribution, count, { random });
+```
+
+| Kind | Members |
+| --- | --- |
+| `ContinuousDistribution` | `kind`, `mean()`, `variance()`, `sd()`, `pdf(x)`, `cdf(x)`, `quantile(p)`, `sample(random?)` |
+| `DiscreteDistribution` | `kind`, `mean()`, `variance()`, `sd()`, `pmf(k)`, `cdf(x)`, `quantile(p)`, `sample(random?)` |
+
+Discrete quantiles are an exact binary search over the CDF, not a normal approximation.
+Sampling is inverse-transform, so a seeded `random` makes a draw reproducible. Invalid
+parameters throw `ValidationError`; `normalQuantile` throws `RangeError` outside `(0, 1)`.
+
+## Sampling
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `stratifiedSample(size, strata, options?)` | `Dataset` | largest-remainder allocation |
+| `systematicSample(interval, options?)` | `Dataset` | exactly `floor(n / interval)` rows |
+
+```ts
+data.stratifiedSample(20, "region");
+data.stratifiedSample(20, ["region", "channel"], { seed: 42 });
+data.systematicSample(10, { seed: 1 });
+```
+
+`SampleOptions` is `{ seed?: number; replace?: boolean }`; `replace` applies only to
+`sample(count, options)`. A seeded draw is reproducible across runs and machines.
+
+### Standalone functions
+
+```ts
+stratifiedSample(rows, columns, size, strata, options?);
+systematicSample(rows, columns, interval, options?);
+```
+
+Both return `{ rows, columns }`.
+
+## Cohorts and change
+
+### `Dataset.percentChange(column, name?)`
+
+Adds a column of `(x[i] − x[i−1]) / |x[i−1]| · 100`. `null` for the first row and where the
+previous value is missing or zero.
+
+### `Dataset.cohort(options)`
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `cohort` | `string` | column identifying the cohort |
+| `time` | `string` | time column, bucketed by `interval` |
+| `interval` | `TimeInterval?` | default `"month"` |
+| `metrics` | `CohortMetric[]` | at least one |
+
+`CohortMetric` is `{ column, operation, name? }` where `operation` is `"sum"`, `"mean"`,
+`"count"`, `"min"`, or `"max"`. Output columns are `cohort`, `period`, `rows`, then one per
+metric (named `name`, or `${column}_${operation}`).
+
+```ts
+data.cohort({
+  cohort: "region",
+  time: "month",
+  metrics: [{ column: "revenue", operation: "sum" }],
+});
+```
+
+An unparseable time value throws. Dropping the row would silently move values between
+periods.
+
+### Standalone functions
+
+```ts
+percentChange(values);                  // (number | null)[]
+cohortAnalysis(rows, options);          // { rows, columns }
+```
 
 ## Aggregation
 
