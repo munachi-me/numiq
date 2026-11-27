@@ -599,12 +599,23 @@ ready to analyse: it keeps every `describe()` statistic and adds what is true of
 dataset as a whole.
 
 ```ts
+import { Dataset } from "@munachi-me/numiq";
+
+const sales = new Dataset([
+  { region: "north", revenue: 100 },
+  { region: "south", revenue: 120 },
+  { region: "north", revenue: 110 },
+  { region: " north ", revenue: 130 },
+  { region: null, revenue: 27500 },
+  { region: "east", revenue: 140 },
+]);
+
 const profile = sales.profile();
 
-profile.summary.missingPercent; // 4.2
-profile.summary.duplicateRows; // 1
+profile.summary.missingPercent; // 8.3
+profile.summary.duplicateRows; // 0
 profile.summary.constantColumns; // []
-profile.healthy; // no error-severity findings
+profile.healthy; // true — no error-severity findings
 profile.findingsTable();
 ```
 
@@ -613,11 +624,15 @@ profile.findingsTable();
 │ idx │ severity │ code              │ column  │ count │ message                      │
 ├─────┼──────────┼───────────────────┼─────────┼───────┼──────────────────────────────┤
 │ 0   │ warning  │ UNTRIMMED_STRINGS │ region  │ 1     │ Column "region" has 1 value… │
-│ 1   │ warning  │ DUPLICATE_ROWS    │ -       │ 1     │ 1 row(s) repeat an earlier … │
-│ 2   │ info     │ MISSING_VALUES    │ region  │ 1     │ Column "region" is missing … │
-│ 3   │ info     │ OUTLIERS          │ revenue │ 1     │ Column "revenue" has 1 valu… │
+│ 1   │ info     │ MISSING_VALUES    │ region  │ 1     │ Column "region" is missing … │
+│ 2   │ info     │ OUTLIERS          │ revenue │ 1     │ Column "revenue" has 1 valu… │
 └─────┴──────────┴───────────────────┴─────────┴───────┴──────────────────────────────┘
 ```
+
+`duplicateRows` is `0` here because no two rows are identical in *every* column — row 2
+shares a region with row 0 but has a different revenue. A duplicate is only whole-row by
+default, which is why the dataset-level `DUPLICATE_ROWS` finding never appears when you
+profile a subset of columns.
 
 Findings carry a stable `code`, a `severity` (`error`, `warning`, `info`), and the column
 and count affected. They are sorted worst first, and capped at `maxFindings` (100 by
@@ -628,12 +643,13 @@ When a finding tells you where the problem is, the companion methods tell you ex
 which rows and then fix them:
 
 ```ts
-sales.missingValues({ columns: ["region"] }).columns[0].rows; // [5]
-sales.findDuplicates().groups[0].rows; // [1, 3] — both copies
-sales.detectOutliers().columns[0].outliers; // [{ row: 4, value: 27500 }]
+sales.missingValues({ columns: ["region"] }).columns[0].rows; // [4]
+sales.findDuplicates({ columns: ["region"] }).groups[0].rows; // [0, 2]
+sales.detectOutliers({ columns: ["revenue"] }).columns[0].outliers; // [{ row: 4, value: 27500 }]
 
 const { dataset, changedRows } = sales.normalizeText({ case: "lower" });
-const cleaned = dataset.dropDuplicates();
+changedRows; // 1 — only the padded " north " moved
+const cleaned = dataset.dropDuplicates(["region"]); // 4 rows
 ```
 
 `getQualityReport()` returns the same findings as a flat list with `bySeverity`,
