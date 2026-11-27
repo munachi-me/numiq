@@ -4,6 +4,31 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-11-27
+
+Documentation correction. No source change; the published code is identical to 1.1.0.
+
+### Fixed
+
+- The "Data quality" examples in `README.md` showed output that no dataset in the
+  repository produces: `missingPercent` of `4.2`, `duplicateRows` of `1`, a `DUPLICATE_ROWS`
+  finding, and companion calls returning `[5]` and `[1, 3]`. Neither `dataset/sales.csv`
+  (three rows, no `region` column) nor the bundled sample (50×7, no missing values, no
+  duplicates) yields those numbers, so a reader copying the block got different output than
+  the docs promised. Replaced with a self-contained six-row dataset whose profile and
+  companion results were captured from the published package.
+- `detectOutliers()` was called with no arguments and indexed as though `columns[0]` were
+  `revenue`; it defaults to every numeric column, so the example now passes
+  `{ columns: ["revenue"] }`.
+- `dropDuplicates()` was shown with no arguments in the same block. It takes a positional
+  column array — `dropDuplicates({ columns: [...] })` throws `ValidationError` — and the
+  example now reflects that.
+
+### Notes
+
+- `npm` stores the README per version and cannot rewrite it, so 1.1.0's package page keeps
+  the incorrect examples. This release is what corrects it.
+
 ## [1.1.0] - 2026-11-20
 
 Data intelligence and quality. Every addition reads; none of them changes existing
