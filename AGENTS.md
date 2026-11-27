@@ -244,8 +244,22 @@ ragged columns), documented, not changed. Check `n` when inputs come from differ
 
 ## Release state
 
-`main` is level with `origin/main` at `885ab5b`. `v1.2.0`, `v1.3.0`, `v1.4.0` and `v2.0.0`
-are tagged, released on GitHub, and published to npm; registry `latest` is `2.0.0`.
+`main` is level with `origin/main` at `7a6b9a6`. `v1.2.0`, `v1.3.0`, `v1.4.0`, `v2.0.0` and
+`v2.0.1` are tagged, released on GitHub, and published to npm **and** GitHub Packages;
+registry `latest` is `2.0.1`.
+
+Publishing 2.0.1 locally made the tag-triggered Publish workflow fail at its npm step with
+`You cannot publish over the previously published versions: 2.0.1`. That is the registry's
+duplicate check, not a defect: the workflow's own `npm run verify` and tag checks had already
+passed, and its GitHub Packages step is skipped when npm fails, which is why that registry
+was published to by hand. **Do not tag and publish locally in the same session** — either let
+the workflow publish, or publish locally and do not expect the workflow to succeed.
+
+GitHub Packages publishes with the same tarball and needs a user PAT in a temp userconfig:
+`@munachi-me:registry=https://npm.pkg.github.com/` plus
+`//npm.pkg.github.com/:_authToken=...`. The sandbox `GITHUB_TOKEN` authenticates (`npm whoami`
+works) but the registry scope may reject an upload; a classic PAT with `write:packages` works.
+Verify it with `npm view @munachi-me/numiq version --registry=https://npm.pkg.github.com/`.
 
 The `GITHUB_TOKEN` in the sandbox is a **read-only GitHub App installation token** despite
 `GET /repos/...` reporting `permissions.push: true` (that field describes the human account).
