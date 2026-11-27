@@ -1347,6 +1347,11 @@ over data with scattered gaps, different cells can therefore rest on different r
 - `normalize` and `standardize` are both sensitive to a single extreme value.
 - Outlier tests identify unusual values, not errors. Removing them without inspection can
   bias every subsequent statistic.
+- `covariance`, `pearsonCorrelation` and `spearmanCorrelation` pair the two arrays by
+  position and use `min(x.length, y.length)` positions. Passing arrays of different lengths
+  is not an error and not aligned for you: the extra values are ignored, so the coefficient
+  describes the shared prefix. `correlationMatrix` relies on this, since its columns may be
+  ragged. Check the reported `n` when the inputs come from different sources.
 
 ## Regression
 

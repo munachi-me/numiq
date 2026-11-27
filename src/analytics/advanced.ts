@@ -142,6 +142,10 @@ export interface CorrelationResult {
  * Pearson is sensitive to outliers and blind to non-linear relationships. A coefficient of
  * `0` means "no *linear* trend", not "no relationship" — check `spearmanCorrelation` or a
  * scatter plot before concluding independence.
+ *
+ * The arrays are paired by position over `min(left.length, right.length)`, so unequal
+ * lengths describe the shared prefix rather than raising. `correlationMatrix` depends on
+ * that for ragged columns; check the returned `n` when the inputs come from elsewhere.
  */
 export function pearsonCorrelation(left: readonly unknown[], right: readonly unknown[]): CorrelationResult {
   const pairs = pairedValues(left, right);
