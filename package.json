@@ -1,6 +1,6 @@
 {
   "name": "@munachi-me/numiq",
-  "version": "1.0.6",
+  "version": "1.1.0",
   "description": "A modular JavaScript data analysis engine: load, normalize, inspect, and table structured data.",
   "keywords": [
     "data",

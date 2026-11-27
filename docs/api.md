@@ -970,6 +970,166 @@ data.describe().get("revenue").iqr;
 data.describe().toDataset().select(["name", "kind", "mean", "q1", "q3"]);
 ```
 
+### `profile()` / `profile(column, options?)`
+
+Profiles the dataset *for quality*, not just for numbers. `describe()` answers "what are the
+numbers in this column"; `profile()` answers "is this dataset ready to analyse".
+
+```ts
+data.profile();                          // DatasetProfile, every column
+data.profile({ ddof: 0 });               // DatasetProfile, every column
+data.profile("revenue");                 // DatasetProfile, one column
+data.profile(["revenue", "region"]);     // DatasetProfile, chosen columns
+data.profile({ maxFindings: 20 });       // cap the finding list
+```
+
+The per-column statistics are the same `ColumnProfile` objects `describe()` produces, so
+`data.profile().get("age").mean === data.describe("age").mean` always holds. What `profile()`
+adds is the part that is about the dataset rather than one column.
+
+| Member | Type | Notes |
+| --- | --- | --- |
+| `summary.rowCount` / `summary.columnCount` | `number` | shape of the dataset |
+| `summary.shape` | `[number, number]` | `[rows, columns]` |
+| `summary.missingValues` | `number` | total missing cells |
+| `summary.missingPercent` | `number` | missing cells as a percentage of all cells |
+| `summary.duplicateRows` | `number` | rows repeating an earlier row exactly |
+| `summary.memoryBytes` | `number` | approximate retained bytes |
+| `summary.types` | `TypeBreakdown` | columns per kind |
+| `summary.typeCount` | `number` | distinct kinds present |
+| `summary.emptyColumns` | `readonly string[]` | columns with no present values |
+| `summary.constantColumns` | `readonly string[]` | columns with a single distinct value |
+| `profiles` | `readonly ColumnProfile[]` | identical to `describe()`'s |
+| `findings` | `readonly QualityFinding[]` | severity-ranked, possibly truncated |
+| `findingCount` / `truncated` | `number` / `boolean` | true total when capped |
+| `bySeverity` | `{ error, warning, info }` | counted before truncation |
+| `healthy` | `boolean` | `true` when nothing is an `error` |
+| `columns` / `get(column)` | — | as on `DatasetDescription` |
+| `describe()` | `DatasetDescription` | the underlying description |
+| `findingsFor(column)` | `readonly QualityFinding[]` | findings for one column |
+| `table()` / `findingsTable()` / `toJSON()` | — | rendering and serialization |
+
+Dataset-level findings such as `DUPLICATE_ROWS` are only produced when every column is
+profiled. On a subset, "duplicate" would mean "two rows share this value", which is a
+different question and would be reported as if the whole row repeated.
+
+#### `QualityFinding`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `code` | `string` | stable across releases |
+| `severity` | `"error" \| "warning" \| "info"` | errors sort first |
+| `message` | `string` | safe to show in a UI |
+| `column` | `string \| null` | `null` when dataset-level |
+| `count` | `number \| null` | rows or cells affected |
+| `detail` | `Record<string, unknown>` | supporting values, frozen |
+
+| Code | Severity | Meaning |
+| --- | --- | --- |
+| `ALL_MISSING` | `error` | column has no present values |
+| `NO_COLUMNS` | `error` | dataset has no columns |
+| `MISSING_VALUES` | `info`, or `warning` at 50% or more | some cells are missing |
+| `UNTRIMMED_STRINGS` | `warning` | string values carry leading or trailing whitespace |
+| `MIXED_TYPES` | `warning` | a column holds more than one type |
+| `DUPLICATE_ROWS` | `warning` | rows repeat an earlier row |
+| `NO_ROWS` | `warning` | dataset has no rows |
+| `EMPTY_COLUMN` | `warning` | column has no rows to profile |
+| `CONSTANT_COLUMN` | `info` | column has a single distinct value |
+| `OUTLIERS` | `info` | numeric values outside the IQR fences |
+
+`maxFindings` (default `100`) caps the list so a pathological dataset cannot produce an
+unreadable report; `findingCount` still records the true total and `truncated` says whether
+the cap was hit.
+
+### `getQualityReport()`
+
+The same findings as a flat, severity-ranked `QualityReport`, for when you want the list of
+problems without the statistics.
+
+```ts
+const report = data.getQualityReport();
+report.healthy;            // no error-severity findings
+report.bySeverity;         // { error, warning, info }
+report.forColumn("age");   // findings for one column
+report.forCode("MISSING_VALUES");
+report.table();
+```
+
+`getQualityReport()` and `profile()` share one finding generator, so a column cannot be a
+`warning` in one and an `info` in the other.
+
+### `missingValues(options?)`
+
+Which rows hold a missing cell. `profile()` says a column has 12 missing values; this says
+which 12.
+
+```ts
+const report = data.missingValues({ columns: ["age"], maxRows: 50 });
+report.totalMissing;      // cells
+report.percent;           // of all examined cells
+report.affected;          // columns with any missing value, worst first
+report.columns[0].rows;   // zero-based row indexes, capped by maxRows
+report.columns[0].truncated;
+```
+
+Counts agree with `profile().summary.missingValues` and with `describe(column).missing`.
+
+### `findDuplicates(options?)`
+
+Groups rows that repeat, on every column by default or on a named subset.
+
+```ts
+data.findDuplicates();                       // whole-row duplicates
+data.findDuplicates({ columns: ["email"] }); // duplicate keys
+```
+
+`groups` holds the row indexes and the repeated values, largest group first. `removable`
+matches what `dropDuplicates(columns)` would remove.
+
+### `detectOutliers(options?)`
+
+Outliers per numeric column, located by row. `outliers(column)` reports values for one
+column; this keeps the row index and scans several columns at once.
+
+```ts
+const report = data.detectOutliers();                    // IQR fences, every numeric column
+data.detectOutliers({ method: "zscore", factor: 2.5 });
+data.detectOutliers({ columns: ["revenue"] });
+report.columns[0].outliers;   // [{ row, value }]
+report.columns[0].bounds;     // fences actually used
+```
+
+### `normalizeText(options?)`
+
+Trim and optionally case-fold text columns. Returns the new dataset plus a change report.
+
+```ts
+const { dataset, changes, changedRows } = data.normalizeText({
+  whitespace: "collapse",       // "trim" (default) | "collapse" | "none"
+  case: "lower",                // "lower" | "upper" | "title"; omit to leave case alone
+  extraWhitespace: ["\u00a0"],  // extra characters treated as whitespace
+});
+changes[0].examples;   // [{ row: 3, before: " Ada ", after: "ada" }]
+```
+
+Non-string cells are left untouched rather than coerced, so a numeric column stays numeric.
+`changed` counts rows whose value moved, and up to five before/after examples are kept per
+column.
+
+The standalone `normalizeText(rows, columns, targets, options?)` does the same on raw rows
+and reports `{ rows, columns, changes, changedRows }`.
+
+### Standalone quality helpers
+
+`missingValues(rows, columns, options?)` and `findDuplicates(rows, columns, options?)` do the
+same work as the methods of the same name, for when you have raw rows rather than a
+`Dataset`. They return the same reports.
+
+```ts
+missingValues(rows, ["id", "region"], { maxRows: 10 });
+findDuplicates(rows, ["id", "region"], { columns: ["id"] });
+```
+
 ### Descriptive statistics helpers
 
 Quantiles, percentiles, and distribution statistics are exported for use outside a dataset.
@@ -1263,8 +1423,20 @@ it by hand.
 | `pattern` | strings | Regular expression the **whole** value must match. |
 | `minLength` / `maxLength` | strings | Inclusive length bounds, counted in UTF-16 code units. |
 | `validate` | any | `(value, row, index) => boolean \| string`. `false` rejects; a string rejects with that message. |
+| `unique` | any | `true` rejects repeated values in the column; a column-name array makes that combination unique. |
 
 A column listed with no rules is still checked for presence.
+
+`unique` compares with the same equality `Dataset.unique` uses, so `1` and `"1"` differ.
+Missing values are exempt: repeating "no value" is not a duplicate. The check spans rows, so
+it runs after the per-cell rules and is skipped by `columnsOnly: true`. When several rows
+repeat a value, each repeat is reported and the message names the first row it appeared in.
+
+```ts
+data.validate({ id: { type: "integer", unique: true } });
+data.validate({ email: { unique: true } });
+data.validate({ line: { unique: ["order_id", "line_no"] } }); // composite key
+```
 
 ### Issue codes
 
@@ -1281,6 +1453,7 @@ A column listed with no rules is still checked for presence.
 | `TOO_SHORT` / `TOO_LONG` | The string is outside `minLength` / `maxLength`. |
 | `CUSTOM_VALIDATOR_FAILED` | `validate` returned `false` or a message. |
 | `CUSTOM_VALIDATOR_THREW` | `validate` threw; the error is reported rather than escaping. |
+| `DUPLICATE_VALUE` | A `unique` rule found a value that already appeared in an earlier row. |
 
 ### `ValidationReport`
 

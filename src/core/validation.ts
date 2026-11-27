@@ -26,6 +26,14 @@ export interface ColumnRules {
   /** Inclusive bounds on string length. */
   minLength?: number;
   maxLength?: number;
+  /**
+   * Reject repeated values, compared by `Dataset.unique`'s equality.
+   *
+   * `true` requires every present value to be distinct; an array names the columns whose
+   * combination must be unique. Missing values are exempt — "no value" repeated is not a
+   * duplicate, and a nullable column would otherwise be impossible to make unique.
+   */
+  unique?: boolean | readonly string[];
   /** Extra check. Return `false` or a message to reject a value. */
   validate?: (value: unknown, row: Row, index: number) => boolean | string;
 }
@@ -292,6 +300,9 @@ function assertRules(column: string, rules: ColumnRules): void {
   if (rules.validate !== undefined && typeof rules.validate !== "function") {
     throw new ValidationError(`Schema for column "${column}": "validate" must be a function.`);
   }
+  if (rules.unique !== undefined && !Array.isArray(rules.unique) && typeof rules.unique !== "boolean") {
+    throw new ValidationError(`Schema for column "${column}": "unique" must be a boolean or an array of column names.`);
+  }
   if (rules.type !== undefined && !isColumnType(rules.type)) {
     throw new ValidationError(
       `Schema for column "${column}": "${String(rules.type)}" is not a supported type. ` +
@@ -389,6 +400,47 @@ export function validateRows(
         checked += 1;
         const found = checkCell(column, rules, row[column], index, row);
         for (const issue of found) record(issue);
+      }
+    }
+
+    // Uniqueness needs cross-row state, so it runs as its own pass rather than per cell.
+    // One issue is raised per repeated occurrence, naming the first row it collided with,
+    // which is what a caller needs to go fix it.
+    for (const [column, rules] of entries) {
+      if (rules.unique === undefined || rules.unique === false) continue;
+      if (!present.has(column)) continue;
+      const keys: readonly string[] = Array.isArray(rules.unique) && rules.unique.length > 0 ? rules.unique : [column];
+      const missing = keys.filter((key) => !present.has(key));
+      if (missing.length > 0) {
+        record({
+          code: "MISSING_COLUMN",
+          message: new ColumnNotFoundError(missing[0] ?? column, columns).message,
+          column: missing[0] ?? column,
+          expected: "column present in the dataset",
+        });
+        continue;
+      }
+      const firstSeen = new Map<string, number>();
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (row === undefined) continue;
+        const values = keys.map((key) => row[key]);
+        // A row with any missing key part is exempt: it is incomplete, not duplicated.
+        if (values.some((value) => !isPresent(value))) continue;
+        const key = stableKey(values);
+        const previous = firstSeen.get(key);
+        if (previous === undefined) {
+          firstSeen.set(key, index);
+          continue;
+        }
+        record({
+          code: "DUPLICATE_VALUE",
+          message: `Column "${column}" repeats a value from row ${previous}${keys.length > 1 ? ` (on ${keys.join(", ")})` : ""}.`,
+          column,
+          row: index,
+          value: values.length === 1 ? values[0] : values,
+          expected: "unique value",
+        });
       }
     }
   }

@@ -9,7 +9,9 @@ analyzing structured data.
 
 Numiq reads CSV, TSV, and JSON from files, URLs, and in-memory buffers,
 normalizes the values, and gives you an immutable `Dataset` you can inspect, filter, sort,
-prepare, query, group, summarize, and render as a table. It also describes each column and
+prepare, query, group, summarize, and render as a table. It also profiles the dataset for
+quality — missing values, duplicates, mixed types, untrimmed text, outliers — and reports
+findings you can act on, with the methods to clean them. It describes each column and
 measures how columns relate to each other: correlation, rank correlation, correlation
 matrices, z-scores, percentile rank, skewness, kurtosis, five-number summaries, and
 outlier detection. Beyond describing what is there, it defines reusable metrics that keep
@@ -589,6 +591,69 @@ the full-precision values on `profiles`.
 
 The standalone statistics are exported too, for use outside a dataset:
 `quantile`, `percentile`, `quartiles`, `iqr`, `mode`, `range`, and `extremes`.
+
+## Data quality
+
+`describe()` tells you what is in a column. `profile()` tells you whether the dataset is
+ready to analyse: it keeps every `describe()` statistic and adds what is true of the
+dataset as a whole.
+
+```ts
+const profile = sales.profile();
+
+profile.summary.missingPercent; // 4.2
+profile.summary.duplicateRows; // 1
+profile.summary.constantColumns; // []
+profile.healthy; // no error-severity findings
+profile.findingsTable();
+```
+
+```
+┌─────┬──────────┬───────────────────┬─────────┬───────┬──────────────────────────────┐
+│ idx │ severity │ code              │ column  │ count │ message                      │
+├─────┼──────────┼───────────────────┼─────────┼───────┼──────────────────────────────┤
+│ 0   │ warning  │ UNTRIMMED_STRINGS │ region  │ 1     │ Column "region" has 1 value… │
+│ 1   │ warning  │ DUPLICATE_ROWS    │ -       │ 1     │ 1 row(s) repeat an earlier … │
+│ 2   │ info     │ MISSING_VALUES    │ region  │ 1     │ Column "region" is missing … │
+│ 3   │ info     │ OUTLIERS          │ revenue │ 1     │ Column "revenue" has 1 valu… │
+└─────┴──────────┴───────────────────┴─────────┴───────┴──────────────────────────────┘
+```
+
+Findings carry a stable `code`, a `severity` (`error`, `warning`, `info`), and the column
+and count affected. They are sorted worst first, and capped at `maxFindings` (100 by
+default) so a broken dataset cannot produce an unreadable report; `findingCount` still
+holds the true total.
+
+When a finding tells you where the problem is, the companion methods tell you exactly
+which rows and then fix them:
+
+```ts
+sales.missingValues({ columns: ["region"] }).columns[0].rows; // [5]
+sales.findDuplicates().groups[0].rows; // [1, 3] — both copies
+sales.detectOutliers().columns[0].outliers; // [{ row: 4, value: 27500 }]
+
+const { dataset, changedRows } = sales.normalizeText({ case: "lower" });
+const cleaned = dataset.dropDuplicates();
+```
+
+`getQualityReport()` returns the same findings as a flat list with `bySeverity`,
+`forColumn()`, `forCode()`, and `table()`. Both surfaces share one finding generator, so a
+column cannot be a `warning` in one and an `info` in the other.
+
+`normalizeText()` leaves non-string cells untouched rather than coercing them, so a numeric
+column stays numeric, and it reports what it changed — a count per column plus up to five
+before/after examples — rather than asking you to trust it.
+
+Validation gained a matching `unique` rule, for the case where the duplicate is a problem
+rather than a curiosity:
+
+```ts
+sales.validate({ order_id: { unique: true } }); // DUPLICATE_VALUE on row 3
+sales.validate({ line: { unique: ["order_id", "line_no"] } }); // composite key
+```
+
+`1` and `"1"` are different values, and missing values are exempt: repeating "no value" is
+not a duplicate.
 
 ## Advanced statistics
 

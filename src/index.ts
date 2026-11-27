@@ -147,14 +147,36 @@ export type {
   ConditionalRuleContext,
   ConditionalThen,
 } from "./core/conditional.js";
+export { normalizeText } from "./core/prepare.js";
 export type {
+  CleaningChange,
+  CleaningResult,
   DropMissingOptions,
   FillStrategy,
   FillValue,
+  NormalizeTextOptions,
   ReplaceContext,
   ReplaceRule,
   SampleOptions,
+  TextCase,
+  WhitespaceMode,
 } from "./core/prepare.js";
+export { DatasetProfile } from "./core/profile.js";
+export type { DatasetProfileSummary, ProfileOptions, TypeBreakdown } from "./core/profile.js";
+export type { QualityFinding, QualitySeverity } from "./core/quality.js";
+export { QualityReport, findDuplicates, missingValues } from "./core/quality.js";
+export type {
+  ColumnMissingSummary,
+  ColumnOutliers,
+  DetectOutliersOptions,
+  DuplicateGroup,
+  DuplicateReport,
+  FindDuplicatesOptions,
+  MissingValuesOptions,
+  MissingValuesReport,
+  OutlierRow,
+  OutliersReport,
+} from "./core/quality.js";
 export { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
 export type {
   GroupedMetricResult,
@@ -276,6 +298,9 @@ import {
   toTime,
 } from "./core/timeseries.js";
 import { inferSchema, validateRows } from "./core/validation.js";
+import { normalizeText } from "./core/prepare.js";
+import { DatasetProfile } from "./core/profile.js";
+import { QualityReport, findDuplicates, missingValues } from "./core/quality.js";
 import { Pipeline, PipelineError, pipeline } from "./core/pipeline.js";
 import { Metric, createMetric, isAggregationOp } from "./metrics/metric.js";
 import { analyze, resolveInsightOptions } from "./insights/insights.js";
@@ -377,6 +402,11 @@ const Numiq = {
   toTime,
   validateRows,
   inferSchema,
+  normalizeText,
+  QualityReport,
+  DatasetProfile,
+  findDuplicates,
+  missingValues,
   pipeline,
   Pipeline,
   PipelineError,

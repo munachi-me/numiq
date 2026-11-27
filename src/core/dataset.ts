@@ -65,15 +65,38 @@ import {
   dropMissingRows,
   fillMissingValues,
   mapColumn,
+  normalizeText as normalizeTextTable,
   renameColumns,
   replaceValues,
   sampleRows,
 } from "./prepare.js";
-import type { DropMissingOptions, FillStrategy, ReplaceRule, SampleOptions } from "./prepare.js";
+import type {
+  CleaningChange,
+  DropMissingOptions,
+  FillStrategy,
+  NormalizeTextOptions,
+  ReplaceRule,
+  SampleOptions,
+} from "./prepare.js";
 import { Query, detectCellShape } from "./query.js";
 import { GroupedDataset } from "./group.js";
 import { DatasetDescription, columnKind, profileColumn, validateDescribeOptions } from "../analytics/describe.js";
 import type { ColumnProfile, DescribeOptions } from "../analytics/describe.js";
+import { buildProfile, resolveProfileColumns, type DatasetProfile, type ProfileOptions } from "./profile.js";
+import {
+  QualityReport,
+  detectOutlierRows,
+  findDuplicates,
+  missingValues,
+  qualityFindings,
+  rankFindings,
+  type DetectOutliersOptions,
+  type DuplicateReport,
+  type FindDuplicatesOptions,
+  type MissingValuesOptions,
+  type MissingValuesReport,
+  type OutliersReport,
+} from "./quality.js";
 import {
   correlationMatrix,
   covariance,
@@ -319,6 +342,85 @@ export class Dataset {
     return new DatasetDescription<Dataset>(this.rowCount, this.columnCount, profiles, ddof, (rows, columns) =>
       this.#build(rows, columns),
     );
+  }
+
+  // ------------------------------------------------------------ quality inspection
+
+  /**
+   * Locate every missing cell, with row indexes.
+   *
+   * `profile()` tells you a column has 12 missing values; this tells you which rows.
+   * Uses the same `isPresent` definition, so the counts always agree.
+   */
+  missingValues(options: MissingValuesOptions = {}): MissingValuesReport {
+    return missingValues(this.#rows, this.#columns, options);
+  }
+
+  /**
+   * Group rows that repeat on the given columns.
+   *
+   * With no arguments a row is a duplicate only when every column matches. Pass columns to
+   * treat a subset as the identity, e.g. `findDuplicates(["email"])`.
+   */
+  findDuplicates(options: FindDuplicatesOptions = {}): DuplicateReport {
+    return findDuplicates(this.#rows, this.#columns, options);
+  }
+
+  /**
+   * Outliers per numeric column, located by row.
+   *
+   * Differs from `outliers()` in that it keeps the row index and covers several columns at
+   * once, which is what you need to actually inspect the offending records.
+   */
+  detectOutliers(options: DetectOutliersOptions = {}): OutliersReport {
+    return detectOutlierRows(this.#rows, this.#columns, this.#numericColumnNames(), options);
+  }
+
+  /**
+   * A severity-ranked list of everything worth knowing about data quality.
+   *
+   * Errors first, then warnings, then informational observations. Nothing is modified.
+   * `profile()` gives the statistics; this gives the flat list of problems.
+   */
+  getQualityReport(): QualityReport {
+    const findings = rankFindings(qualityFindings(this.#rows, this.#columns, this.#numericColumnNames()));
+    return new QualityReport(findings, this.#columns, this.rowCount);
+  }
+
+  // ------------------------------------------------------------ profiling
+
+  /**
+   * Profile the dataset: per-column statistics plus dataset-level quality findings.
+   *
+   * `describe()` answers "what are the numbers in this column". `profile()` answers "is
+   * this dataset ready to analyse". The per-column statistics are the same
+   * `ColumnProfile` objects `describe()` produces, so the two can never disagree; what is
+   * added is duplicate rows, memory, a type breakdown, and a severity-ranked list of
+   * findings.
+   *
+   * Reads only. Nothing here modifies the dataset.
+   *
+   * Pass a column or a list of columns to profile a subset. Dataset-level findings such as
+   * `DUPLICATE_ROWS` are only produced when every column is profiled: on a subset,
+   * "duplicate" would mean "two rows share this value", which is a different question.
+   *
+   * ```ts
+   * const profile = data.profile();
+   * profile.summary.duplicateRows;   // 3
+   * profile.findings;                // errors first, then warnings, then info
+   * profile.get("age").mean;         // same number as data.describe("age").mean
+   * ```
+   */
+  profile(): DatasetProfile<Dataset>;
+  profile(options: ProfileOptions): DatasetProfile<Dataset>;
+  profile(column: string, options?: ProfileOptions): DatasetProfile<Dataset>;
+  profile(columns: readonly string[], options?: ProfileOptions): DatasetProfile<Dataset>;
+  profile(
+    columnOrOptions?: string | readonly string[] | ProfileOptions,
+    options: ProfileOptions = {},
+  ): DatasetProfile<Dataset> {
+    const { selected, settings } = resolveProfileColumns(this.#columns, columnOrOptions, options);
+    return buildProfile(this.#rows, this.#columns, selected, settings, (rows, columns) => this.#build(rows, columns));
   }
 
   // ------------------------------------------------------------ advanced statistics
@@ -690,6 +792,31 @@ export class Dataset {
     }
     const result = replaceValues(this.#rows, this.#columns, rules);
     return this.#build(result.rows, result.columns);
+  }
+
+  /**
+   * Normalize text columns: whitespace and optional case.
+   *
+   * Non-string cells are left alone rather than coerced, so a numeric column stays numeric.
+   * The returned `changed` report says how many rows moved per column and shows a few
+   * examples, so a caller can inspect the effect instead of trusting it.
+   *
+   * ```ts
+   * const { dataset, changed } = data.normalizeText({ case: "lower" });
+   * changed[0].examples;   // [{ row: 3, before: " Ada ", after: "ada" }]
+   * ```
+   */
+  normalizeText(options: NormalizeTextOptions = {}): {
+    dataset: Dataset;
+    changes: readonly CleaningChange[];
+    changedRows: number;
+  } {
+    const result = normalizeTextTable(this.#rows, this.#columns, this.#columns, options);
+    return {
+      dataset: this.#build(result.rows, result.columns),
+      changes: result.changes,
+      changedRows: result.changedRows,
+    };
   }
 
   /**
