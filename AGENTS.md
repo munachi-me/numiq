@@ -244,6 +244,18 @@ ragged columns), documented, not changed. Check `n` when inputs come from differ
 
 ## Release state
 
-`main` is ahead of `origin/main`; the registry's `latest` is `1.1.1`. Pushing and publishing
-are both blocked in this sandbox (read-only git token, no npm auth). Tags exist only up to
-`v1.1.1`. Do not attempt push or publish; hand off to the developer.
+`main` is level with `origin/main` at `885ab5b`. `v1.2.0`, `v1.3.0`, `v1.4.0` and `v2.0.0`
+are tagged, released on GitHub, and published to npm; registry `latest` is `2.0.0`.
+
+The `GITHUB_TOKEN` in the sandbox is a **read-only GitHub App installation token** despite
+`GET /repos/...` reporting `permissions.push: true` (that field describes the human account).
+Writes fail with `403 Resource not accessible by integration`, and the credential helper
+returns no password. Pushing needs a real user PAT, supplied per session — never write it to
+`.npmrc`, `.gitconfig`, or a tracked file.
+
+npm publishing needs a userconfig outside the repo:
+`npm publish --userconfig=/tmp/npmrc.publish` where that file holds
+`//registry.npmjs.org/:_authToken=...` and is mode 600. The first `npm publish` of a new
+version may be accepted while the public packument still lags; confirm with an authenticated
+`GET /@munachi-me%2Fnumiq` (it lists the new version before the CDN does), then verify with a
+real install rather than trusting a tarball HEAD request, which 404s during propagation.
