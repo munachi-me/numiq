@@ -8,6 +8,13 @@ All notable changes to Numiq are recorded here. The format follows
 
 ### Fixed
 
+- `space.join()` and `findRelationship()` reject a named relationship that does not connect
+  the two datasets being joined. They previously accepted any name and used that
+  relationship's key columns regardless, so asking for `join("customers", "orders",
+  { relationship: "customers-products" })` joined on the wrong keys whenever both datasets
+  happened to share the column names — matching unrelated rows with no error. It now throws
+  and names both pairs.
+
 - `chunkDelimited()` now reads the same file the same way as `parseDelimited()`. Three
   divergences are closed, all of them in the 1.4.0 chunked reader:
   - A leading blank line was taken as the header, so the real header became data and the

@@ -342,13 +342,29 @@ export class DataSpace {
     right: string,
     name?: string,
   ): { relationship: Relationship; direction: "forward" | "reverse" } | undefined {
-    const candidates = this.relationships().filter((relationship) => {
-      if (name !== undefined) return relationship.name === name;
-      return (
+    if (name !== undefined) {
+      // A named relationship must actually connect this pair. Accepting any name and using
+      // its columns regardless silently joins on the wrong keys when both datasets happen to
+      // share column names, which produces plausible but wrong rows.
+      const relationship = this.#getRelationship(name);
+      const connects =
         (relationship.from === left && relationship.to === right) ||
-        (relationship.from === right && relationship.to === left)
-      );
-    });
+        (relationship.from === right && relationship.to === left);
+      if (!connects) {
+        throw new ValidationError(
+          `Relationship "${name}" links "${relationship.from}" and "${relationship.to}", not "${left}" and "${right}".`,
+        );
+      }
+      return {
+        relationship,
+        direction: relationship.from === left && relationship.to === right ? "forward" : "reverse",
+      };
+    }
+    const candidates = this.relationships().filter(
+      (relationship) =>
+        (relationship.from === left && relationship.to === right) ||
+        (relationship.from === right && relationship.to === left),
+    );
     if (candidates.length === 0) return undefined;
     if (candidates.length > 1) {
       throw new ValidationError(

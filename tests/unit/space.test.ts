@@ -374,7 +374,28 @@ describe("relationship lookup", () => {
     expect(() => ambiguous.findRelationship("orders", "customers")).toThrow(/pass \{ relationship \}/);
   });
 
-  it("selects one by name when several exist", () => {
+  it("rejects a named relationship that does not link the requested pair", () => {
+    const s = space();
+    // `regions` carries `customer_id`, and so does `orders`, so reusing this relationship
+    // for orders -> customers would resolve both key columns and join on them happily.
+    s.addDataset("regions", createDataset([{ customer_id: 1, label: "north" }]));
+    s.createRelationship({
+      name: "customers-regions",
+      from: "customers",
+      fromColumn: "id",
+      to: "regions",
+      toColumn: "customer_id",
+      type: "one-to-many",
+    });
+    expect(() => s.findRelationship("orders", "customers", "customers-regions")).toThrow(
+      /links "customers" and "regions", not "orders" and "customers"/,
+    );
+    expect(() => s.join("orders", "customers", { relationship: "customers-regions" })).toThrow(
+      /not "orders" and "customers"/,
+    );
+  });
+
+  it("still selects a named relationship that does link the pair", () => {
     const s = space();
     s.createRelationship({
       name: "second",
