@@ -61,6 +61,12 @@ try {
   check("includes declarations", packed.has("dist/esm/node.d.ts"));
   check("includes the README", packed.has("README.md"));
   check("includes the licence", packed.has("LICENSE"));
+  check("includes the changelog", packed.has("CHANGELOG.md"));
+  // README and CHANGELOG link to docs/ by relative path, so those links 404 on the
+  // registry unless the folder ships alongside them.
+  for (const doc of ["docs/api.md", "docs/migration.md", "docs/architecture.md", "docs/compatibility.md"]) {
+    check(`includes ${doc}`, packed.has(doc));
+  }
   check("excludes the test suite", ![...packed].some((file) => file.startsWith("tests/")));
   check("excludes sources", ![...packed].some((file) => file.startsWith("src/")));
 
