@@ -191,7 +191,11 @@ export function reduceChunks<T>(
 export function collectChunks(text: string, format: DelimitedFormat, options: ChunkOptions = {}): Dataset {
   const chunks = [...chunkDelimited(text, format, options)];
   if (chunks.length === 0) {
-    return createDataset([], { name: "Dataset" });
+    // No data records, so the generator yields nothing and the header never reaches a
+    // chunk. The header still defines the columns, and a whole-file parse reports them, so
+    // delegate rather than return a columnless dataset.
+    const { chunkSize: _size, onProgress: _progress, signal: _signal, ...parseOptions } = options;
+    return parseDelimited(text, { ...parseOptions, format });
   }
   const first = chunks[0] as Dataset;
   const rows = chunks.flatMap((chunk) => chunk.data);

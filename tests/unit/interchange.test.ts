@@ -404,4 +404,17 @@ describe("collectChunks", () => {
       expect(() => [...chunkDelimited("a,b\n1,2\n", "csv", { columns: ["x", "y"] })]).toThrow(/header is true/);
     });
   });
+
+  it("keeps the header when a file has no data records", () => {
+    // The generator yields no chunk when there is nothing to chunk, so collectChunks() has
+    // to fall back to a whole-file parse rather than return a columnless dataset.
+    for (const text of ["a,b\n", "a,b\n\n\n,\n"]) {
+      const whole = parseDelimited(text, { format: "csv" });
+      const collected = collectChunks(text, "csv", { chunkSize: 2 });
+      expect(collected.columns).toEqual(["a", "b"]);
+      expect(collected.columns).toEqual(whole.columns);
+      expect(collected.rowCount).toBe(0);
+      expect(collected.data).toEqual(whole.data);
+    }
+  });
 });

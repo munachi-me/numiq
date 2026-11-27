@@ -28,6 +28,10 @@ All notable changes to Numiq are recorded here. The format follows
     the first chunk reported `1`. It now reports `0`. `reduceChunks()` also recomputed the
     progress it passed to `step` instead of forwarding the one the generator emitted, so the
     two could disagree; it forwards now.
+- `collectChunks()` returns the file's columns when there are no data records. A header-only
+  file, or one whose only remaining rows are blank, produced no chunk at all, so the
+  function fell back to a dataset with no columns. `parseDelimited()` reports the header's
+  columns for the same text; `collectChunks()` now does too.
 - The published tarball includes `docs/`. `README.md` and `CHANGELOG.md` link to four files
   under `docs/` by relative path, and none of them shipped, so every one of those links
   404'd on the registry. `test:package` now asserts each linked document is in the tarball.
