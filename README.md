@@ -508,6 +508,38 @@ Two properties are worth knowing before you reach for a large dataset:
 - **`describe()` costs roughly 3.3ms per 100,000 rows per column.** Use
   `describe("column")` when you only need one.
 
+### Large files
+
+`parseDelimited()` needs the whole file in memory. When that is too much, `chunkDelimited()`
+reads it a batch at a time:
+
+```ts
+for (const chunk of chunkDelimited(text, "csv", { chunkSize: 10_000 })) {
+  // each chunk is a complete dataset with the same columns
+}
+```
+
+Chunks are lazy: nothing parses until you ask for it. `onProgress` reports rows delivered
+and can return `false` to stop; an `AbortSignal` stops it too. When the answer is a single
+number rather than the rows, `reduceChunks()` folds each chunk and drops it — a running
+total over a million rows needs the total, not the million rows. `collectChunks()`
+concatenates them when you did want one dataset.
+
+Splitting happens after tokenizing, not before, because a newline inside a quoted field is
+data. That costs throughput: at 50,000 rows, `chunkDelimited` takes about 161ms against
+119ms for a whole-file parse — roughly 35% more, which is the price of a record boundary
+that cannot be cut in the wrong place. The win is peak memory, not speed.
+
+### Interchange
+
+`toTableData()` returns a header plus row-major cells, `toObjects()` returns plain records,
+and `toCSV()` renders text. `toInterchange()` returns the documented contract a consumer
+such as Numviz reads: `format: "numiq.table"`, `version: 1`, a descriptor per column, and
+`null` — never `undefined` or `NaN` — for every missing value. `isInterchangePayload()`
+checks a value before reading it, and `fromInterchange()` rebuilds a dataset.
+
+At 25,000 rows, `toTableData` takes 8ms, `toInterchange` 9ms, and `toCSV` 31ms.
+
 ## Grouping and aggregation
 
 `groupBy()` describes a split and computes nothing; `aggregate()` runs it and returns an
@@ -1561,7 +1593,9 @@ special functions they are built from), sampling designs (stratified and systema
 seedable), cohort analysis and percentage change, data spaces (`createDataSpace` with
 dataset management, validated relationships of all four cardinalities, referential-integrity
 checks, relationship-keyed joins, cross-dataset aggregation and filtering, and structural
-introspection), metrics (`createMetric`, grouped metrics, custom calculations,
+introspection), chunked reading of delimited text (`chunkDelimited`, `reduceChunks`,
+`collectChunks`) and interchange with a consumer (`toTableData`, `toObjects`, `toCSV`,
+`toInterchange` and their inverses), metrics (`createMetric`, grouped metrics, custom calculations,
 recalculation, comparison, and format hints), insights (`Dataset.insights()` with seven
 checks, configurable thresholds, and evidence on every observation), table rendering, the
 bundled sample dataset, the error taxonomy, and the environment split.

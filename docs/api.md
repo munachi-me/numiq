@@ -2051,6 +2051,63 @@ whose reference does not resolve.
 Returns a `DatasetSummary` — `{ name, rowCount, columnCount, columns, metadata, outgoing,
 incoming }` — for one dataset or all of them in insertion order.
 
+## Interchange
+
+### `toTableData(dataset)` / `fromTableData(table, options?)`
+
+Converts to and from `{ columns, rows }`, where `rows` are row-major cells. `fromTableData`
+pads a short row with `null` and truncates a long one unless `options.strict` is set, in
+which case either throws `ValidationError`. `options.name` names the result.
+
+### `toObjects(dataset)`
+
+Returns one fresh plain object per row. A caller may mutate the records without affecting
+the dataset.
+
+### `toCSV(dataset, options?)`
+
+Renders CSV text. `options` is `{ delimiter?, newline?, header? }`, defaulting to `","`,
+`"\n"`, and `true`. Fields holding the delimiter, a quote, or a line break are quoted, and
+embedded quotes are doubled. Missing values become empty fields. Throws `ValidationError`
+for a multi-character delimiter.
+
+### `toInterchange(dataset)`
+
+Returns an `InterchangePayload`: `{ format: "numiq.table", version: 1, name, columns,
+rows, rowCount, columnCount, missingValue: null, metadata }`. Each entry in `columns` is a
+`ColumnDescriptor` — `{ name, type, nullable, role }` — where `role` is `"measure"` for
+numeric dtypes, `"temporal"` for date and time, and `"dimension"` otherwise. Missing cells
+are always `null`.
+
+### `isInterchangePayload(value)` / `fromInterchange(payload)`
+
+`isInterchangePayload` narrows a value to a payload this version can read. `fromInterchange`
+rebuilds a dataset and throws `ValidationError` for anything else.
+
+### `columnRole(type)`
+
+Maps a `DType` to `"measure"`, `"temporal"`, or `"dimension"`.
+
+## Chunked reading
+
+### `chunkDelimited(text, format, options?)`
+
+Yields one `Dataset` per chunk, each carrying the file's columns. `options` extends
+`CsvOptions` with `chunkSize` (default 10,000), `onProgress`, and `signal`. Chunks are lazy.
+`onProgress` receives a `ChunkProgress` — `{ chunk, rows, delivered, lastRecord }` — and may
+return `false` to stop before the next chunk. Throws `ValidationError` for a non-positive or
+non-integer `chunkSize` or a format other than `"csv"`/`"tsv"`.
+
+### `reduceChunks(text, format, step, initial, options?)`
+
+Folds every chunk into one value. `step` receives the accumulator, the chunk, and its
+`ChunkProgress`. Nothing but the accumulator and the current chunk is retained.
+
+### `collectChunks(text, format, options?)`
+
+Concatenates every chunk into one dataset. Holds the whole result in memory, so prefer
+`chunkDelimited` or `reduceChunks` for genuinely large files.
+
 ## Errors
 
 | Class | `code` | Extra fields |

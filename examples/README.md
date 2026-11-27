@@ -25,6 +25,7 @@ npx tsx examples/01-load-and-inspect.ts
 | `14-windows-and-time-series.ts` | Ranking, offsets, running and moving values, and calendar resampling |
 | `15-pipelines-and-validation.ts` | Reusable pipelines, schema validation reports, and lineage |
 | `16-data-spaces.ts` | Data spaces: relationships, integrity checks, relationship-keyed joins and aggregation |
+| `17-large-files-and-interchange.ts` | Chunked reading, progress and folding, plus conversions and the interchange contract |
 
 The examples read from the project-root `dataset/` folder by filename, so run them from
 the repository root. They import `@munachi-me/numiq` by package name; to run them before publishing,

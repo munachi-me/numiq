@@ -13,6 +13,8 @@ import { consume, formatMs, heapUsed, makeJoinInputs, makeSalesRows, seededRando
 import type { Sample } from "./lib/harness.js";
 import { createDataset } from "../src/core/dataset.js";
 import { parseDelimited } from "../src/io/parsers/csv.js";
+import { chunkDelimited, reduceChunks } from "../src/io/chunk.js";
+import { toCSV, toInterchange, toTableData } from "../src/io/interchange.js";
 import { pipeline } from "../src/core/pipeline.js";
 
 interface CaseResult {
@@ -124,6 +126,29 @@ async function main(): Promise<void> {
       consume(parseDelimited(csv, { format: "csv", delimiter: "," })),
     );
   }
+  console.log("");
+
+  // Chunked reading, to show what streaming buys and what it costs. The whole-file parse
+  // above is the baseline: chunking should be within noise of it, because the win is peak
+  // memory, not throughput.
+  console.log("chunked parsing");
+  for (const rows of [10_000, 50_000]) {
+    const csv = makeCsv(rows);
+    await bench("chunk", `chunkDelimited ${rows.toLocaleString()} rows (1,000/chunk)`, rows, () =>
+      consume([...chunkDelimited(csv, "csv", { chunkSize: 1_000 })]),
+    );
+    await bench("chunk", `reduceChunks ${rows.toLocaleString()} rows (1,000/chunk)`, rows, () =>
+      consume(reduceChunks(csv, "csv", (sum, chunk) => sum + chunk.rowCount, 0, { chunkSize: 1_000 })),
+    );
+  }
+  console.log("");
+
+  // Conversion, which sits on the boundary to a consumer such as Numviz.
+  console.log("interchange");
+  const exportData = createDataset(makeSalesRows(25_000));
+  await bench("interchange", "toTableData 25,000 rows", 25_000, () => consume(toTableData(exportData)));
+  await bench("interchange", "toInterchange 25,000 rows", 25_000, () => consume(toInterchange(exportData)));
+  await bench("interchange", "toCSV 25,000 rows", 25_000, () => consume(toCSV(exportData)));
   console.log("");
 
   // A pipeline chain, to catch per-step overhead that single operations hide.

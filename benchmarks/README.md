@@ -39,6 +39,8 @@ value is unused and time nothing at all.
 | transform | `filter`, `sort`, `select`, `groupBy().aggregate()`, `describe()`, `toTable()` |
 | join      | inner join of 100,000 fact rows against 200 dimension rows                     |
 | parse     | `parseDelimited` on 10,000 and 50,000 rows of CSV text                         |
+| chunk     | `chunkDelimited` and `reduceChunks` at 1,000 rows per chunk                    |
+| interchange | `toTableData`, `toInterchange`, and `toCSV` on 25,000 rows                   |
 | pipeline  | a four-step chain over 25,000 rows                                             |
 
 Sizes are 1,000 / 25,000 / 100,000 rows for the dataset groups. The join uses a unique key

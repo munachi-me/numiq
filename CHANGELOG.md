@@ -4,6 +4,56 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-11-27
+
+Performance and interoperability. Purely additive: every 1.3.x call keeps its signature
+and behaviour, and nothing in this release changes an existing result.
+
+### Added
+
+- `chunkDelimited(text, format, options?)` — reads delimited text a batch at a time,
+  yielding one `Dataset` per chunk with the file's columns. Lazy: nothing parses until a
+  chunk is requested. `onProgress` reports `{ chunk, rows, delivered, lastRecord }` and may
+  return `false` to stop; an `AbortSignal` stops it too.
+- `reduceChunks(text, format, step, initial, options?)` — folds every chunk into one value
+  and drops it, for a running total over a file too large to hold.
+- `collectChunks(text, format, options?)` — concatenates chunks into one dataset.
+- `toTableData(dataset)` / `fromTableData(table, options?)` — convert to and from a header
+  plus row-major cells. `fromTableData` is strict on ragged rows when asked and pads or
+  truncates otherwise.
+- `toObjects(dataset)` — one fresh plain record per row.
+- `toCSV(dataset, options?)` — CSV text with correct quoting and doubling of embedded
+  quotes; configurable delimiter, newline, and header.
+- `toInterchange(dataset)` — the documented contract a consumer such as Numviz reads:
+  `format: "numiq.table"`, `version: 1`, a `ColumnDescriptor` per column with a
+  `measure`/`dimension`/`temporal` role, and `null` for every missing value.
+- `isInterchangePayload(value)` / `fromInterchange(payload)` — validate and rebuild.
+- `columnRole(type)` — maps a dtype to its consumer-facing role.
+- Exported types: `TableData`, `ColumnDescriptor`, `InterchangePayload`, `ToCsvOptions`,
+  `ChunkOptions`, `ChunkProgress`.
+
+### Fixed
+
+- Rebuilding chunk text no longer loses field quoting. `tokenize()` strips quotes, so a
+  field holding a newline was rejoined raw and split into two records — the classic
+  streaming-CSV corruption. Fields are now re-quoted before the chunk is parsed.
+
+### Performance
+
+Measured with `npm run bench` on Node v24.22.2:
+
+| Operation                           | Rows   | Time    |
+| ----------------------------------- | ------ | ------- |
+| `chunkDelimited` (1,000 per chunk)  | 50,000 | ~161ms  |
+| `parseDelimited` (whole file)       | 50,000 | ~119ms  |
+| `toTableData`                       | 25,000 | ~8ms    |
+| `toInterchange`                     | 25,000 | ~9ms    |
+| `toCSV`                             | 25,000 | ~31ms   |
+
+Chunked reading is about 35% slower than a whole-file parse. That is the deliberate cost of
+tokenizing before splitting: a newline inside a quoted field is data, and a splitter that
+runs first cannot know that. The gain is peak memory, not throughput.
+
 ## [1.3.0] - 2026-11-27
 
 Data modelling and relationships. Purely additive: every 1.2.x call keeps its signature

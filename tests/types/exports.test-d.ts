@@ -50,11 +50,25 @@ import Numiq, {
   cohortAnalysis,
   DataSpace,
   createDataSpace,
+  toTableData,
+  toObjects,
+  fromTableData,
+  toCSV,
+  toInterchange,
+  fromInterchange,
+  isInterchangePayload,
+  columnRole,
+  chunkDelimited,
+  reduceChunks,
+  collectChunks,
   type RegressionModel,
   type Relationship,
   type RelationshipType,
   type RelationshipCheck,
   type DatasetSummary,
+  type TableData,
+  type ColumnDescriptor,
+  type InterchangePayload,
   type HypothesisTestResult,
   type ContinuousDistribution,
   type DiscreteDistribution,
@@ -961,3 +975,44 @@ space.aggregate("orders", "customers", { n: { op: "count" } });
 // The default namespace exposes the space API.
 expectType<typeof createDataSpace>(Numiq.createDataSpace);
 expectType<typeof DataSpace>(Numiq.DataSpace);
+
+// ---------------------------------------------------------------- 1.4.0 interoperability
+
+const conv = createDataset([{ a: 1, b: "x" }]);
+expectType<TableData>(toTableData(conv));
+expectType<readonly string[]>(toTableData(conv).columns);
+expectType<readonly (readonly unknown[])[]>(toTableData(conv).rows);
+expectType<Record<string, unknown>[]>(toObjects(conv));
+expectType<Dataset>(fromTableData({ columns: ["a"], rows: [[1]] }));
+expectType<Dataset>(fromTableData({ columns: ["a"], rows: [[1]] }, { name: "t", strict: true }));
+expectType<string>(toCSV(conv));
+expectType<string>(toCSV(conv, { delimiter: "\t", newline: "\r\n", header: false }));
+
+expectType<InterchangePayload>(toInterchange(conv));
+expectType<"numiq.table">(toInterchange(conv).format);
+expectType<1>(toInterchange(conv).version);
+expectType<null>(toInterchange(conv).missingValue);
+expectType<readonly ColumnDescriptor[]>(toInterchange(conv).columns);
+expectType<ColumnDescriptor["role"]>(toInterchange(conv).columns[0]!.role);
+expectType<boolean>(isInterchangePayload(conv));
+expectType<Dataset>(fromInterchange(toInterchange(conv)));
+expectType<ColumnDescriptor["role"]>(columnRole("number"));
+
+// Chunked reading yields datasets, not raw rows.
+const chunks = chunkDelimited("a,b\n1,2", "csv", { chunkSize: 10 });
+expectType<Generator<Dataset, void, undefined>>(chunks);
+expectType<Dataset>(chunks.next().value!);
+expectType<number>(reduceChunks("a\n1", "csv", (sum: number, chunk) => sum + chunk.rowCount, 0));
+expectType<Dataset>(collectChunks("a\n1", "csv"));
+expectType<number>(
+  chunkDelimited("a\n1", "csv", {
+    onProgress: (p) => {
+      expectType<number>(p.delivered);
+    },
+  }).next().value!.rowCount,
+);
+
+// The default namespace exposes the 1.4.0 surface too.
+expectType<typeof toTableData>(Numiq.toTableData);
+expectType<typeof toInterchange>(Numiq.toInterchange);
+expectType<typeof chunkDelimited>(Numiq.chunkDelimited);

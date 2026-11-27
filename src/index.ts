@@ -82,6 +82,19 @@ export type {
 export { cohortAnalysis, percentChange, stratifiedSample, systematicSample } from "./core/analysis.js";
 export type { CohortMetric, CohortOptions } from "./core/analysis.js";
 export { DataSpace, createDataSpace } from "./core/space.js";
+export {
+  toTableData,
+  toObjects,
+  fromTableData,
+  toCSV,
+  toInterchange,
+  fromInterchange,
+  isInterchangePayload,
+  columnRole,
+} from "./io/interchange.js";
+export type { TableData, ColumnDescriptor, InterchangePayload, ToCsvOptions } from "./io/interchange.js";
+export { chunkDelimited, reduceChunks, collectChunks } from "./io/chunk.js";
+export type { ChunkOptions, ChunkProgress } from "./io/chunk.js";
 export type {
   DatasetSummary,
   DuplicateKey,
@@ -348,6 +361,17 @@ import {
 } from "./analytics/tests.js";
 import { cohortAnalysis, percentChange, stratifiedSample, systematicSample } from "./core/analysis.js";
 import { DataSpace, createDataSpace } from "./core/space.js";
+import {
+  toTableData,
+  toObjects,
+  fromTableData,
+  toCSV,
+  toInterchange,
+  fromInterchange,
+  isInterchangePayload,
+  columnRole,
+} from "./io/interchange.js";
+import { chunkDelimited, reduceChunks, collectChunks } from "./io/chunk.js";
 import { addConditionalColumn } from "./core/conditional.js";
 import { joinTables } from "./core/join.js";
 import { concatRows, meltRows, pivotRows } from "./core/reshape.js";
@@ -482,6 +506,17 @@ const Numiq = {
   systematicSample,
   DataSpace,
   createDataSpace,
+  toTableData,
+  toObjects,
+  fromTableData,
+  toCSV,
+  toInterchange,
+  fromInterchange,
+  isInterchangePayload,
+  columnRole,
+  chunkDelimited,
+  reduceChunks,
+  collectChunks,
   addConditionalColumn,
   joinTables,
   pivotRows,
