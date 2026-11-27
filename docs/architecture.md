@@ -122,6 +122,80 @@ Two different things share the word "type" in Numiq, and the distinction is deli
 Keeping them apart means `data` always shows what the source contained, and conversion
 only happens when a caller asks for it.
 
+## The execution model
+
+Numiq does not build a query plan, and that is a decision rather than an omission.
+
+Every transform is a direct loop over the current rows that produces a new frozen array.
+`filter` walks once; `join` builds one hash index on the smaller side and probes it;
+`groupBy(...).aggregate(...)` buckets once and folds each bucket. There is no intermediate
+representation, no cost model, and no optimizer to disagree with the caller about what a
+chain means.
+
+The trade-off is explicit. An optimizer can beat hand-written loops on large joins by
+reordering and choosing index sides; Numiq instead asks you to order the chain, which
+costs nothing to read and is predictable. Three properties follow from that choice, and
+they are the ones the API is built around:
+
+- **Predictable cost.** `filter().sort()` and `sort().filter()` do the same work in the
+  same order you wrote them. There is no reordering that changes which rows survive.
+- **Predictable memory.** Each step holds its input and its output. That is why chunked
+  reading exists: when one step cannot fit, `chunkDelimited` and `reduceChunks` bound the
+  live set to a chunk plus an accumulator, at roughly 35% more CPU than a whole-file parse.
+- **Debuggable chains.** A wrong result is in the step that produced it, because nothing
+  ran out of order.
+
+The one place a plan exists is `Query`. `query()` accumulates conditions, ordering, and
+projection, then executes them in one pass. It is a builder, not an optimizer: it exists so
+a long filter chain compiles to a single predicate instead of one array allocation per
+`filter()` call. `Pipeline` is the same idea for named steps, and adds validation and
+lineage on top.
+
+What would justify a real planner later: a join where neither side fits in memory, or a
+chain that repeatedly re-reads the same column. Neither is in scope for 2.0.0, and adding a
+cost model before those cases exist would make the common path slower and the semantics
+harder to predict.
+
+## The Numviz interchange contract
+
+Numviz reads datasets; Numiq does not know Numviz exists. The boundary is one function,
+`toInterchange(dataset)`, and its output is a versioned, JSON-safe value. Anything that
+produces that shape can feed Numviz, and anything that reads it can be fed by Numiq.
+
+The payload:
+
+```ts
+{
+  format: "numiq.table",   // literal; a consumer checks this first
+  version: 1,              // integer; bumped only when the shape changes
+  name: string,
+  columns: ColumnDescriptor[],   // { name, type, nullable, role }
+  rows: (unknown)[][],           // row-major, aligned with columns
+  rowCount: number,
+  columnCount: number,
+  missingValue: null,            // always null; never undefined or NaN
+  metadata: Record<string, unknown>,
+}
+```
+
+Four decisions make it a contract rather than a dump of internals:
+
+- **`missingValue` is always `null`.** `undefined` disappears through `JSON.stringify`,
+  and `NaN` is not valid JSON. A consumer that receives a payload can treat `null` as the
+  only absent-value marker without checking the source.
+- **`role` classifies, it does not measure.** `measure` for numeric dtypes, `temporal` for
+  date and time, `dimension` for everything else. A chart picks axes from roles; it never
+  has to parse a dtype string or guess whether a string column is a category.
+- **`version` is checked, not assumed.** `isInterchangePayload` narrows to a payload this
+  release can read and rejects a future version rather than misreading it.
+- **`rows` is row-major and dense.** Every row has exactly `columnCount` cells, so a
+  consumer indexes by position without a header lookup per cell.
+
+The inverse, `fromInterchange`, accepts anything `isInterchangePayload` narrows, so a
+round trip through JSON preserves values and column order. Column *types* are re-inferred
+from the values rather than trusted from the payload: the payload is data, and a declared
+type that disagrees with the cells would otherwise smuggle a wrong type into the dataset.
+
 ## Where the remaining capabilities attach
 
 Preparation, querying, grouping, descriptive statistics, advanced statistics, metrics,

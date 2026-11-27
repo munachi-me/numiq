@@ -60,9 +60,9 @@ describe("v1.1.0 data quality workflow", () => {
     expect(fromProfile?.count).toBe(fromMethod.outliers.length);
   });
 
-  it("agrees on severity between profile() and getQualityReport()", () => {
+  it("agrees on severity between profile() and qualityReport()", () => {
     const data = messy();
-    const report = data.getQualityReport();
+    const report = data.qualityReport();
     for (const finding of data.profile().findings) {
       const counterpart = report.findings.find((item) => item.code === finding.code && item.column === finding.column);
       expect(counterpart?.severity, `${finding.code} on ${String(finding.column)}`).toBe(finding.severity);
@@ -99,7 +99,7 @@ describe("v1.1.0 data quality workflow", () => {
     const before = JSON.stringify(data.data);
     data.profile();
     data.profile("name");
-    data.getQualityReport();
+    data.qualityReport();
     data.missingValues();
     data.findDuplicates();
     data.detectOutliers();
@@ -127,7 +127,7 @@ describe("v1.1.0 data quality workflow", () => {
     expect(profile.summary.missingValues).toBe(0);
     expect(profile.summary.duplicateRows).toBe(0);
     expect(profile.findings.filter((finding) => finding.severity === "warning")).toEqual([]);
-    expect(clean.getQualityReport().findings).toEqual([]);
+    expect(clean.qualityReport().findings).toEqual([]);
   });
 
   it("reports on a single column without dataset-level noise", () => {

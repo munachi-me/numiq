@@ -71,6 +71,14 @@ Other useful scripts: `npm run typecheck:examples`, `npm run typecheck:benchmark
 - **The public surface is tested for parity.** `tests/unit/api.test.ts` asserts that every
   named export also appears on the default export. Adding an export means adding it to both
   and updating `tests/types/exports.test-d.ts`.
+- **Deprecate before removing.** `docs/compatibility.md` promises a deprecated API keeps
+  working for at least one minor release with a `@deprecated` tag naming the replacement.
+  `getQualityReport()` and `toTable()` are deprecated in 2.0.0 and must survive until
+  3.0.0, so delete them only with the next major. Check `@deprecated` comments with
+  `grep -n "@deprecated" src/**/*.ts`.
+- **`unique()` returns values, `uniqueCount()` returns the count.** They were the same
+  method before 2.0.0 and the swap is the release's one silent behaviour change. Do not
+  "fix" a caller by switching one for the other without checking which question it asks.
 
 ## Performance work
 

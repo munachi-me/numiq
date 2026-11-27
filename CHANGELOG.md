@@ -4,6 +4,54 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-27
+
+A consolidation release. One behaviour change and two deprecations, all of them about names
+that said one thing and did another. There is no re-architecture: the execution model,
+data spaces, and interchange contract are the same ones 1.4.0 shipped, now documented.
+
+Read [migration.md](docs/migration.md) before upgrading. If your project never used
+`unique()` as a number, the upgrade is a no-op.
+
+### Changed
+
+- **Breaking:** `unique(column)` returns the distinct values, not their count. It was the
+  one method whose name promised values and returned a number — the pandas idiom,
+  inverted. It now matches `distinct()`, and the count moved to `uniqueCount()`.
+
+  ```ts
+  data.unique("region");      // was 3, now ["north", "south", "east"]
+  data.uniqueCount("region"); // 3
+  ```
+
+  This is a type error at the call site, so `tsc --noEmit` finds every affected caller.
+  Both exclude `null` and both throw `ColumnNotFoundError` for an unknown column.
+
+### Deprecated
+
+Both still work until `3.0.0`, carry a `@deprecated` tag, and delegate to the replacement.
+
+- `getQualityReport()` → `qualityReport()`. It was the only `get`-prefixed method in the
+  API, and it computes a report rather than reading a stored value.
+- `toTable()` → `table()`. The two were identical, so the alias only made it unclear which
+  name to use.
+
+### Documentation
+
+- `docs/migration.md` gains the 2.0.0 guide: the `unique()` change, how to find every call
+  site, the deprecation table, and an explicit list of what did not change.
+- `docs/architecture.md` gains the execution model — why there is no query planner, what
+  the immutability and direct-loop design buys, where `Query` and `Pipeline` fit, and what
+  would justify a planner later — and the Numviz interchange contract: the payload, and
+  why `missingValue` is always `null`, why roles classify rather than measure, and why
+  column types are re-inferred on the way back in.
+
+### Unchanged
+
+Every transform, statistic, data-space operation, chunked reader, and interchange
+function keeps its signature and result. `rowCount`, `columnCount`, `length`, and `shape`
+keep their names and meanings. No runtime dependency was added.
+
 ## [1.4.0] - 2026-11-27
 
 Performance and interoperability. Purely additive: every 1.3.x call keeps its signature

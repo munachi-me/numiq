@@ -13,7 +13,7 @@ describe("v1.0.6 missing values in the free aggregates", () => {
   const cells = data.data.map((row) => row.a);
 
   it("agrees with Dataset.unique and describe().unique", () => {
-    expect(nunique(cells)).toBe(data.unique("a"));
+    expect(nunique(cells)).toBe(data.uniqueCount("a"));
     expect(nunique(cells)).toBe(data.describe("a").unique);
     expect(nunique(cells)).toBe(3);
   });

@@ -107,7 +107,7 @@ describe("v0.8.0 insights through the public API", () => {
 
   it("treats the order id as an identifier, not a category", async () => {
     const data = await useSampleDataset();
-    expect(data.unique("order_id")).toBe(data.rowCount);
+    expect(data.uniqueCount("order_id")).toBe(data.rowCount);
     expect(data.insights().insights.some((insight) => insight.columns.includes("order_id"))).toBe(false);
   });
 

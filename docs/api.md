@@ -125,9 +125,14 @@ supported entry.
 
 ### Methods
 
-#### `table(options?)` / `toTable(options?)`
+#### `table(options?)`
 
-Returns a rendered table string. See `TableOptions`.
+Returns a rendered table string. See `TableOptions`. `toTable()` is a deprecated alias and
+still delegates; use `table()`.
+
+```ts
+data.table({ maxRows: 20 });
+```
 
 #### `display(options?)`
 
@@ -601,9 +606,20 @@ Returns `DatasetInfo`: `name`, `rowCount`, `columnCount`, `shape`, `dtypes`,
 Returns `ColumnView`: `name`, `type`, `values` (a copy), `missing`, `unique`.
 Throws `ColumnNotFoundError` when the column does not exist.
 
-#### `distinct(name)` / `unique(name)`
+#### `distinct(name)` / `unique(name)` / `uniqueCount(name)`
 
-Distinct present values in first-seen order, and their count. `null` is excluded.
+`distinct()` and `unique()` both return the distinct present values in first-seen order;
+`null` is excluded. `uniqueCount()` returns how many there are.
+
+```ts
+data.distinct("region");    // ["north", "south", "east"]
+data.unique("region");      // the same array
+data.uniqueCount("region"); // 3
+```
+
+`unique()` returned a number before 2.0.0. It now returns the values, which is what the
+name means in pandas; the count moved to `uniqueCount()`. See
+[migration.md](./migration.md).
 
 #### `toJSON()`
 
@@ -1041,13 +1057,14 @@ different question and would be reported as if the whole row repeated.
 unreadable report; `findingCount` still records the true total and `truncated` says whether
 the cap was hit.
 
-### `getQualityReport()`
+### `qualityReport()`
 
 The same findings as a flat, severity-ranked `QualityReport`, for when you want the list of
-problems without the statistics.
+problems without the statistics. `getQualityReport()` is a deprecated alias and still
+delegates; use `qualityReport()`.
 
 ```ts
-const report = data.getQualityReport();
+const report = data.qualityReport();
 report.healthy;            // no error-severity findings
 report.bySeverity;         // { error, warning, info }
 report.forColumn("age");   // findings for one column
@@ -1055,7 +1072,7 @@ report.forCode("MISSING_VALUES");
 report.table();
 ```
 
-`getQualityReport()` and `profile()` share one finding generator, so a column cannot be a
+`qualityReport()` and `profile()` share one finding generator, so a column cannot be a
 `warning` in one and an `info` in the other.
 
 ### `missingValues(options?)`

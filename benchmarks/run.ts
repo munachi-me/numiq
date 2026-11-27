@@ -102,7 +102,7 @@ async function main(): Promise<void> {
       ),
     );
     await bench("transform", "describe()", size.rows, () => consume(dataset.describe()));
-    await bench("transform", "toTable()", size.rows, () => consume(dataset.toTable()));
+    await bench("transform", "table()", size.rows, () => consume(dataset.table()));
 
     console.log("");
   }

@@ -1,5 +1,5 @@
 /**
- * Structured data-quality inspection behind `Dataset.getQualityReport()` and friends.
+ * Structured data-quality inspection behind `Dataset.qualityReport()` and friends.
  *
  * This module deliberately produces *reports*, never edits. Cleaning is a separate,
  * explicit step (`dropMissing`, `normalizeText`, `replace`, ...) so that "tell me what is
@@ -302,7 +302,7 @@ export function datasetFindings(rowCount: number, columnCount: number, duplicate
 /**
  * IQR outlier count for a column's raw values.
  *
- * Shared by `profile()` and `getQualityReport()` so both report the same number under the
+ * Shared by `profile()` and `qualityReport()` so both report the same number under the
  * same code. Non-numeric and missing cells are skipped, not coerced.
  */
 export function countColumnOutliers(values: readonly unknown[]): number {

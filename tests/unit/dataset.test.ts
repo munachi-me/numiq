@@ -177,13 +177,15 @@ describe("inspection", () => {
 
   it("lists distinct values in first-seen order", () => {
     expect(data.distinct("group")).toEqual(["even", "odd"]);
-    expect(data.unique("group")).toBe(2);
+    expect(data.uniqueCount("group")).toBe(2);
+    expect(data.unique("group")).toEqual(["even", "odd"]);
   });
 
   it("excludes nulls from distinct values", () => {
     const sparse = createDataset([{ a: null }, { a: 1 }, { a: 1 }]);
     expect(sparse.distinct("a")).toEqual([1]);
-    expect(sparse.unique("a")).toBe(1);
+    expect(sparse.uniqueCount("a")).toBe(1);
+    expect(sparse.unique("a")).toEqual([1]);
   });
 });
 

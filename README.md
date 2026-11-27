@@ -186,14 +186,15 @@ Inspection methods:
 | Method              | Description                                  |
 | ------------------- | -------------------------------------------- |
 | `table(options?)`   | Render a table                               |
-| `toTable(options?)` | Alias of `table`                             |
+| `toTable(options?)` | Deprecated alias of `table`                  |
 | `display(options?)` | Print the table and return the dataset       |
 | `head(n?)`          | First `n` rows (default 5)                   |
 | `tail(n?)`          | Last `n` rows (default 5)                    |
 | `info()`            | Shape, types, and missing-value summary      |
 | `column(name)`      | Type, values, missing count, and cardinality |
 | `distinct(name)`    | Distinct present values, in first-seen order |
-| `unique(name)`      | Number of distinct present values            |
+| `unique(name)`      | Distinct present values (same as `distinct`)  |
+| `uniqueCount(name)` | Number of distinct present values            |
 
 Transformation methods return a new `Dataset`, so they chain:
 
@@ -487,8 +488,9 @@ explaining that the Node.js build is required. Use it when a bundler must not se
 
 Supported Node versions (18, 20, 22), the browser and bundler matrix, and the
 semantic-versioning policy are documented in [`docs/compatibility.md`](docs/compatibility.md).
-Upgrading from a pre-1.0 release: [`docs/migration.md`](docs/migration.md). Every export is
-documented in [`docs/api.md`](docs/api.md).
+Upgrading: [`docs/migration.md`](docs/migration.md) covers 2.0.0 (the `unique()` change) and
+the pre-1.0 path. Every export is documented in [`docs/api.md`](docs/api.md), the execution
+model and the Numviz interchange contract in [`docs/architecture.md`](docs/architecture.md).
 
 ## Performance
 
@@ -684,7 +686,7 @@ changedRows; // 1 — only the padded " north " moved
 const cleaned = dataset.dropDuplicates(["region"]); // 4 rows
 ```
 
-`getQualityReport()` returns the same findings as a flat list with `bySeverity`,
+`qualityReport()` returns the same findings as a flat list with `bySeverity`,
 `forColumn()`, `forCode()`, and `table()`. Both surfaces share one finding generator, so a
 column cannot be a `warning` in one and an `info` in the other.
 

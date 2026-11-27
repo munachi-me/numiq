@@ -310,8 +310,19 @@ export class Dataset {
     return distinctValues(this.#columnValues(name));
   }
 
+  /**
+   * Distinct present values of a column, in first-seen order.
+   *
+   * Same result as `distinct()`. `unique()` used to return a count, which read as the
+   * pandas idiom of "give me the values" and returned a number instead. The count now
+   * lives in `uniqueCount()`, so the two names say what they do.
+   */
+  unique(name: string): unknown[] {
+    return this.distinct(name);
+  }
+
   /** Number of distinct present values in a column. */
-  unique(name: string): number {
+  uniqueCount(name: string): number {
     this.#assertColumn(name);
     return countUnique(this.#columnValues(name));
   }
@@ -399,9 +410,17 @@ export class Dataset {
    * Errors first, then warnings, then informational observations. Nothing is modified.
    * `profile()` gives the statistics; this gives the flat list of problems.
    */
-  getQualityReport(): QualityReport {
+  qualityReport(): QualityReport {
     const findings = rankFindings(qualityFindings(this.#rows, this.#columns, this.#numericColumnNames()));
     return new QualityReport(findings, this.#columns, this.rowCount);
+  }
+
+  /**
+   * @deprecated Use `qualityReport()`. The `get` prefix was the only one in the API and
+   * this method is a computation, not an accessor. Kept working until 3.0.0.
+   */
+  getQualityReport(): QualityReport {
+    return this.qualityReport();
   }
 
   // ------------------------------------------------------------ profiling
@@ -1362,7 +1381,10 @@ export class Dataset {
     return renderTable(this.#rows, this.#columns, options);
   }
 
-  /** Alias of `table()`, kept for familiarity with prior tooling. */
+  /**
+   * @deprecated Use `table()`. The two were identical, so the alias only made it unclear
+   * which name to reach for. Kept working until 3.0.0.
+   */
   toTable(options: TableOptions = {}): string {
     return this.table(options);
   }

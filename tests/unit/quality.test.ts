@@ -171,30 +171,30 @@ describe("detectOutliers", () => {
   });
 });
 
-describe("getQualityReport", () => {
+describe("qualityReport", () => {
   it("returns a QualityReport", () => {
-    expect(sample().getQualityReport()).toBeInstanceOf(QualityReport);
+    expect(sample().qualityReport()).toBeInstanceOf(QualityReport);
   });
 
   it("ranks errors before warnings before info", () => {
-    const report = sample().getQualityReport();
+    const report = sample().qualityReport();
     const rank = { error: 0, warning: 1, info: 2 };
     const ranks = report.findings.map((finding) => rank[finding.severity]);
     expect(ranks).toEqual([...ranks].sort((left, right) => left - right));
   });
 
   it("is healthy when nothing is an error", () => {
-    expect(sample().getQualityReport().healthy).toBe(true);
+    expect(sample().qualityReport().healthy).toBe(true);
   });
 
   it("is unhealthy when a column is entirely missing", () => {
-    expect(createDataset([{ x: null }]).getQualityReport().healthy).toBe(false);
+    expect(createDataset([{ x: null }]).qualityReport().healthy).toBe(false);
   });
 
   it("matches profile() severity for every shared finding", () => {
     const data = sample();
     const profile = data.profile().findings;
-    const report = data.getQualityReport().findings;
+    const report = data.qualityReport().findings;
     for (const finding of profile) {
       const counterpart = report.find((item) => item.code === finding.code && item.column === finding.column);
       expect(counterpart?.severity, `${finding.code} on ${String(finding.column)}`).toBe(finding.severity);
@@ -203,7 +203,7 @@ describe("getQualityReport", () => {
 
   it("matches profile() counts for every shared finding", () => {
     const data = sample();
-    const report = data.getQualityReport().findings;
+    const report = data.qualityReport().findings;
     for (const finding of data.profile().findings) {
       const counterpart = report.find((item) => item.code === finding.code && item.column === finding.column);
       expect(counterpart?.count, `${finding.code} on ${String(finding.column)}`).toBe(finding.count);
@@ -211,19 +211,19 @@ describe("getQualityReport", () => {
   });
 
   it("filters by column and by code", () => {
-    const report = sample().getQualityReport();
+    const report = sample().qualityReport();
     expect(report.forColumn("age").every((finding) => finding.column === "age")).toBe(true);
     expect(report.forCode("DUPLICATE_ROWS")).toHaveLength(1);
   });
 
   it("counts severities", () => {
-    const report = sample().getQualityReport();
+    const report = sample().qualityReport();
     const total = report.bySeverity.error + report.bySeverity.warning + report.bySeverity.info;
     expect(total).toBe(report.findings.length);
   });
 
   it("renders a table and serializes", () => {
-    const report = sample().getQualityReport();
+    const report = sample().qualityReport();
     expect(report.table()).toContain("severity");
     expect(JSON.parse(JSON.stringify(report.toJSON())).rowCount).toBe(5);
   });
@@ -231,7 +231,7 @@ describe("getQualityReport", () => {
   it("does not modify the dataset", () => {
     const data = sample();
     const before = JSON.stringify(data.data);
-    data.getQualityReport();
+    data.qualityReport();
     data.detectOutliers();
     data.findDuplicates();
     data.missingValues();

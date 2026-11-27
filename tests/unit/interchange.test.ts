@@ -318,4 +318,13 @@ describe("collectChunks", () => {
       { id: 4, v: 4.5 },
     ]);
   });
+
+  it("re-infers column types instead of trusting the payload", () => {
+    const payload = JSON.parse(JSON.stringify(toInterchange(createDataset([{ n: 1, s: "a" }]))));
+    payload.columns[0].type = "string";
+    payload.columns[1].type = "number";
+    const rebuilt = fromInterchange(payload);
+    expect(rebuilt.dtypes.n).toBe("integer");
+    expect(rebuilt.dtypes.s).toBe("string");
+  });
 });

@@ -124,6 +124,8 @@ describe("options", () => {
   });
 
   it("exposes toTable as an alias", () => {
+    expect(data.table()).toContain("idx");
+    // Deprecated alias still delegates until 3.0.0.
     expect(data.toTable()).toBe(data.table());
   });
 

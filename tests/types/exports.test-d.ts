@@ -207,15 +207,17 @@ expectType<number>(fromRecords.columnCount);
 expectType<number>(fromRecords.length);
 expectType<boolean>(fromRecords.empty);
 expectType<string>(fromRecords.table());
-expectType<string>(fromRecords.table({ maxRows: 10 }));
 expectType<string>(fromRecords.toTable());
+expectType<string>(fromRecords.table({ maxRows: 10 }));
+expectType<string>(fromRecords.table());
 expectType<Dataset>(fromRecords.display());
 expectType<Dataset>(fromRecords.head());
 expectType<Dataset>(fromRecords.tail(2));
 expectType<Readonly<Record<string, DType>>>(fromRecords.dtypes);
 expectType<Readonly<Record<string, ColumnSchema>>>(fromRecords.schema);
 expectType<ImportReport | null>(fromRecords.importReport);
-expectType<number>(fromRecords.unique("a"));
+expectType<unknown[]>(fromRecords.unique("a"));
+expectType<number>(fromRecords.uniqueCount("a"));
 expectType<unknown[]>(fromRecords.distinct("a"));
 
 // v0.3.0 preparation methods return a Dataset so they chain.

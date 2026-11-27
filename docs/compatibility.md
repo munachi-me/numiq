@@ -1,7 +1,8 @@
 # Compatibility
 
-Numiq is at `1.0.x`. From here the public API is stable: it follows semantic versioning,
-and a breaking change requires a major release with a documented migration path.
+Numiq is at `2.0.0`. The public API is stable: it follows semantic versioning, and a
+breaking change requires a major release with a documented migration path. The 2.0.0
+migration is in [migration.md](./migration.md).
 
 ## Semantic versioning policy
 
@@ -26,7 +27,8 @@ Rules we hold to:
 - **Bug fixes that match documented behaviour are patch.** If the docs said one thing and
   the code did another, the code moves to the docs.
 - **Deprecation before removal.** A deprecated API keeps working for at least one minor
-  release and carries a `@deprecated` tag naming the replacement.
+  release and carries a `@deprecated` tag naming the replacement. `getQualityReport()` and
+  `toTable()` are deprecated in 2.0.0 and keep working until 3.0.0.
 - **No silent behaviour changes.** If a value would change, it is a major release with a
   migration note, even when the new value is more correct.
 
@@ -80,5 +82,5 @@ Nothing is coerced silently — a column that looks numeric but contains a non-n
 stays a string column rather than dropping or mangling the value.
 
 `Dataset.data` returns a deep copy, so a consumer cannot mutate internal state by accident.
-This costs time on large datasets; use `toTable({ maxRows })` for display and iterate with
-`rows()` when reading every row.
+This costs time on large datasets; use `table({ maxRows })` for display, and
+`chunkDelimited`/`reduceChunks` when the data does not fit in memory.
