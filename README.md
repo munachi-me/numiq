@@ -1446,14 +1446,22 @@ structured queries
 grouping and aggregation (`Dataset.groupBy(...)` with `aggregate()`, eleven operations,
 `ddof` control, and custom callbacks), descriptive statistics (`Dataset.describe()`),
 advanced statistics (correlation, rank correlation, correlation matrices, z-scores,
-percentile rank, outlier detection, skewness, kurtosis, five-number summaries, and
-normalization helpers), metrics (`createMetric`, grouped metrics, custom calculations,
+percentile rank, outlier detection including a median/MAD modified z-score, skewness,
+kurtosis, five-number summaries, and normalization helpers), linear regression
+(ordinary least squares, single or multiple numeric features, with standard errors and
+coefficient p-values), hypothesis testing (one-sample, two-sample Welch and pooled, and
+paired t-tests, chi-square, one-way ANOVA, Jarque-Bera normality, and mean confidence
+intervals), probability distributions (normal, uniform, binomial, Poisson, with the
+special functions they are built from), sampling designs (stratified and systematic,
+seedable), cohort analysis and percentage change, metrics (`createMetric`, grouped
+metrics, custom calculations,
 recalculation, comparison, and format hints), insights (`Dataset.insights()` with seven
 checks, configurable thresholds, and evidence on every observation), table rendering, the
 bundled sample dataset, the error taxonomy, and the environment split.
 
-Deliberately not implemented: hypothesis tests and p-values, machine-learning models, and
-Excel import. The architecture reserves space for them
+Deliberately not implemented: machine-learning models, Excel import, and automatic
+assumption checking (the statistical functions document their assumptions and leave
+verification to the caller). The architecture reserves space for the first two
 (see `docs/architecture.md`). `Dataset` is immutable, so every transformation returns a new
 `Dataset` without changing existing behaviour.
 
