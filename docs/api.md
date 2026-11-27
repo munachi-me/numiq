@@ -2046,12 +2046,15 @@ there are no orphans and no duplicates.
 
 Resolves the link between two datasets. Returns `{ relationship, direction }` where
 `direction` is `"forward"` or `"reverse"`, or `undefined` when nothing links them. Throws
-`ValidationError` when several links exist and `name` was not given.
+`ValidationError` when several links exist and `name` was not given, when `name` is unknown,
+or when the named relationship does not connect these two datasets — a name that resolves
+to some other pair would otherwise join on the wrong keys.
 
 ### `space.join(left, right, options?)`
 
 Joins two datasets using the relationship's keys. `options` is `{ how?, relationship?,
-suffixes? }`. Throws `ValidationError` when no relationship links the pair.
+suffixes? }`. Throws `ValidationError` when no relationship links the pair, or when
+`options.relationship` names a relationship that links a different pair.
 
 ### `space.aggregate(dataset, target, spec, options)`
 
