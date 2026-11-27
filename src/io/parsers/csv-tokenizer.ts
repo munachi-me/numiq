@@ -7,7 +7,7 @@ const DELIMITERS = [",", "\t", ";", "|"] as const;
 const TRAILING_SPACE = /[ \t]/;
 
 /**
- * Split text into records of raw string cells.
+ * Split text into records of raw string cells, one record at a time.
  *
  * Quoting follows RFC 4180: a field is quoted when its first character is a double quote,
  * inner quotes are escaped by doubling, and delimiters/newlines inside quotes are literal.
@@ -17,9 +17,11 @@ const TRAILING_SPACE = /[ \t]/;
  * A stray double quote inside an unquoted field is treated as a literal character rather
  * than an error: real exports routinely contain values such as `Monitor 5" wide`, and
  * aborting the whole import over one of them is not useful.
+ *
+ * Yielding rather than returning is what lets a chunked read hold one record instead of the
+ * whole tokenized file. `tokenize()` is the eager wrapper for callers that want the array.
  */
-export function tokenize(text: string, delimiter: string): string[][] {
-  const records: string[][] = [];
+export function* tokenizeRecords(text: string, delimiter: string): Generator<string[], void, undefined> {
   let record: string[] = [];
   let field = "";
   let index = 0;
@@ -28,11 +30,6 @@ export function tokenize(text: string, delimiter: string): string[][] {
   const endField = (): void => {
     record.push(field);
     field = "";
-  };
-  const endRecord = (): void => {
-    endField();
-    records.push(record);
-    record = [];
   };
 
   while (index < text.length) {
@@ -69,14 +66,12 @@ export function tokenize(text: string, delimiter: string): string[][] {
       index += 1;
       continue;
     }
-    if (char === "\n") {
-      endRecord();
-      index += 1;
-      continue;
-    }
-    if (char === "\r") {
-      endRecord();
-      index += text[index + 1] === "\n" ? 2 : 1;
+    if (char === "\n" || char === "\r") {
+      endField();
+      const finished = record;
+      record = [];
+      index += char === "\r" && text[index + 1] === "\n" ? 2 : 1;
+      yield finished;
       continue;
     }
     field += char;
@@ -86,9 +81,26 @@ export function tokenize(text: string, delimiter: string): string[][] {
   if (quoted) throw new FormatError("CSV contains an unterminated quoted field.");
 
   // A trailing newline produces an empty tail record; drop it rather than emit a blank row.
-  if (field !== "" || record.length > 0) endRecord();
+  if (field !== "" || record.length > 0) {
+    endField();
+    yield record;
+  }
+}
 
-  return records;
+/**
+ * Split text into records of raw string cells.
+ *
+ * Quoting follows RFC 4180: a field is quoted when its first character is a double quote,
+ * inner quotes are escaped by doubling, and delimiters/newlines inside quotes are literal.
+ * A `\r\n` sequence inside a quoted field is normalized to `\n` so CRLF and LF sources
+ * produce identical cell values.
+ *
+ * A stray double quote inside an unquoted field is treated as a literal character rather
+ * than an error: real exports routinely contain values such as `Monitor 5" wide`, and
+ * aborting the whole import over one of them is not useful.
+ */
+export function tokenize(text: string, delimiter: string): string[][] {
+  return [...tokenizeRecords(text, delimiter)];
 }
 
 /**

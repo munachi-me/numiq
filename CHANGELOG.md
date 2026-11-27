@@ -4,6 +4,50 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-11-27
+
+A corrective release. Three defects in the 2.0.0 boundary code, each one a promise the
+documentation made that the implementation did not keep. No public API was added or
+removed, and no valid program changes behaviour.
+
+### Fixed
+
+- **`chunkDelimited()` tokenized the whole input before yielding the first chunk.** The
+  memory saving that motivates chunking was therefore not real: peak memory included the
+  tokenized form of the entire file, on top of the source text. Records are now pulled from
+  the tokenizer one at a time, so only the current chunk is held. On a 200,000-row file the
+  live set during a `reduceChunks()` fold dropped from 124 MB to 76 MB, and it no longer
+  grows with the file the way it used to (400,000 rows: 186 MB before, 90 MB now).
+
+  The visible symptom was not just memory. A malformed record anywhere in the file used to
+  throw before the first chunk arrived, because the whole file had already been tokenized.
+  The first chunk now arrives without having read the rest of the input, and the error
+  surfaces when iteration reaches it. `header: false` still reads the source twice, because
+  column names depend on the widest record; nothing is retained between passes.
+
+- **Interchange payload validation accepted almost anything.** `isInterchangePayload()`
+  checked four fields (`format`, `version`, and that `columns`/`rows` were arrays) and
+  ignored the rest of the contract, so a payload with a missing `name`, a `rowCount` that
+  disagreed with `rows.length`, a column with an invented dtype, or a ragged row passed the
+  guard and failed later — or worse, was silently reshaped by `fromInterchange()`. The guard
+  now checks the whole declared shape: counts that agree with the arrays, `missingValue`
+  equal to `null`, a JSON-safe `metadata` object, complete column descriptors, and rows with
+  exactly `columnCount` cells. Ragged rows are rejected rather than padded or truncated, and
+  the `ValidationError` names the offending field.
+
+- **`toInterchange()` emitted metadata that `JSON.stringify()` could not serialise.** A
+  dataset with `BigInt` (or a function, symbol, `undefined`, `NaN`, `Infinity`, or a cycle)
+  in its metadata produced a payload that threw when a consumer serialised it, despite the
+  contract calling the payload JSON-safe. `toInterchange()` now validates metadata and
+  raises `ValidationError` naming the path. Values are checked, never coerced, so a function
+  is not quietly turned into a string. `Date` remains accepted, since it serialises to an
+  ISO string. `fromInterchange()` enforces the same rule on an incoming payload.
+
+### Changed
+
+- `fromInterchange()` error messages now name the specific problem instead of repeating the
+  `format`/`version` requirement. The thrown class is still `ValidationError`.
+
 ## [2.0.0] - 2026-11-27
 
 A consolidation release. One behaviour change and two deprecations, all of them about names

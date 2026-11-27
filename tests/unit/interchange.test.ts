@@ -168,7 +168,7 @@ describe("interchange payload", () => {
 
   it("rejects an invalid payload in fromInterchange", () => {
     expect(() => fromInterchange({ format: "nope" } as unknown as InterchangePayload)).toThrow(
-      /format "numiq.table" and version 1/,
+      /format must be "numiq\.table", received "nope"/,
     );
   });
 
@@ -416,5 +416,296 @@ describe("collectChunks", () => {
       expect(collected.rowCount).toBe(0);
       expect(collected.data).toEqual(whole.data);
     }
+  });
+});
+
+describe("chunkDelimited is genuinely incremental", () => {
+  // The old implementation tokenized the whole file before yielding, so a malformed record
+  // at the end threw before the first chunk arrived. These tests pin that down: the first
+  // chunk must be available without having read the rest of the input.
+  const tailBroken = 'a,b\n1,2\n3,4\n5,6\n7,"unterminated\n';
+
+  it("delivers the first chunk before a later malformed record is reached", () => {
+    const iterator = chunkDelimited(tailBroken, "csv", { chunkSize: 2 });
+    const first = iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value?.rowCount).toBe(2);
+    // Draining still surfaces the error, so the malformed tail is not silently ignored.
+    expect(() => {
+      while (iterator.next().done !== true) {
+        // drain
+      }
+    }).toThrow(/unterminated/);
+  });
+
+  it("does not tokenize past the first chunk when the caller stops early", () => {
+    const iterator = chunkDelimited(tailBroken, "csv", { chunkSize: 2 });
+    iterator.next();
+    // Abandoning the iterator must not read the malformed tail. If chunking were eager this
+    // line would already have thrown from inside `chunkDelimited`.
+    expect(() => iterator.return?.(undefined)).not.toThrow();
+  });
+
+  it("respects chunk sizes and delivers every record exactly once in order", () => {
+    const csv = ["id,name", ...Array.from({ length: 25 }, (_, i) => `${i},n${i}`)].join("\n");
+    const chunks = [...chunkDelimited(csv, "csv", { chunkSize: 10 })];
+    expect(chunks.map((chunk) => chunk.rowCount)).toEqual([10, 10, 5]);
+    const ids = chunks.flatMap((chunk) => chunk.data.map((row) => row.id));
+    expect(ids).toEqual(Array.from({ length: 25 }, (_, i) => i));
+    expect(new Set(ids).size).toBe(25);
+  });
+
+  it("handles quoted delimiters, escaped quotes, and multiline fields", () => {
+    const csv = ["id,note", '1,"a, b"', '2,"say ""hi"""', '3,"line one\nline two"', "4,plain"].join("\n");
+    const chunks = [...chunkDelimited(csv, "csv", { chunkSize: 2 })];
+    const notes = chunks.flatMap((chunk) => chunk.data.map((row) => row.note));
+    expect(notes).toEqual(["a, b", 'say "hi"', "line one\nline two", "plain"]);
+    expect(chunks.map((chunk) => chunk.rowCount)).toEqual([2, 2]);
+  });
+
+  it("treats CRLF and LF sources identically", () => {
+    const lf = 'id,note\n1,"a\nb"\n2,plain\n';
+    const crlf = 'id,note\r\n1,"a\r\nb"\r\n2,plain\r\n';
+    const shape = (text: string) =>
+      [...chunkDelimited(text, "csv", { chunkSize: 1 })].map((chunk) => ({ columns: chunk.columns, rows: chunk.data }));
+    expect(shape(crlf)).toEqual(shape(lf));
+    expect(shape(crlf).flatMap((chunk) => chunk.rows)).toEqual([
+      { id: 1, note: "a\nb" },
+      { id: 2, note: "plain" },
+    ]);
+  });
+
+  it("handles an empty body and a final partial chunk", () => {
+    expect([...chunkDelimited("a,b", "csv")]).toEqual([]);
+    expect([...chunkDelimited("", "csv")]).toEqual([]);
+    const chunks = [...chunkDelimited("a,b\n1,2\n3,4\n5,6", "csv", { chunkSize: 2 })];
+    expect(chunks.map((chunk) => chunk.rowCount)).toEqual([2, 1]);
+  });
+
+  it("reports the same progress as before, including lastRecord", () => {
+    const seen: unknown[] = [];
+    const iterator = chunkDelimited("a,b\n1,2\n\n3,4\n5,6\n", "csv", {
+      chunkSize: 1,
+      onProgress: (progress) => void seen.push({ ...progress }),
+    });
+    while (iterator.next().done !== true) {
+      // drain
+    }
+    expect(seen).toEqual([
+      { chunk: 0, rows: 1, delivered: 1, lastRecord: 0 },
+      { chunk: 1, rows: 1, delivered: 2, lastRecord: 1 },
+      { chunk: 2, rows: 1, delivered: 3, lastRecord: 2 },
+    ]);
+  });
+
+  it("stops on an aborted signal and on onProgress returning false", () => {
+    const controller = new AbortController();
+    const delivered: number[] = [];
+    for (const chunk of chunkDelimited("a,b\n1,2\n3,4\n5,6\n", "csv", { chunkSize: 1, signal: controller.signal })) {
+      delivered.push(chunk.rowCount);
+      controller.abort();
+    }
+    expect(delivered).toEqual([1]);
+    expect([...chunkDelimited("a,b\n1,2\n3,4\n", "csv", { chunkSize: 1, onProgress: () => false })]).toHaveLength(1);
+  });
+
+  it("agrees with a whole-file parse across quoting edge cases", () => {
+    const csv = ["id,note", '1,"a, b"', '2,"multi\nline"', '3,"q ""x"""', "4,"].join("\n");
+    const whole = parseDelimited(csv, { format: "csv" });
+    const chunks = [...chunkDelimited(csv, "csv", { chunkSize: 2 })];
+    expect(chunks.flatMap((chunk) => chunk.data)).toEqual(whole.data);
+    expect(chunks[0]?.columns).toEqual(whole.columns);
+  });
+
+  it("keeps reduceChunks and collectChunks correct", () => {
+    const csv = ["id,amount", ...Array.from({ length: 12 }, (_, i) => `${i},${i}`)].join("\n");
+    expect(
+      reduceChunks(csv, "csv", (sum, chunk) => sum + chunk.data.reduce((s, row) => s + Number(row.amount), 0), 0, {
+        chunkSize: 5,
+      }),
+    ).toBe(66);
+    const collected = collectChunks(csv, "csv", { chunkSize: 5 });
+    expect(collected.rowCount).toBe(12);
+    expect(collected.data).toEqual(parseDelimited(csv, { format: "csv" }).data);
+  });
+
+  it("retains only a chunk, not the whole tokenized file", () => {
+    // A structural check rather than a timing threshold: with a small chunk the generator
+    // must be able to deliver many chunks while a malformed tail stays unread. A large file
+    // makes the difference observable without measuring bytes.
+    const lines = ["id,v", ...Array.from({ length: 5000 }, (_, i) => `${i},${i * 2}`)];
+    const text = `${lines.join("\n")}\n99999,"broken\n`;
+    const iterator = chunkDelimited(text, "csv", { chunkSize: 100 });
+    let chunks = 0;
+    let rows = 0;
+    for (const chunk of iterator) {
+      chunks += 1;
+      rows += chunk.rowCount;
+      if (chunks === 10) break;
+    }
+    expect(chunks).toBe(10);
+    expect(rows).toBe(1000);
+  });
+});
+
+describe("interchange payload validation is strict", () => {
+  const valid = () => JSON.parse(JSON.stringify(toInterchange(dataset())));
+
+  const cases: { name: string; mutate: (payload: Record<string, unknown>) => void }[] = [
+    { name: "a missing format", mutate: (p) => delete p.format },
+    { name: "an incorrect format", mutate: (p) => (p.format = "numiq.other") },
+    { name: "an unsupported version", mutate: (p) => (p.version = 2) },
+    { name: "a non-string name", mutate: (p) => (p.name = 7) },
+    { name: "a missing name", mutate: (p) => delete p.name },
+    { name: "columns that are not an array", mutate: (p) => (p.columns = {}) },
+    { name: "rows that are not an array", mutate: (p) => (p.rows = "nope") },
+    { name: "a negative rowCount", mutate: (p) => (p.rowCount = -1) },
+    { name: "a fractional rowCount", mutate: (p) => (p.rowCount = 1.5) },
+    { name: "a rowCount that disagrees with rows", mutate: (p) => (p.rowCount = 99) },
+    { name: "a columnCount that disagrees with columns", mutate: (p) => (p.columnCount = 9) },
+    { name: "a non-null missingValue", mutate: (p) => (p.missingValue = "NA") },
+    { name: "missing metadata", mutate: (p) => delete p.metadata },
+    { name: "metadata that is not an object", mutate: (p) => (p.metadata = []) },
+    { name: "an empty column name", mutate: (p) => ((p.columns as { name: string }[])[0]!.name = "") },
+    {
+      name: "a column with an unsupported dtype",
+      mutate: (p) => ((p.columns as { type: string }[])[0]!.type = "money"),
+    },
+    { name: "a non-boolean nullable", mutate: (p) => ((p.columns as { nullable: unknown }[])[0]!.nullable = "yes") },
+    { name: "an invalid role", mutate: (p) => ((p.columns as { role: string }[])[0]!.role = "metric") },
+    { name: "a column that is not an object", mutate: (p) => ((p.columns as unknown[])[0] = "region") },
+    { name: "a ragged row", mutate: (p) => ((p.rows as unknown[][])[0] = ["north"]) },
+    { name: "a row that is not an array", mutate: (p) => ((p.rows as unknown[])[0] = "north") },
+  ];
+
+  for (const { name, mutate } of cases) {
+    it(`rejects ${name}`, () => {
+      const payload = valid();
+      mutate(payload);
+      expect(isInterchangePayload(payload)).toBe(false);
+      expect(() => fromInterchange(payload)).toThrow(ValidationError);
+    });
+  }
+
+  it("accepts a valid payload and round-trips it", () => {
+    const payload = valid();
+    expect(isInterchangePayload(payload)).toBe(true);
+    const rebuilt = fromInterchange(payload);
+    expect(rebuilt.columns).toEqual(dataset().columns);
+    expect(rebuilt.data).toEqual(dataset().data);
+    expect(rebuilt.name).toBe("sales");
+  });
+
+  it("accepts an empty dataset that still has columns", () => {
+    const payload = toInterchange(createDataset([], { columns: ["a", "b"], name: "empty" }));
+    expect(isInterchangePayload(payload)).toBe(true);
+    const rebuilt = fromInterchange(payload);
+    expect(rebuilt.rowCount).toBe(0);
+    expect(rebuilt.columns).toEqual(["a", "b"]);
+  });
+
+  it("names the offending field in the error", () => {
+    const payload = valid();
+    payload.rowCount = 99;
+    expect(() => fromInterchange(payload)).toThrow(/rowCount is 99 but 3 rows were supplied/);
+  });
+
+  it("does not truncate or pad a ragged row", () => {
+    const payload = valid();
+    (payload.rows as unknown[][])[0] = ["north"];
+    payload.rowCount = 3;
+    expect(() => fromInterchange(payload)).toThrow(/row 0 has 1 cells but there are 3 columns/);
+  });
+});
+
+describe("interchange metadata is JSON-safe", () => {
+  const withMetadata = (metadata: unknown) =>
+    createDataset([{ a: 1 }], { metadata: metadata as Record<string, unknown> });
+
+  it("accepts plain, nested, array, and null metadata", () => {
+    const metadata = { source: "test", nested: { deep: { n: 1 } }, list: [1, "two", null, { x: true }], nothing: null };
+    const payload = toInterchange(withMetadata(metadata));
+    expect(payload.metadata).toEqual(metadata);
+    expect(() => JSON.stringify(payload)).not.toThrow();
+    expect(fromInterchange(payload).metadata).toEqual(metadata);
+  });
+
+  it("preserves valid metadata through a JSON round trip", () => {
+    const metadata = { a: 1, b: [true, null, "x"], c: { d: -0.5 } };
+    const restored = fromInterchange(JSON.parse(JSON.stringify(toInterchange(withMetadata(metadata)))));
+    expect(restored.metadata).toEqual(metadata);
+  });
+
+  const rejected: { name: string; metadata: () => unknown; match: RegExp }[] = [
+    { name: "a BigInt", metadata: () => ({ big: 1n }), match: /BigInt/ },
+    { name: "a function", metadata: () => ({ fn: () => 1 }), match: /function/ },
+    { name: "a symbol", metadata: () => ({ sym: Symbol("s") }), match: /symbol/ },
+    { name: "an undefined value", metadata: () => ({ missing: undefined }), match: /undefined/ },
+    { name: "NaN", metadata: () => ({ n: Number.NaN }), match: /NaN/ },
+    { name: "Infinity", metadata: () => ({ n: Number.POSITIVE_INFINITY }), match: /Infinity/ },
+    { name: "an invalid Date", metadata: () => ({ when: new Date(Number.NaN) }), match: /invalid Date/ },
+  ];
+
+  for (const { name, metadata, match } of rejected) {
+    it(`rejects ${name} with a ValidationError`, () => {
+      expect(() => toInterchange(withMetadata(metadata()))).toThrow(ValidationError);
+      expect(() => toInterchange(withMetadata(metadata()))).toThrow(match);
+    });
+  }
+
+  it("detects a circular reference in a hand-built payload", () => {
+    // `createDataset()` clones metadata, so a cycle never reaches a real dataset (it overflows
+    // in the clone). A payload arriving from outside has not been through that clone, so the
+    // guard is exercised where it is actually reachable.
+    const payload = JSON.parse(JSON.stringify(toInterchange(dataset())));
+    payload.metadata = { name: "loop" };
+    payload.metadata.self = payload.metadata;
+    expect(isInterchangePayload(payload)).toBe(false);
+    expect(() => fromInterchange(payload)).toThrow(/circular reference/);
+  });
+
+  it("cannot store a circular reference in a dataset at all", () => {
+    const metadata: Record<string, unknown> = { name: "loop" };
+    metadata.self = metadata;
+    // Documents the existing boundary: cloning rejects the cycle before interchange runs.
+    expect(() => withMetadata(metadata)).toThrow(RangeError);
+  });
+
+  it("normalises a Map or class instance to a plain object before interchange", () => {
+    // `createDataset()` deep-clones metadata, which flattens anything that is not a plain
+    // object. The result is JSON-safe, so interchange accepts it.
+    const source = createDataset([{ a: 1 }], {
+      metadata: {
+        map: new Map([["k", "v"]]),
+        instance: new (class Custom {
+          x = 1;
+        })(),
+      } as never,
+    });
+    const payload = toInterchange(source);
+    expect(payload.metadata).toEqual({ map: {}, instance: { x: 1 } });
+    expect(() => JSON.stringify(payload)).not.toThrow();
+  });
+
+  it("accepts a Date because it serialises to an ISO string", () => {
+    const when = new Date("2026-01-02T03:04:05.000Z");
+    const payload = toInterchange(withMetadata({ when }));
+    expect(() => JSON.stringify(payload)).not.toThrow();
+    expect(JSON.parse(JSON.stringify(payload)).metadata.when).toBe("2026-01-02T03:04:05.000Z");
+  });
+
+  it("does not mutate the dataset's metadata when validating", () => {
+    const metadata = { keep: "me", nested: { n: 1 } };
+    const source = withMetadata(metadata);
+    const before = JSON.parse(JSON.stringify(source.metadata));
+    toInterchange(source);
+    expect(source.metadata).toEqual(before);
+  });
+
+  it("enforces the same contract when reading a payload", () => {
+    const payload = JSON.parse(JSON.stringify(toInterchange(dataset())));
+    payload.metadata = { bad: 1n };
+    expect(isInterchangePayload(payload)).toBe(false);
+    expect(() => fromInterchange(payload)).toThrow(/BigInt/);
   });
 });

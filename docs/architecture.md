@@ -141,7 +141,8 @@ they are the ones the API is built around:
   same order you wrote them. There is no reordering that changes which rows survive.
 - **Predictable memory.** Each step holds its input and its output. That is why chunked
   reading exists: when one step cannot fit, `chunkDelimited` and `reduceChunks` bound the
-  live set to a chunk plus an accumulator, at roughly 35% more CPU than a whole-file parse.
+  live set to a chunk plus an accumulator, at roughly 27% more CPU than a whole-file parse.
+  Tokenizing is incremental, so the live set does not include the array of every record.
 - **Debuggable chains.** A wrong result is in the step that produced it, because nothing
   ran out of order.
 

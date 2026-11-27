@@ -152,14 +152,171 @@ export function toCSV(dataset: Dataset, options: ToCsvOptions = {}): string {
   return lines.join(newline);
 }
 
+/** Every dtype this version can describe. */
+const DTYPES: readonly DType[] = [
+  "string",
+  "number",
+  "integer",
+  "boolean",
+  "date",
+  "datetime",
+  "time",
+  "unknown",
+  "mixed",
+];
+const ROLES: readonly ColumnDescriptor["role"][] = ["measure", "dimension", "temporal"];
+
+/**
+ * Why `value` is not JSON-safe metadata, or `null` when it is.
+ *
+ * The interchange contract promises a payload `JSON.stringify()` can serialise, so metadata
+ * that would break it has to be refused at the boundary rather than discovered later by a
+ * consumer whose `JSON.stringify` throws on a BigInt. Values are *checked*, never converted:
+ * turning a function into a string would smuggle a meaningless value past the caller.
+ *
+ * `Date` is accepted because it serialises to an ISO string by definition. `undefined` is
+ * rejected rather than dropped, because dropping it would silently change the metadata.
+ */
+function metadataProblem(value: unknown, path: string, seen: Set<object>): string | null {
+  if (value === null) return null;
+  const type = typeof value;
+  if (type === "string" || type === "boolean") return null;
+  if (type === "number") {
+    return Number.isFinite(value as number) ? null : `${path} is ${String(value)}, which JSON cannot represent.`;
+  }
+  if (type === "bigint") return `${path} is a BigInt, which JSON cannot represent.`;
+  if (type === "function") return `${path} is a function, which JSON cannot represent.`;
+  if (type === "symbol") return `${path} is a symbol, which JSON cannot represent.`;
+  if (type === "undefined") return `${path} is undefined; use null for an absent value.`;
+  if (type !== "object") return `${path} is a ${type}, which JSON cannot represent.`;
+
+  const object = value as object;
+  if (seen.has(object)) return `${path} is a circular reference, which JSON cannot represent.`;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? `${path} is an invalid Date.` : null;
+  }
+  seen.add(object);
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const problem = metadataProblem(value[index], `${path}[${index}]`, seen);
+      if (problem !== null) return problem;
+    }
+  } else {
+    const prototype = Object.getPrototypeOf(value) as object | null;
+    if (prototype !== Object.prototype && prototype !== null) {
+      const name = (value as { constructor?: { name?: string } }).constructor?.name ?? "object";
+      return `${path} is a ${name}; only plain objects, arrays, and JSON primitives are supported.`;
+    }
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      const problem = metadataProblem(item, `${path}.${key}`, seen);
+      if (problem !== null) return problem;
+    }
+  }
+  seen.delete(object);
+  return null;
+}
+
+/** Throw unless `metadata` can be serialised with `JSON.stringify()`. */
+function assertJsonSafeMetadata(metadata: unknown, owner: string): void {
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) {
+    throw new ValidationError(`${owner} metadata must be an object.`);
+  }
+  const problem = metadataProblem(metadata, "metadata", new Set());
+  if (problem !== null) throw new ValidationError(`${owner} ${problem}`);
+}
+
+/**
+ * Why `value` is not a readable version-1 payload, or `null` when it is.
+ *
+ * Returns a message rather than a boolean so `fromInterchange()` can say what is wrong;
+ * `isInterchangePayload()` is the boolean face of the same check. The checks follow the
+ * declared contract rather than a subset of it: a payload whose `rowCount` disagrees with
+ * `rows.length` is not a table a consumer can trust, and truncating or padding it would hide
+ * the disagreement instead of reporting it.
+ */
+function payloadProblem(value: unknown): string | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return 'expected a payload object with format "numiq.table" and version 1.';
+  }
+  const payload = value as Record<string, unknown>;
+  if (payload.format !== "numiq.table") {
+    return `format must be "numiq.table", received ${JSON.stringify(payload.format) ?? String(payload.format)}.`;
+  }
+  if (payload.version !== 1) {
+    return `version must be 1, received ${JSON.stringify(payload.version) ?? String(payload.version)}.`;
+  }
+  if (typeof payload.name !== "string") return "name must be a string.";
+
+  const { columns, rows } = payload;
+  if (!Array.isArray(columns)) return "columns must be an array.";
+  if (!Array.isArray(rows)) return "rows must be an array.";
+
+  for (let index = 0; index < columns.length; index += 1) {
+    const problem = columnProblem(columns[index], index);
+    if (problem !== null) return problem;
+  }
+
+  if (!isCount(payload.rowCount)) return "rowCount must be a non-negative integer.";
+  if (!isCount(payload.columnCount)) return "columnCount must be a non-negative integer.";
+  if (payload.columnCount !== columns.length) {
+    return `columnCount is ${payload.columnCount} but ${columns.length} column descriptors were supplied.`;
+  }
+  if (payload.rowCount !== rows.length) {
+    return `rowCount is ${payload.rowCount} but ${rows.length} rows were supplied.`;
+  }
+  if (payload.missingValue !== null) {
+    return `missingValue must be null, received ${JSON.stringify(payload.missingValue) ?? String(payload.missingValue)}.`;
+  }
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (!Array.isArray(row)) return `row ${index} is not an array.`;
+    if (row.length !== columns.length) {
+      return `row ${index} has ${row.length} cells but there are ${columns.length} columns.`;
+    }
+  }
+
+  if (payload.metadata === undefined || payload.metadata === null) return "metadata must be an object.";
+  if (typeof payload.metadata !== "object" || Array.isArray(payload.metadata)) return "metadata must be an object.";
+  const metadataIssue = metadataProblem(payload.metadata, "metadata", new Set());
+  if (metadataIssue !== null) return metadataIssue;
+  return null;
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function columnProblem(value: unknown, index: number): string | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return `column ${index} is not an object.`;
+  }
+  const column = value as Record<string, unknown>;
+  if (typeof column.name !== "string" || column.name === "") {
+    return `column ${index} needs a non-empty name.`;
+  }
+  if (typeof column.type !== "string" || !DTYPES.includes(column.type as DType)) {
+    return `column ${index} has type ${JSON.stringify(column.type) ?? String(column.type)}, which is not a Numiq dtype.`;
+  }
+  if (typeof column.nullable !== "boolean") return `column ${index} nullable must be a boolean.`;
+  if (!ROLES.includes(column.role as ColumnDescriptor["role"])) {
+    return `column ${index} role must be "measure", "dimension", or "temporal".`;
+  }
+  return null;
+}
+
 /**
  * Build the interchange payload a consumer such as Numviz reads.
  *
  * The payload is plain JSON-safe data with a `format` marker and a `version`, so a
  * consumer can check what it received before reading it. Numiq never imports Numviz and
  * Numviz never needs Numiq's classes: this object is the whole boundary.
+ *
+ * Metadata is copied only if it survives `JSON.stringify()`, so the promise holds for the
+ * payload as a whole rather than for every part of it except metadata.
  */
 export function toInterchange(dataset: Dataset): InterchangePayload {
+  assertJsonSafeMetadata(dataset.metadata, "toInterchange()");
   const schema = dataset.schema;
   const columns: ColumnDescriptor[] = dataset.columns.map((name) => {
     const type = schema[name]?.type ?? "unknown";
@@ -181,20 +338,14 @@ export function toInterchange(dataset: Dataset): InterchangePayload {
 
 /** True when `value` is a payload this version of Numiq can read. */
 export function isInterchangePayload(value: unknown): value is InterchangePayload {
-  if (value === null || typeof value !== "object") return false;
-  const candidate = value as Partial<InterchangePayload>;
-  return (
-    candidate.format === "numiq.table" &&
-    candidate.version === 1 &&
-    Array.isArray(candidate.columns) &&
-    Array.isArray(candidate.rows)
-  );
+  return payloadProblem(value) === null;
 }
 
 /** Rebuild a dataset from an interchange payload. */
 export function fromInterchange(payload: InterchangePayload): Dataset {
-  if (!isInterchangePayload(payload)) {
-    throw new ValidationError('fromInterchange() needs a payload with format "numiq.table" and version 1.');
+  const problem = payloadProblem(payload);
+  if (problem !== null) {
+    throw new ValidationError(`fromInterchange() needs a valid version-1 payload: ${problem}`);
   }
   const names = payload.columns.map((column) => column.name);
   const rows = payload.rows.map((cells) => {

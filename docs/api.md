@@ -2109,6 +2109,32 @@ are always `null`.
 `isInterchangePayload` narrows a value to a payload this version can read. `fromInterchange`
 rebuilds a dataset and throws `ValidationError` for anything else.
 
+Validation checks the whole declared contract, not just the markers: `format` is
+`"numiq.table"`, `version` is `1`, `name` is a string, `columns` and `rows` are arrays,
+`rowCount` and `columnCount` are non-negative integers that agree with the arrays,
+`missingValue` is `null`, and `metadata` is a JSON-safe object. Every column descriptor
+needs a non-empty `name`, a Numiq `DType`, a boolean `nullable`, and a `role` of `"measure"`,
+`"dimension"`, or `"temporal"`. Every row must be an array with exactly `columnCount` cells.
+
+A payload that fails any of these is rejected rather than repaired: rows are never truncated
+or padded, because a silent reshape is how a column ends up off by one. An empty dataset with
+valid columns is accepted. The error names the offending field, for example
+`row 0 has 1 cells but there are 2 columns`.
+
+### Metadata must be JSON-safe
+
+`toInterchange` accepts metadata only if `JSON.stringify` can serialise it, and
+`fromInterchange` enforces the same rule on a payload it is given. Strings, booleans,
+finite numbers, `null`, plain objects, arrays, and `Date` are accepted; `BigInt`, functions,
+symbols, `undefined`, `NaN`, `Infinity`, and circular references raise `ValidationError`
+naming the path (`metadata.a[0] is a BigInt, which JSON cannot represent.`). Values are
+checked, never converted, so a function is not quietly turned into a string.
+
+One boundary is worth knowing: `createDataset()` deep-clones metadata, which flattens a
+`Map` or a class instance to a plain object and throws `RangeError` on a cycle. Such values
+therefore cannot reach a dataset at all; the check in `toInterchange` catches metadata that
+arrives on a hand-built payload.
+
 ### `columnRole(type)`
 
 Maps a `DType` to `"measure"`, `"temporal"`, or `"dimension"`.
@@ -2128,6 +2154,18 @@ Chunking never changes what a file means. Blank lines are skipped and `skipRows`
 records exactly as `parseDelimited()` does, and `header: false` keeps the first record as
 data, naming columns `column_1`… or the `columns` you pass. The result is that concatenating
 the chunks gives the same rows, columns and types as loading the whole text at once.
+
+Records are tokenized incrementally: each chunk is read from the source as it is needed and
+only the current chunk is held, so peak memory tracks `chunkSize` rather than the file size.
+Quoting is honoured during the walk, so a newline inside a quoted field does not split a
+record. Two limits are worth stating plainly:
+
+- **The input is a string, so it is already in memory.** Chunking avoids a second full
+  representation (the array of every tokenized record); it is not a streaming reader for a
+  file or a socket. Use the loader functions if you want to read from disk.
+- **`header: false` takes two passes.** Column names depend on the widest record in the
+  file, so the width is measured first. No records are retained between passes, but the
+  source string is read twice.
 
 ### `reduceChunks(text, format, step, initial, options?)`
 

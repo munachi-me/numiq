@@ -527,10 +527,18 @@ number rather than the rows, `reduceChunks()` folds each chunk and drops it — 
 total over a million rows needs the total, not the million rows. `collectChunks()`
 concatenates them when you did want one dataset.
 
-Splitting happens after tokenizing, not before, because a newline inside a quoted field is
-data. That costs throughput: at 50,000 rows, `chunkDelimited` takes about 161ms against
-119ms for a whole-file parse — roughly 35% more, which is the price of a record boundary
-that cannot be cut in the wrong place. The win is peak memory, not speed.
+Records are tokenized incrementally, one at a time, so only the current chunk is held and
+peak memory tracks `chunkSize` instead of the file size. Quoting is still honoured across
+the whole input, because a newline inside a quoted field is data: the record boundary is
+found by the tokenizer, not by splitting the raw text on `\n`. That costs some throughput —
+at 50,000 rows, `chunkDelimited` takes about 145ms against 114ms for a whole-file parse,
+roughly 27% more — which is the price of a record boundary that cannot be cut in the wrong
+place. The win is peak memory, not speed.
+
+The text is a string, so it is in memory either way. What chunking avoids is a second full
+representation of it: the array of every tokenized record. `header: false` is the exception,
+because column names depend on the widest record, so the width is measured in a first pass
+that retains nothing.
 
 ### Interchange
 
