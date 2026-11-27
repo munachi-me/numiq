@@ -4,6 +4,47 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-27
+
+Data modelling and relationships. Purely additive: every 1.2.x call keeps its signature
+and behaviour, and nothing in this release changes an existing result.
+
+### Added
+
+- `DataSpace` and `createDataSpace(name)` — a named collection of datasets with the
+  relationships between them. Datasets are held by reference and stay usable on their own.
+- Dataset management: `addDataset`, `replaceDataset`, `removeDataset`, `renameDataset`,
+  `dataset`, `datasets`, `datasetNames`, `has`, `setMetadata`, plus `size`. Adding a
+  duplicate name throws rather than replacing silently; replacing re-validates the
+  relationships that touch the name; renaming carries them; removing drops them.
+- Relationships of all four cardinalities — `one-to-one`, `one-to-many`, `many-to-one`,
+  `many-to-many` — via `createRelationship`, `removeRelationship`, `relationships`, and
+  `relationship`. Cardinality is enforced when a relationship is declared: `one-to-one` and
+  `many-to-one` require a unique `to` key, `one-to-one` and `one-to-many` a unique `from`
+  key, and a violation names the value and how often it occurs.
+- `check(name?)` — referential-integrity report per relationship: unmatched keys as
+  `orphans` with their row index, duplicate keys as `duplicates`, missing keys counted in
+  `nullKeys` rather than treated as orphans, and a `valid` flag.
+- `findRelationship(left, right, name?)` — resolves the link between two datasets and
+  reports whether the pair was matched forward or reversed. Ambiguous pairs throw rather
+  than guessing.
+- Cross-dataset operations: `join(left, right, options?)` takes its keys from the
+  relationship and supports `inner`, `left`, `right`, and `full`; `aggregate` left-joins
+  then groups and aggregates; `filterRelated` keeps rows whose related record matches.
+- Introspection: `describeDataset(name)` and `describe()` return row and column counts,
+  column names, metadata, and the relationships each dataset participates in.
+- Exported types: `Relationship`, `RelationshipType`, `RelationshipOptions`,
+  `RelationshipCheck`, `OrphanReference`, `DuplicateKey`, `DatasetSummary`,
+  `SpaceJoinOptions`, `SpaceAggregateOptions`.
+- `DataSpace` and `createDataSpace` are also on the default export.
+
+### Notes
+
+- `groupBy` is required on `space.aggregate()`. Any default would silently change the shape
+  of the answer.
+- Existing single-dataset APIs are unchanged; a `DataSpace` adds a layer above them rather
+  than altering them.
+
 ## [1.2.0] - 2026-11-27
 
 Advanced analytics and statistics. Purely additive: every 1.1.x call keeps its signature

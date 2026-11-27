@@ -79,7 +79,9 @@ for (const entry of result.lineage) {
 
 // The pipeline is reusable: running it again produces the same result.
 const again = await workflow.run();
-console.log(`\nreused pipeline produced identical data: ${JSON.stringify(again.dataset?.data) === JSON.stringify(result.dataset?.data)}`);
+console.log(
+  `\nreused pipeline produced identical data: ${JSON.stringify(again.dataset?.data) === JSON.stringify(result.dataset?.data)}`,
+);
 
 // ---------------------------------------------------------------- failure reporting
 

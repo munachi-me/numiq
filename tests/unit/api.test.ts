@@ -54,6 +54,8 @@ describe("public surface", () => {
     "systematicSample",
     "percentChange",
     "cohortAnalysis",
+    "DataSpace",
+    "createDataSpace",
   ];
 
   it("exports every documented member by name", () => {

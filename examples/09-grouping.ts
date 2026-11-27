@@ -59,7 +59,12 @@ const single = createDataset([
 ]);
 
 console.log("\nA group with one row has no sample spread:");
-console.log(single.groupBy("group").aggregate({ spread: { column: "value", op: "std" } }).table());
+console.log(
+  single
+    .groupBy("group")
+    .aggregate({ spread: { column: "value", op: "std" } })
+    .table(),
+);
 
 // Missing cells inside a group are excluded from every aggregation, so a mean ignores
 // them rather than treating them as zero.

@@ -1978,6 +1978,79 @@ column or `"strict"` to require identical columns. Throws `ValidationError` on e
 The frozen default `NormalizationPolicy`. Spread it to build a custom policy:
 `{ ...DEFAULT_NORMALIZATION, nulls: ["NA"] }`.
 
+## Data spaces
+
+### `createDataSpace(name)` / `new DataSpace(name)`
+
+Creates a named collection of datasets plus the relationships between them. Throws
+`ValidationError` for an empty name.
+
+### `space.addDataset(name, dataset)`
+
+Adds a dataset by reference. Throws `ValidationError` when the name is taken (use
+`replaceDataset`) or the value is not a `Dataset`.
+
+### `space.replaceDataset(name, dataset)` / `space.removeDataset(name)`
+
+`replaceDataset` swaps the data and re-validates every relationship that touches the name.
+`removeDataset` also drops those relationships, since a link to an absent dataset cannot be
+validated or used. Both return the space.
+
+### `space.renameDataset(from, to)` / `space.setMetadata(name, key, value)`
+
+Renaming carries relationships with the dataset. `setMetadata` rebuilds the stored dataset
+with merged metadata and leaves the original object untouched.
+
+### `space.dataset(name)` / `space.datasets()` / `space.datasetNames()` / `space.has(name)`
+
+Retrieval. `dataset` throws `ValidationError` naming the datasets that do exist. `size` is
+the dataset count.
+
+### `space.createRelationship(options)`
+
+Declares a link and returns the `Relationship`. `options` is
+`{ from, fromColumn, to, toColumn, type, name? }`, where `type` is `one-to-one`,
+`one-to-many`, `many-to-one`, or `many-to-many`, read from `from` to `to`. The default name
+is `${from}.${fromColumn}->${to}.${toColumn}`.
+
+Throws `ColumnNotFoundError` for a missing column, `ValidationError` for an unknown type or
+duplicate name, and `ValidationError` when the data cannot satisfy the cardinality:
+`one-to-one` and `many-to-one` need a unique `to` key, `one-to-one` and `one-to-many` need a
+unique `from` key.
+
+### `space.check(name?)`
+
+Returns a `RelationshipCheck` per relationship (or one, when `name` is given):
+`{ relationship, orphans, duplicates, nullKeys, valid }`. `orphans` carries each unmatched
+key with its row index; a null key counts toward `nullKeys` instead. `valid` is true when
+there are no orphans and no duplicates.
+
+### `space.findRelationship(left, right, name?)`
+
+Resolves the link between two datasets. Returns `{ relationship, direction }` where
+`direction` is `"forward"` or `"reverse"`, or `undefined` when nothing links them. Throws
+`ValidationError` when several links exist and `name` was not given.
+
+### `space.join(left, right, options?)`
+
+Joins two datasets using the relationship's keys. `options` is `{ how?, relationship?,
+suffixes? }`. Throws `ValidationError` when no relationship links the pair.
+
+### `space.aggregate(dataset, target, spec, options)`
+
+Left-joins `dataset` to `target`, then groups and aggregates. `spec` is the usual
+`AggregateSpec`; `options.groupBy` is required and `options.relationship` is optional.
+
+### `space.filterRelated(dataset, target, predicate, options?)`
+
+Inner-joins, keeps rows whose joined record satisfies `predicate`, and therefore drops rows
+whose reference does not resolve.
+
+### `space.describeDataset(name)` / `space.describe()`
+
+Returns a `DatasetSummary` — `{ name, rowCount, columnCount, columns, metadata, outgoing,
+incoming }` — for one dataset or all of them in insertion order.
+
 ## Errors
 
 | Class | `code` | Extra fields |

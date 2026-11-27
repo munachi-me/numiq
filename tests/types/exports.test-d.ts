@@ -48,7 +48,13 @@ import Numiq, {
   systematicSample,
   percentChange,
   cohortAnalysis,
+  DataSpace,
+  createDataSpace,
   type RegressionModel,
+  type Relationship,
+  type RelationshipType,
+  type RelationshipCheck,
+  type DatasetSummary,
   type HypothesisTestResult,
   type ContinuousDistribution,
   type DiscreteDistribution,
@@ -898,3 +904,60 @@ expectType<typeof oneWayAnova>(Numiq.oneWayAnova);
 expectType<typeof normalDistribution>(Numiq.normalDistribution);
 expectType<typeof stratifiedSample>(Numiq.stratifiedSample);
 expectType<typeof cohortAnalysis>(Numiq.cohortAnalysis);
+
+// ------------------------------------------------------- 1.3.0 data spaces
+
+const space = createDataSpace("Shop");
+expectType<DataSpace>(space);
+expectType<DataSpace>(new DataSpace("Shop"));
+expectType<string>(space.name);
+expectType<number>(space.size);
+expectType<number>(space.relationshipCount);
+expectType<DataSpace>(space.addDataset("customers", createDataset([{ id: 1 }])));
+expectType<DataSpace>(space.replaceDataset("customers", createDataset([{ id: 1 }])));
+expectType<DataSpace>(space.removeDataset("customers"));
+expectType<boolean>(space.has("customers"));
+expectType<Dataset>(space.dataset("customers"));
+expectType<readonly string[]>(space.datasetNames());
+expectType<readonly Dataset[]>(space.datasets());
+expectType<DataSpace>(space.renameDataset("a", "b"));
+expectType<DataSpace>(space.setMetadata("a", "k", 1));
+
+const rel = space.createRelationship({
+  from: "orders",
+  fromColumn: "customer_id",
+  to: "customers",
+  toColumn: "id",
+  type: "many-to-one",
+});
+expectType<Relationship>(rel);
+expectType<RelationshipType>(rel.type);
+expectType<string>(rel.name);
+expectType<DataSpace>(space.removeRelationship("r"));
+expectType<readonly Relationship[]>(space.relationships());
+expectType<Relationship | undefined>(space.relationship("r"));
+expectType<{ relationship: Relationship; direction: "forward" | "reverse" } | undefined>(
+  space.findRelationship("orders", "customers"),
+);
+expectType<readonly RelationshipCheck[]>(space.check());
+expectType<readonly RelationshipCheck[]>(space.check("r"));
+expectType<boolean>(space.check()[0]!.valid);
+expectType<number>(space.check()[0]!.nullKeys);
+
+expectType<Dataset>(space.join("orders", "customers"));
+expectType<Dataset>(space.join("orders", "customers", { how: "full", relationship: "r" }));
+expectType<Dataset>(space.aggregate("orders", "customers", { n: { op: "count" } }, { groupBy: "region" }));
+expectType<Dataset>(space.filterRelated("orders", "customers", (row) => Boolean(row.region)));
+expectType<DatasetSummary>(space.describeDataset("orders"));
+expectType<readonly DatasetSummary[]>(space.describe());
+
+// A relationship type is a closed union.
+// @ts-expect-error an unknown cardinality is rejected at compile time
+space.createRelationship({ from: "a", fromColumn: "x", to: "b", toColumn: "y", type: "one-to-three" });
+// groupBy is required for cross-dataset aggregation.
+// @ts-expect-error aggregate() requires grouping columns
+space.aggregate("orders", "customers", { n: { op: "count" } });
+
+// The default namespace exposes the space API.
+expectType<typeof createDataSpace>(Numiq.createDataSpace);
+expectType<typeof DataSpace>(Numiq.DataSpace);

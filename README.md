@@ -1246,6 +1246,111 @@ product into an error naming the cause.
 
 `joinReport()` adds matched and unmatched counts for each side.
 
+## Data spaces
+
+A `DataSpace` holds several datasets and the relationships between them, so the keys that
+link tables are written once instead of at every call site.
+
+```ts
+const space = createDataSpace("Sales");
+
+space.addDataset("customers", customers);
+space.addDataset("orders", orders);
+
+space.createRelationship({
+  from: "orders",
+  fromColumn: "customer_id",
+  to: "customers",
+  toColumn: "id",
+  type: "many-to-one",
+});
+```
+
+`addDataset` throws on a duplicate name rather than replacing silently, since a replacement
+would change every relationship and every later query. Use `replaceDataset` to swap one
+deliberately; it re-validates the relationships that touch it. `renameDataset` carries
+relationships with the dataset, and `removeDataset` drops them, because a link to a
+dataset that no longer exists can be neither validated nor used.
+
+Datasets are held by reference, not copied. A dataset in a space is the same object you
+added, and it stays usable on its own.
+
+### Relationships
+
+The four cardinalities are `one-to-one`, `one-to-many`, `many-to-one`, and `many-to-many`,
+written from `from` to `to`. `many-to-one` is the ordinary foreign-key shape.
+
+Cardinality is enforced when the relationship is declared: `one-to-one` and `many-to-one`
+require the `to` key to be unique, `one-to-one` and `one-to-many` require the `from` key to
+be unique, and `many-to-many` requires neither. A violation names the offending value and
+how often it occurs.
+
+Referential integrity is reported, not enforced. Real data often has orphans, and refusing
+to model a relationship because of them would stop the analysis before it started:
+
+```ts
+const [check] = space.check();
+// { relationship, orphans, duplicates, nullKeys, valid }
+```
+
+`orphans` lists each unmatched key with its row index. A missing key counts toward
+`nullKeys` instead, because a null foreign key means "no reference", not "broken
+reference". `check(name)` inspects one relationship.
+
+### Cross-dataset operations
+
+`join` takes its keys from the relationship, so no column names are repeated:
+
+```ts
+const joined = space.join("orders", "customers");            // inner by default
+const everything = space.join("orders", "customers", { how: "full" });
+```
+
+It accepts `inner`, `left`, `right`, and `full`, plus `suffixes`. Joining the pair in the
+opposite order swaps the keys automatically. When several relationships connect the same
+two datasets, pass `{ relationship: name }` to choose one; an ambiguous join throws rather
+than guessing.
+
+`aggregate` answers the "revenue by customer region" shape — grouping by a column that
+lives on the related table:
+
+```ts
+const byRegion = space.aggregate(
+  "orders",
+  "customers",
+  { revenue: { column: "total", op: "sum" } },
+  { groupBy: "region" },
+);
+// north: 150, south: 200
+```
+
+The join runs first, then ordinary grouping and aggregation run on the result, so every
+operation behaves exactly as it does on a single dataset. `groupBy` is required: any
+default would silently change the shape of the answer.
+
+`filterRelated` keeps rows whose related record satisfies a predicate, and drops rows whose
+reference does not resolve:
+
+```ts
+const north = space.filterRelated("orders", "customers", (row) => row.region === "north");
+// 2 rows
+```
+
+### Introspection
+
+`describeDataset(name)` returns the row and column counts, the column names, metadata, and
+the relationships the dataset participates in. `describe()` does the same for every dataset
+in insertion order.
+
+```ts
+space.describeDataset("orders");
+// { name: "orders", rowCount: 3, columnCount: 3, columns: [...], metadata: {},
+//   outgoing: ["orders.customer_id->customers.id"], incoming: [] }
+```
+
+`createDataSpace(name)` and `new DataSpace(name)` are equivalent; `Numiq.createDataSpace`
+and `Numiq.DataSpace` are on the default export too.
+
 ## Reshaping
 
 `pivot()` turns long data into one column per distinct value; `melt()` does the reverse and
@@ -1453,8 +1558,10 @@ coefficient p-values), hypothesis testing (one-sample, two-sample Welch and pool
 paired t-tests, chi-square, one-way ANOVA, Jarque-Bera normality, and mean confidence
 intervals), probability distributions (normal, uniform, binomial, Poisson, with the
 special functions they are built from), sampling designs (stratified and systematic,
-seedable), cohort analysis and percentage change, metrics (`createMetric`, grouped
-metrics, custom calculations,
+seedable), cohort analysis and percentage change, data spaces (`createDataSpace` with
+dataset management, validated relationships of all four cardinalities, referential-integrity
+checks, relationship-keyed joins, cross-dataset aggregation and filtering, and structural
+introspection), metrics (`createMetric`, grouped metrics, custom calculations,
 recalculation, comparison, and format hints), insights (`Dataset.insights()` with seven
 checks, configurable thresholds, and evidence on every observation), table rendering, the
 bundled sample dataset, the error taxonomy, and the environment split.

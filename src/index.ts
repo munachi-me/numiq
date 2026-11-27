@@ -81,6 +81,18 @@ export type {
 } from "./analytics/tests.js";
 export { cohortAnalysis, percentChange, stratifiedSample, systematicSample } from "./core/analysis.js";
 export type { CohortMetric, CohortOptions } from "./core/analysis.js";
+export { DataSpace, createDataSpace } from "./core/space.js";
+export type {
+  DatasetSummary,
+  DuplicateKey,
+  OrphanReference,
+  Relationship,
+  RelationshipCheck,
+  RelationshipOptions,
+  RelationshipType,
+  SpaceAggregateOptions,
+  SpaceJoinOptions,
+} from "./core/space.js";
 export type {
   AggregateSpec,
   AggregationContext,
@@ -335,6 +347,7 @@ import {
   twoSampleTTest,
 } from "./analytics/tests.js";
 import { cohortAnalysis, percentChange, stratifiedSample, systematicSample } from "./core/analysis.js";
+import { DataSpace, createDataSpace } from "./core/space.js";
 import { addConditionalColumn } from "./core/conditional.js";
 import { joinTables } from "./core/join.js";
 import { concatRows, meltRows, pivotRows } from "./core/reshape.js";
@@ -467,6 +480,8 @@ const Numiq = {
   percentChange,
   stratifiedSample,
   systematicSample,
+  DataSpace,
+  createDataSpace,
   addConditionalColumn,
   joinTables,
   pivotRows,
