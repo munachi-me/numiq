@@ -38,7 +38,7 @@ export interface ChunkProgress {
   readonly rows: number;
   /** Rows delivered so far, excluding headers. */
   readonly delivered: number;
-  /** Zero-based index of the last source record read. */
+  /** Zero-based index of the last source record read, so 0 after the first record. */
   readonly lastRecord: number;
 }
 
@@ -82,14 +82,35 @@ export function* chunkDelimited(
   }
 
   const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const delimiter = options.delimiter ?? detectDelimiter(body, 10, options.skipRows ?? 0);
-  const records = tokenize(body, delimiter);
   const skipRows = options.skipRows ?? 0;
+  const delimiter = options.delimiter ?? detectDelimiter(body, 10, skipRows);
+  // Blank lines are not rows. `parseDelimited()` drops them before applying `skipRows`, so
+  // doing anything else here would give a chunked read different columns and fewer rows
+  // than a whole-file read of the same text.
+  const records = tokenize(body, delimiter).filter((record) => record.some((cell) => cell.trim() !== ""));
   if (skipRows >= records.length) return;
 
-  const header = records[skipRows] as string[];
-  const data = records.slice(skipRows + 1);
-  const { skipRows: _skip, chunkSize: _size, onProgress, signal, ...parseOptions } = options;
+  const { skipRows: _skip, chunkSize: _size, onProgress, signal, columns, ...parseOptions } = options;
+  const hasHeader = options.header !== false;
+
+  // Each chunk is rebuilt as header-then-rows so `parseDelimited` applies one code path.
+  // Headerless input therefore needs a synthetic header: the real first record is data and
+  // must not be consumed as names.
+  let header: string[];
+  let data: readonly (readonly string[])[];
+  if (hasHeader) {
+    header = records[skipRows] as string[];
+    data = records.slice(skipRows + 1);
+  } else {
+    data = records.slice(skipRows);
+    const width = data.reduce((max, record) => Math.max(max, record.length), 0);
+    if (columns !== undefined && columns.length !== width) {
+      throw new ValidationError(
+        `header is false and ${width} columns of data were found, but ${columns.length} column names were supplied.`,
+      );
+    }
+    header = columns !== undefined ? [...columns] : Array.from({ length: width }, (_, index) => `column_${index + 1}`);
+  }
 
   let delivered = 0;
   let chunkIndex = 0;
@@ -101,6 +122,9 @@ export function* chunkDelimited(
     const chunkText = [header, ...slice].map((record) => requoteRecord(record, delimiter)).join("\n");
     const dataset = parseDelimited(chunkText, {
       ...parseOptions,
+      // `columns` is already resolved into the synthetic header, and `parseDelimited` rejects
+      // it alongside `header: true`. Forward it only for a real header, where it should throw.
+      ...(hasHeader && columns !== undefined ? { columns } : {}),
       format,
       delimiter,
       header: true,
@@ -113,7 +137,7 @@ export function* chunkDelimited(
         chunk: chunkIndex,
         rows,
         delivered,
-        lastRecord: start + slice.length,
+        lastRecord: start + slice.length - 1,
       };
       if (onProgress(progress) === false) {
         yield dataset;
@@ -139,12 +163,20 @@ export function reduceChunks<T>(
   options: ChunkOptions = {},
 ): T {
   let accumulator = initial;
-  let index = 0;
-  let delivered = 0;
-  for (const chunk of chunkDelimited(text, format, options)) {
-    delivered += chunk.rowCount;
-    accumulator = step(accumulator, chunk, { chunk: index, rows: chunk.rowCount, delivered, lastRecord: delivered });
-    index += 1;
+  let progress: ChunkProgress | undefined;
+  const forward = options.onProgress;
+  const chunks = chunkDelimited(text, format, {
+    ...options,
+    // Take progress from the generator rather than recomputing it, so `step` sees the same
+    // record positions as an `onProgress` callback would.
+    onProgress: (current) => {
+      progress = current;
+      return forward?.(current);
+    },
+  });
+  for (const chunk of chunks) {
+    if (progress === undefined) continue;
+    accumulator = step(accumulator, chunk, progress);
   }
   return accumulator;
 }

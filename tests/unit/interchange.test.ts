@@ -6,6 +6,7 @@ import {
   fromInterchange,
   fromTableData,
   isInterchangePayload,
+  parseDelimited,
   reduceChunks,
   toCSV,
   toInterchange,
@@ -326,5 +327,81 @@ describe("collectChunks", () => {
     const rebuilt = fromInterchange(payload);
     expect(rebuilt.dtypes.n).toBe("integer");
     expect(rebuilt.dtypes.s).toBe("string");
+  });
+
+  describe("agrees with a whole-file parse", () => {
+    const cases = [
+      { name: "a leading blank line", csv: "\nname,age\nAda,36\nLin,41\n", options: {} },
+      {
+        name: "a blank line inside a skipped preamble",
+        csv: "Report: sales\n\nregion,revenue\nnorth,100\nsouth,200\n",
+        options: { skipRows: 2 },
+      },
+      { name: "blank lines between records", csv: "name,age\nAda,36\n\n\nLin,41\n", options: {} },
+    ];
+
+    for (const { name, csv, options } of cases) {
+      it(`matches parseDelimited with ${name}`, () => {
+        const whole = parseDelimited(csv, { format: "csv", ...options });
+        const chunks = [...chunkDelimited(csv, "csv", { ...options, chunkSize: 1 })];
+        expect(chunks[0]?.columns).toEqual(whole.columns);
+        expect(chunks.reduce((total, chunk) => total + chunk.rowCount, 0)).toBe(whole.rowCount);
+        expect(chunks.flatMap((chunk) => chunk.data)).toEqual(whole.data);
+      });
+    }
+  });
+
+  it("reports lastRecord as a zero-based index and reduceChunks agrees", () => {
+    const csv = "a,b\n1,2\n\n3,4\n5,6\n";
+    const seen: unknown[] = [];
+    const iterator = chunkDelimited(csv, "csv", { chunkSize: 1, onProgress: (p) => void seen.push({ ...p }) });
+    while (iterator.next().done !== true) {
+      // drain
+    }
+    const reduced: unknown[] = [];
+    reduceChunks(
+      csv,
+      "csv",
+      (total, chunk, progress) => {
+        reduced.push({ ...progress });
+        return total + chunk.rowCount;
+      },
+      0,
+      { chunkSize: 1 },
+    );
+    expect(seen).toEqual([
+      { chunk: 0, rows: 1, delivered: 1, lastRecord: 0 },
+      { chunk: 1, rows: 1, delivered: 2, lastRecord: 1 },
+      { chunk: 2, rows: 1, delivered: 3, lastRecord: 2 },
+    ]);
+    expect(reduced).toEqual(seen);
+  });
+
+  describe("headerless chunking", () => {
+    const csv = "1,2\n3,4\n5,6\n";
+
+    it("keeps the first record as data and names columns the same way", () => {
+      const whole = parseDelimited(csv, { format: "csv", header: false });
+      const chunks = [...chunkDelimited(csv, "csv", { chunkSize: 2, header: false })];
+      expect(chunks[0]?.columns).toEqual(whole.columns);
+      expect(chunks.flatMap((chunk) => chunk.data)).toEqual(whole.data);
+      expect(chunks[0]?.rowCount).toBe(2);
+    });
+
+    it("accepts explicit columns instead of throwing", () => {
+      const chunks = [...chunkDelimited(csv, "csv", { chunkSize: 2, header: false, columns: ["x", "y"] })];
+      expect(chunks[0]?.columns).toEqual(["x", "y"]);
+      expect(chunks.flatMap((chunk) => chunk.data)[0]).toEqual({ x: 1, y: 2 });
+    });
+
+    it("rejects a column count that does not match the data", () => {
+      expect(() => [...chunkDelimited(csv, "csv", { header: false, columns: ["x"] })]).toThrow(
+        /2 columns of data were found, but 1 column names/,
+      );
+    });
+
+    it("still rejects columns when a header is present", () => {
+      expect(() => [...chunkDelimited("a,b\n1,2\n", "csv", { columns: ["x", "y"] })]).toThrow(/header is true/);
+    });
   });
 });

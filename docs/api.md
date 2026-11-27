@@ -2112,8 +2112,14 @@ Maps a `DType` to `"measure"`, `"temporal"`, or `"dimension"`.
 Yields one `Dataset` per chunk, each carrying the file's columns. `options` extends
 `CsvOptions` with `chunkSize` (default 10,000), `onProgress`, and `signal`. Chunks are lazy.
 `onProgress` receives a `ChunkProgress` — `{ chunk, rows, delivered, lastRecord }` — and may
-return `false` to stop before the next chunk. Throws `ValidationError` for a non-positive or
+return `false` to stop before the next chunk. `lastRecord` is a zero-based index into the
+data records, so the first chunk reports `0`. Throws `ValidationError` for a non-positive or
 non-integer `chunkSize` or a format other than `"csv"`/`"tsv"`.
+
+Chunking never changes what a file means. Blank lines are skipped and `skipRows` counts
+records exactly as `parseDelimited()` does, and `header: false` keeps the first record as
+data, naming columns `column_1`… or the `columns` you pass. The result is that concatenating
+the chunks gives the same rows, columns and types as loading the whole text at once.
 
 ### `reduceChunks(text, format, step, initial, options?)`
 

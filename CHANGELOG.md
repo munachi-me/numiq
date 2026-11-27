@@ -4,6 +4,27 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `chunkDelimited()` now reads the same file the same way as `parseDelimited()`. Three
+  divergences are closed, all of them in the 1.4.0 chunked reader:
+  - A leading blank line was taken as the header, so the real header became data and the
+    chunk carried the wrong column names with zero rows. Blank records are now dropped
+    before `skipRows` is applied, matching the whole-file parser.
+  - `header: false` was ignored: the first data record was consumed as column names, and
+    passing `columns` threw. Headerless input now keeps every record as data and names
+    columns `column_1`… or the `columns` you pass, with the same width check as
+    `parseDelimited()`.
+  - `ChunkProgress.lastRecord` was documented as a zero-based index but held a count, so
+    the first chunk reported `1`. It now reports `0`. `reduceChunks()` also recomputed the
+    progress it passed to `step` instead of forwarding the one the generator emitted, so the
+    two could disagree; it forwards now.
+- The published tarball includes `docs/`. `README.md` and `CHANGELOG.md` link to four files
+  under `docs/` by relative path, and none of them shipped, so every one of those links
+  404'd on the registry. `test:package` now asserts each linked document is in the tarball.
+
 ## [2.0.0] - 2026-11-27
 
 A consolidation release. One behaviour change and two deprecations, all of them about names
