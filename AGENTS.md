@@ -244,16 +244,19 @@ ragged columns), documented, not changed. Check `n` when inputs come from differ
 
 ## Release state
 
-`main` is level with `origin/main` at `7a6b9a6`. `v1.2.0`, `v1.3.0`, `v1.4.0`, `v2.0.0` and
-`v2.0.1` are tagged, released on GitHub, and published to npm **and** GitHub Packages;
-registry `latest` is `2.0.1`.
+`main` is level with `origin/main` at the `v2.0.2` commit. `v1.2.0`, `v1.3.0`, `v1.4.0`,
+`v2.0.0`, `v2.0.1` and `v2.0.2` are tagged, released on GitHub, and published to npm **and**
+GitHub Packages; registry `latest` is `2.0.2`.
 
 Publishing 2.0.1 locally made the tag-triggered Publish workflow fail at its npm step with
-`You cannot publish over the previously published versions: 2.0.1`. That is the registry's
-duplicate check, not a defect: the workflow's own `npm run verify` and tag checks had already
-passed, and its GitHub Packages step is skipped when npm fails, which is why that registry
-was published to by hand. **Do not tag and publish locally in the same session** — either let
-the workflow publish, or publish locally and do not expect the workflow to succeed.
+`You cannot publish over the previously published versions: 2.0.1`. That was the registry's
+duplicate check, not a defect, but the workflow treated it as a failure and so skipped its
+GitHub Packages step, which is why that registry had to be published to by hand.
+
+Since 2.0.2 the npm step accepts that duplicate check on a tag push, so a local publish
+followed by a tag no longer marks the run red or strands GitHub Packages. It only accepts it
+when the message names the exact `package.json` version, so a mismatch still fails. Publishing
+locally and letting the tag run is now safe, though publishing only via CI is still simpler.
 
 GitHub Packages publishes with the same tarball and needs a user PAT in a temp userconfig:
 `@munachi-me:registry=https://npm.pkg.github.com/` plus

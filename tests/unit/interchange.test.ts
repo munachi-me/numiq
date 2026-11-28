@@ -211,6 +211,58 @@ describe("chunkDelimited", () => {
     expect(chunks[1]?.data[0]?.note).toBe("plain");
   });
 
+  it("reports the source row number, not the position within the chunk", () => {
+    // Each chunk is re-parsed on its own, so without an offset the third chunk would report
+    // "Row 1" for a row that is the fifth data record of the file.
+    const ragged = ["a,b", "1,2", "3,4", "5,6", "7,8,9"].join("\n");
+    expect(() => {
+      for (const chunk of chunkDelimited(ragged, "csv", { chunkSize: 2 })) void chunk;
+    }).toThrow("Row 4 has 3 cells but 2 columns are expected.");
+  });
+
+  it("reports the source row number for a bad cast in a later chunk", () => {
+    const csv = ["a,b", "1,2", "3,4", "5,6", "x,8"].join("\n");
+    expect(() => {
+      for (const chunk of chunkDelimited(csv, "csv", { chunkSize: 2, schema: { a: { type: "integer" } } })) {
+        void chunk;
+      }
+    }).toThrow('Row 4, column "a": "x" is not a valid integer.');
+  });
+
+  it("numbers rows identically to a whole-file parse", () => {
+    const csv = ["a,b", "1,2", "3,4", "5,6", "7,8,9"].join("\n");
+    const messageOf = (run: () => unknown): string => {
+      try {
+        run();
+        return "no error";
+      } catch (error) {
+        return (error as Error).message;
+      }
+    };
+    const whole = messageOf(() => parseDelimited(csv, { format: "csv" }));
+    const chunked = messageOf(() => {
+      for (const chunk of chunkDelimited(csv, "csv", { chunkSize: 2 })) void chunk;
+    });
+    expect(chunked).toBe(whole);
+  });
+
+  it("numbers rows past a skipped preamble the same way as a whole-file parse", () => {
+    const csv = ["# note", "a,b", "1,2", "3,4", "5,6", "7,8,9"].join("\n");
+    const collect = (run: () => unknown): string => {
+      try {
+        run();
+        return "no error";
+      } catch (error) {
+        return (error as Error).message;
+      }
+    };
+    const whole = collect(() => parseDelimited(csv, { format: "csv", skipRows: 1 }));
+    const chunked = collect(() => {
+      for (const chunk of chunkDelimited(csv, "csv", { chunkSize: 2, skipRows: 1 })) void chunk;
+    });
+    expect(chunked).toBe(whole);
+  });
+
   it("reports progress after each chunk", () => {
     const seen: number[] = [];
     const iterator = chunkDelimited(csv, "csv", {

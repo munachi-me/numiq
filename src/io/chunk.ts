@@ -143,8 +143,9 @@ export function* chunkDelimited(
   }
 
   // Each chunk is rebuilt as header-then-rows so `parseDelimited` applies the same
-  // normalization, casting, and type inference as a whole-file load.
-  const build = (records: readonly (readonly string[])[]): Dataset => {
+  // normalization, casting, and type inference as a whole-file load. `rowOffset` keeps
+  // error row numbers referring to the source file rather than restarting per chunk.
+  const build = (records: readonly (readonly string[])[], rowOffset: number): Dataset => {
     const chunkText = [header, ...records].map((record) => requoteRecord(record, delimiter)).join("\n");
     return parseDelimited(chunkText, {
       ...parseOptions,
@@ -155,6 +156,7 @@ export function* chunkDelimited(
       delimiter,
       header: true,
       skipRows: 0,
+      rowOffset,
     });
   };
 
@@ -168,7 +170,7 @@ export function* chunkDelimited(
     pending.push(record);
     lastRecord += 1;
     if (pending.length < chunkSize) continue;
-    const dataset = build(pending);
+    const dataset = build(pending, lastRecord - pending.length + 1);
     pending = [];
     delivered += dataset.rowCount;
     const stop = onProgress?.({ chunk: chunkIndex, rows: dataset.rowCount, delivered, lastRecord }) === false;
@@ -178,7 +180,7 @@ export function* chunkDelimited(
   }
 
   if (pending.length > 0) {
-    const dataset = build(pending);
+    const dataset = build(pending, lastRecord - pending.length + 1);
     delivered += dataset.rowCount;
     onProgress?.({ chunk: chunkIndex, rows: dataset.rowCount, delivered, lastRecord });
     yield dataset;

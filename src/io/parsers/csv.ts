@@ -8,10 +8,19 @@ import { ReportBuilder } from "../normalization/report.js";
 import { CastFailure, normalizeAndCast, resolveCast, type ColumnCast } from "../normalization/schema.js";
 import { detectDelimiter, tokenize } from "./csv-tokenizer.js";
 
+/**
+ * Internal-only option: the number of data records already consumed before this text.
+ *
+ * `chunkDelimited()` re-parses each chunk on its own, so without this every chunk would
+ * report row numbers starting at 1 and a malformed row deep in a file would be reported as
+ * being near the top of it. Not part of the public option types.
+ */
+type RowOffset = { rowOffset?: number };
+
 /** Parse delimited text into a dataset. Synchronous: no I/O happens here. */
 export function parseDelimited(
   text: string,
-  options: CsvOptions & LoadOptions & { format: DelimitedFormat; source?: string; contentType?: string },
+  options: CsvOptions & LoadOptions & { format: DelimitedFormat; source?: string; contentType?: string } & RowOffset,
 ): Dataset {
   if (typeof text !== "string") throw new ValidationError("Delimited input must be a string.");
   // `format` is required by the type, but untyped callers can omit it. Without this check
@@ -62,8 +71,9 @@ export function parseDelimited(
   }
 
   const rows: Row[] = [];
+  const rowOffset = options.rowOffset ?? 0;
   for (const [recordIndex, record] of dataRecords.entries()) {
-    const lineNumber = recordIndex + 1;
+    const lineNumber = rowOffset + recordIndex + 1;
     const values = [...record];
 
     if (values.length !== columns.length) {

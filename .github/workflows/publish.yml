@@ -86,11 +86,20 @@ jobs:
           set -e
           printf '%s\n' "$output"
           [ "$status" -eq 0 ] && exit 0
-          # Rehearsing an already-published version stops at the registry's
-          # duplicate check. Reaching it proves prepublishOnly ran and the
-          # tarball packed, which is what a rehearsal is for.
-          if [ -n "${DRY_RUN}" ] && printf '%s' "$output" | grep -q "previously published"; then
-            echo "::notice::Already published. Packing and prepublish verified; a dry run stops before the OIDC exchange."
+          # Reaching the duplicate check proves prepublishOnly ran and the tarball packed.
+          # On a dry run that is the whole point of a rehearsal. On a real tag push it means
+          # the version is already on the registry, which is not a failure: it happens when a
+          # maintainer published locally and then pushed the tag. Failing here would also
+          # skip the GitHub Packages step, leaving that registry behind.
+          # Only this version counts, so a mismatch still fails loudly.
+          version="$(node -p "require('./package.json').version")"
+          if printf '%s' "$output" | grep -q "previously published" &&
+            printf '%s' "$output" | grep -q "previously published versions: ${version}[^0-9]"; then
+            if [ -n "${DRY_RUN}" ]; then
+              echo "::notice::Already published. Packing and prepublish verified; a dry run stops before the OIDC exchange."
+            else
+              echo "::notice::${version} is already on npm. Continuing so GitHub Packages gets it too."
+            fi
             exit 0
           fi
           exit "$status"

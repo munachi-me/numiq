@@ -4,6 +4,31 @@ All notable changes to Numiq are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-11-27
+
+### Fixed
+
+- **Chunked reads reported error row numbers relative to the chunk.** `chunkDelimited()`
+  has always rebuilt each chunk as header-then-rows and re-parsed it, which is what keeps
+  casting and type inference identical to a whole-file load. The cost was that
+  `parseDelimited()` numbered rows from 1 inside every chunk, so a malformed row that is the
+  fourth data record of the file was reported as `Row 1` whenever it fell in the third chunk.
+  The same offset applied to cast errors and to `importReport` warnings, whose `row` field is
+  part of the export. Row numbers are now counted across the whole file, and a chunked read
+  and a whole-file read produce identical messages for the same input. `skipRows` still
+  applies before counting, as it does in a whole-file parse.
+
+### Changed
+
+- **The publish workflow no longer fails when the tagged version is already on npm.** It used
+  to treat the registry's duplicate-version rejection as a failure on a tag push, which
+  happens whenever a maintainer publishes locally and then pushes the tag. That marked a
+  successful release red and, worse, skipped the GitHub Packages step that runs after it, so
+  one registry was left behind. The duplicate check is now accepted on a tag push as well as
+  in a dry run, but only when the message names the exact version in `package.json`; a
+  mismatch or any other publish error still fails. The step also falls through to GitHub
+  Packages instead of stopping.
+
 ## [2.0.1] - 2026-11-27
 
 A corrective release. Three defects in the 2.0.0 boundary code, each one a promise the

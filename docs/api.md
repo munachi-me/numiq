@@ -2153,7 +2153,9 @@ non-integer `chunkSize` or a format other than `"csv"`/`"tsv"`.
 Chunking never changes what a file means. Blank lines are skipped and `skipRows` counts
 records exactly as `parseDelimited()` does, and `header: false` keeps the first record as
 data, naming columns `column_1`… or the `columns` you pass. The result is that concatenating
-the chunks gives the same rows, columns and types as loading the whole text at once.
+the chunks gives the same rows, columns and types as loading the whole text at once. Error
+and warning row numbers are also counted across the whole file, not from 1 within each
+chunk, so a message quoting `Row 4` points at the fourth data record either way.
 
 Records are tokenized incrementally: each chunk is read from the source as it is needed and
 only the current chunk is held, so peak memory tracks `chunkSize` rather than the file size.
